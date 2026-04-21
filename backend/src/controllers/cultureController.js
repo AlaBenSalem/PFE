@@ -1,0 +1,138 @@
+// controllers/cultureController.js
+const Culture = require('../models/Culture');
+const { getKcForCultureAndMonth } = require('./kcController');
+
+// ─── GET toutes les cultures ──────────────────────────────────────────────────
+exports.getAllCultures = async (req, res) => {
+  try {
+    const isAdmin = req.userRole === 'admin';
+    let filter = {};
+
+    if (!isAdmin) {
+      if (req.userId) {
+        filter = { $or: [{ userId: req.userId }, { userId: null }] };
+      } else {
+        filter = { userId: null };
+      }
+    }
+
+    const cultures = await Culture.find(filter).sort({ createdAt: -1 });
+    const currentMonth = new Date().getMonth() + 1;
+
+    const updated = await Promise.all(
+      cultures.map(async (culture) => {
+        const { kc, stade } = await getKcForCultureAndMonth(culture.nom, currentMonth);
+        if (Math.abs((culture.kcActuel || 0) - kc) > 0.001 || !culture.kcActuel) {
+          culture.kcActuel = kc;
+          culture.stadeActuel = stade;
+          await culture.save();
+        }
+        return culture;
+      })
+    );
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    console.error('❌ Erreur GET /cultures:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─── GET culture par ID ───────────────────────────────────────────────────────
+exports.getCultureById = async (req, res) => {
+  try {
+    const culture = await Culture.findById(req.params.id);
+    if (!culture) {
+      return res.status(404).json({ success: false, error: 'Culture non trouvée' });
+    }
+    const currentMonth = new Date().getMonth() + 1;
+    const { kc, stade } = await getKcForCultureAndMonth(culture.nom, currentMonth);
+    culture.kcActuel = kc;
+    culture.stadeActuel = stade;
+    await culture.save();
+    res.json({ success: true, data: culture });
+  } catch (error) {
+    console.error('❌ Erreur GET /cultures/:id:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─── POST nouvelle culture ────────────────────────────────────────────────────
+exports.createCulture = async (req, res) => {
+  try {
+    console.log('📦 Données reçues:', req.body);
+
+    const {
+      parcelle, nom, variete, datePlantation,
+      surface, nombreArbres,
+      typeSol = 'limoneux',
+      region,                   // ✅ NOUVEAU
+      profondeurRacinaire,
+    } = req.body;
+
+    const currentMonth = new Date().getMonth() + 1;
+    const { kc, stade, source, found } = await getKcForCultureAndMonth(nom, currentMonth);
+
+    console.log(`🌿 Kc pour "${nom}" (mois ${currentMonth}): ${kc} — stade: ${stade}`);
+
+    let densite;
+    const parsedNombreArbres = nombreArbres ? parseInt(nombreArbres) : null;
+    const parsedSurface = surface ? parseFloat(surface) : null;
+    if (parsedNombreArbres && parsedSurface) {
+      densite = Math.round((parsedNombreArbres / parsedSurface) * 10000);
+    }
+
+    const culture = new Culture({
+      userId:             req.userId || null,
+      parcelle:           parcelle || null,
+      region:             region?.trim() || null,  // ✅ NOUVEAU
+      nom,
+      variete,
+      datePlantation:     datePlantation ? new Date(datePlantation) : null,
+      surface:            parsedSurface,
+      nombreArbres:       parsedNombreArbres,
+      densite,
+      kcActuel:           kc,
+      stadeActuel:        stade,
+      typeSol,
+      profondeurRacinaire: profondeurRacinaire ? parseFloat(profondeurRacinaire) : null,
+    });
+
+    await culture.save();
+    console.log('✅ Culture créée ID:', culture._id, '| Kc:', kc, '| Région:', region || 'non définie');
+
+    res.status(201).json({
+      success: true,
+      data: culture,
+      kcInfo: { kc, stade, source, found },
+    });
+  } catch (error) {
+    console.error('❌ Erreur POST /cultures:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─── DELETE culture ───────────────────────────────────────────────────────────
+exports.deleteCulture = async (req, res) => {
+  try {
+    console.log('🗑️ Suppression ID:', req.params.id);
+    if (!req.params.id || req.params.id.length < 10) {
+      return res.status(400).json({ success: false, error: 'ID invalide' });
+    }
+    const isAdmin = req.userRole === 'admin';
+    let culture;
+    if (isAdmin) {
+      culture = await Culture.findByIdAndDelete(req.params.id);
+    } else {
+      culture = await Culture.findOneAndDelete({ _id: req.params.id, userId: req.userId });
+    }
+    if (!culture) {
+      return res.status(404).json({ success: false, error: 'Culture non trouvée ou non autorisée' });
+    }
+    console.log('✅ Culture supprimée:', culture.nom);
+    res.json({ success: true, message: 'Culture supprimée', data: culture });
+  } catch (error) {
+    console.error('❌ Erreur DELETE:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};

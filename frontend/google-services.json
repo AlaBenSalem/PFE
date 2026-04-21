@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "300381278861",
+    "project_id": "smartirrig-28683",
+    "storage_bucket": "smartirrig-28683.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:300381278861:android:8eb408894aaae92f22c8c4",
+        "android_client_info": {
+          "package_name": "com.smartirrig.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "300381278861-jjkrf9emts00n0pc6agk9qk9vl631dh9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLxyF6RWXn4Xe4dttmFWnbJ4--dVi9uz0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "300381278861-jjkrf9emts00n0pc6agk9qk9vl631dh9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

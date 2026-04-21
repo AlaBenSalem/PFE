@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "SmartIrrig",
+    "slug": "smartirrig-frontend",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.smartirrig.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "android": {
+      "package": "com.smartirrig.app",
+      "versionCode": 3,
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#22c55e"
+      },
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "scheme": "smartirrig",
+    "extra": {
+      "eas": {
+        "projectId": "1cab0d89-5c04-4ef6-b035-d02b99f7bb85"
+      }
+    },
+    "owner": "mohamed9543",
+    "plugins": [
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "googleServicesFile": "./google-services.json",
+          "iosUrlScheme": "com.googleusercontent.apps.861346189775-jt0kp72jduhpgkjnnupjboosdchu11td"
+        }
+      ],
+      "expo-speech-recognition"
+    ]
+  }
+}
