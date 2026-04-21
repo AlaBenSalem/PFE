@@ -708,12 +708,20 @@ function AIChatSheet({ onClose }) {
       });
       const data = await res.json();
 
-      if (res.status === 503 || data?.error === "service_overloaded") {
+      if (res.status === 503 || res.status === 429 || data?.error === "service_overloaded" || data?.error === "rate_limit") {
         setMessages((prev) => [...prev, { id: "err-" + Date.now(), role: "assistant", text: getErrorText("overload") }]);
         return;
       }
 
-      if (!res.ok || !data?.success) throw new Error(data?.error || "Erreur IA");
+      if (!res.ok || !data?.success) {
+        // Afficher le vrai message d'erreur du serveur (ex: GROQ_API_KEY manquante)
+        const serverMsg = data?.error || data?.message;
+        const displayMsg = serverMsg
+          ? `⚠️ ${serverMsg}`
+          : t({ fr: "⚠️ Erreur serveur. Réessayez.", en: "⚠️ Server error. Retry.", ar: "⚠️ خطأ في الخادم. أعد المحاولة.", tr: "⚠️ Sunucu hatası. Tekrar dene." });
+        setMessages((prev) => [...prev, { id: "err-" + Date.now(), role: "assistant", text: displayMsg }]);
+        return;
+      }
 
       const aiText = data.answer;
       setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", text: aiText }]);
@@ -724,6 +732,7 @@ function AIChatSheet({ onClose }) {
       await speakText(aiText, detected);
 
     } catch (err) {
+      // Vraie erreur réseau (timeout, pas de connexion)
       console.error("❌ [sendMessage]", err.message);
       setMessages((prev) => [...prev, { id: "err-" + Date.now(), role: "assistant", text: getErrorText("connection") }]);
     } finally {
