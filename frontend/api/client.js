@@ -94,6 +94,11 @@ export const API_ENDPOINTS = {
     calculateNeeds: (id) => `${API_BASE_URL}/irrigations/calculate-needs/${id}`,
     etcHistory:     (id, days = 30) => `${API_BASE_URL}/irrigations/etc-history/${id}?days=${days}`,
   },
+  fertilisations: {
+    base:       `${API_BASE_URL}/fertilisations`,
+    byId:       (id) => `${API_BASE_URL}/fertilisations/${id}`,
+    prochaines: `${API_BASE_URL}/fertilisations/prochaines`,
+  },
   admin: {
     stats:       `${API_BASE_URL}/admin/stats`,
     users:       `${API_BASE_URL}/admin/users`,
@@ -113,6 +118,7 @@ export const API_ENDPOINTS = {
   ai: {
     chat:   `${API_BASE_URL}/ai/chat`,
     status: `${API_BASE_URL}/ai/status`,
+    tts:    `${API_BASE_URL}/ai/tts`,
   },
 };
 

@@ -176,7 +176,7 @@ export default function LoginScreen() {
               ))}
             </View>
             {activeTab === "login" ? (
-              <LoginForm t={t} isRTL={isRTL} onOpenSignup={() => setActiveTab("signup")} />
+              <LoginForm t={t} isRTL={isRTL} />
             ) : (
               <SignupForm t={t} isRTL={isRTL} />
             )}
@@ -190,7 +190,7 @@ export default function LoginScreen() {
 // ─────────────────────────────────────────────────────────────────────────────
 // LOGIN FORM
 // ─────────────────────────────────────────────────────────────────────────────
-function LoginForm({ t, isRTL, onOpenSignup }) {
+function LoginForm({ t, isRTL }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -334,7 +334,7 @@ function LoginForm({ t, isRTL, onOpenSignup }) {
       />
       <TouchableOpacity
         className="mb-4 items-end"
-        onPress={onOpenSignup}
+        onPress={() => router.push(AUTH_ROUTES.forgotPassword)}
         activeOpacity={0.7}
       >
         <Text className="text-[13px] text-green-600">

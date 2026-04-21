@@ -90,11 +90,18 @@ export default function CalendarScreen() {
         setLoading(true);
         const map = {};
 
+        const owLang = { fr: "fr", en: "en", ar: "ar", tr: "tr" }[language] || "fr";
         const { current, currentResponse, forecast, backendET0 } =
-          await getOpenWeatherBundle(cityName, "fr");
+          await getOpenWeatherBundle(cityName, owLang);
 
         if (!currentResponse?.ok || !current) {
-          Alert.alert(t("common.error"), "Ville non trouvée. Vérifiez le nom.");
+          const isServerError = !currentResponse || currentResponse.status >= 500 || currentResponse.status === 0;
+          Alert.alert(
+            t("common.error"),
+            isServerError
+              ? "Serveur inaccessible. Vérifiez votre connexion ou réessayez dans quelques instants."
+              : "Ville non trouvée. Vérifiez le nom."
+          );
           setLoading(false);
           return;
         }
@@ -355,13 +362,13 @@ export default function CalendarScreen() {
               <View style={s.gridCell}>
                 <MaterialCommunityIcons name="thermometer" size={28} color="#ff5252" />
                 <Text style={s.gridVal}>{dayWeather.temp_min}°/{dayWeather.temp_max}°C</Text>
-                <Text style={s.gridLabel}>Min / Max</Text>
-                <Text style={s.gridSub}>Actuel: {dayWeather.temp_current}°C</Text>
+                <Text style={s.gridLabel}>{t("calendar.minmax")}</Text>
+                <Text style={s.gridSub}>{t("calendar.current")}: {dayWeather.temp_current}°C</Text>
               </View>
               <View style={s.gridCell}>
                 <Ionicons name="water" size={28} color="#03a9f4" />
                 <Text style={s.gridVal}>{dayWeather.humidity}%</Text>
-                <Text style={s.gridLabel}>Humidité</Text>
+                <Text style={s.gridLabel}>{t("calendar.humidity")}</Text>
                 <Text style={s.gridSub}>{dayWeather.humidity_min}-{dayWeather.humidity_max}%</Text>
               </View>
             </View>
@@ -370,17 +377,17 @@ export default function CalendarScreen() {
               <View style={s.gridCell}>
                 <FontAwesome5 name="wind" size={24} color="#555" />
                 <Text style={s.gridVal}>{dayWeather.wind} m/s</Text>
-                <Text style={s.gridLabel}>Vent</Text>
-                <Text style={s.gridSub}>Rafales: {dayWeather.wind_gust} m/s</Text>
+                <Text style={s.gridLabel}>{t("calendar.wind")}</Text>
+                <Text style={s.gridSub}>{t("calendar.gusts")}: {dayWeather.wind_gust} m/s</Text>
               </View>
               <View style={s.gridCell}>
                 <Ionicons name="rainy" size={28} color="#2196f3" />
                 <Text style={[s.gridVal, parseFloat(dayWeather.rain) > 0 && { color: "#2196f3" }]}>
                   {dayWeather.rain} mm
                 </Text>
-                <Text style={s.gridLabel}>Pluie</Text>
+                <Text style={s.gridLabel}>{t("calendar.rain")}</Text>
                 <Text style={s.gridSub}>
-                  {parseFloat(dayWeather.rain) > 0 ? "⛈ Précipitations" : "Cumul 24h"}
+                  {parseFloat(dayWeather.rain) > 0 ? `⛈ ${t("home.precipitation")}` : t("home.precipitation")}
                 </Text>
               </View>
             </View>

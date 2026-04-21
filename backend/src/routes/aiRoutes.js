@@ -1,6 +1,7 @@
 // backend/src/routes/aiRoutes.js
-// ✅ Migration → Groq API (GRATUIT, 24h/24, ultra-rapide)
+// ✅ Migration → Groq API (GRATUIT, 14 400 req/jour, ultra-rapide ~500ms)
 // Clé gratuite sur console.groq.com — pas de carte bancaire requise
+// Modèle: llama-3.3-70b-versatile (le plus puissant en gratuit)
 
 const express = require('express');
 const router  = express.Router();
@@ -11,9 +12,10 @@ const Irrigation    = require('../models/Irrigation');
 const Fertilisation = require('../models/Fertilisation');
 const weatherService = require('../services/weatherService');
 
-const JWT_SECRET   = process.env.JWT_SECRET   || 'default-secret-change-in-production';
-const GROQ_API_KEY = process.env.GROQ_API_KEY; // ← Ajoute dans ton .env
-const GROQ_MODEL   = 'llama-3.3-70b-versatile'; // Gratuit, multilingue, très bon
+const JWT_SECRET   = process.env.JWT_SECRET  || 'default-secret-change-in-production';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';   // ← mets ta clé dans .env: GROQ_API_KEY=gsk_...
+const GROQ_MODEL   = 'llama-3.3-70b-versatile';        // gratuit, 32k context, rapide
+const GROQ_BASE    = 'https://api.groq.com/openai/v1';
 
 // ── Auth middleware ────────────────────────────────────────────────────────────
 function requireUser(req, res, next) {
@@ -32,15 +34,23 @@ function requireUser(req, res, next) {
 
 // ── Détection langue ───────────────────────────────────────────────────────────
 function detectMessageLanguage(text = '') {
-  const tunisianWords = /\b(chneya|kifesh|barsha|bhi|mrigel|ya3tik|3andek|lazem|bech|taw|famma|hnaya|sahit|yezzi|mouch|wala|kifek|labas|nheb|ma3lich|haka|9addesh|9oulha|ween|mta3|elli|yelzem|tnajem|talbek|ena|inti|brabi|chkoun|chbik|nrou7|nlawej|shniya|fih|3lih|manha|ghadi|rahi|yaani|chahed|mar7ba|ahlen|yser|w9t|b3d|kbir|sghir|zwina|behi|mrigla|nfhem|tfhem|nkhou|baba|mama|khti|khoya)\b/gi;
-  const arabicChars   = (text.match(/[\u0600-\u06FF]/g) || []).length;
-  const tunisianScore = (text.match(tunisianWords) || []).length;
-  const hasLatinNums  = /\b\w*[379]\w*\b/.test(text);
+  const arabicChars = (text.match(/[\u0600-\u06FF]/g) || []).length;
 
-  if (tunisianScore >= 1 || (arabicChars > 0 && hasLatinNums)) {
-    return 'TUNISIAN_ARABIC — Respond ONLY in Tunisian Arabic dialect (دارجة تونسية). Use casual Tunisian words.';
+  // 3=ع  7=ح  9=ق used as letters in Latin-script Tunisian darija
+  const hasNumLetters = /\b\w*[379]\w*\b/.test(text);
+
+  const tunisianWords = /\b(chneya|kifesh|barsha|bhi|mrigel|ya3tik|3andek|3andi|3andha|3andhu|lazem|bech|bch|taw|famma|hnaya|sahit|yezzi|mouch|wala|kifek|labas|nheb|ma3lich|haka|9addesh|9adh|9oulha|9abel|ween|mta3|elli|yelzem|tnajem|talbek|ena|inti|brabi|chkoun|chbik|nrou7|nlawej|shniya|fih|3lih|manha|ghadi|rahi|yaani|chahed|mar7ba|ahlen|yser|w9t|b3d|kbir|sghir|zwina|behi|mrigla|nfhem|tfhem|nkhou|baba|mama|khti|khoya|7abs|7aja|7ajet|ki|wach|mich|nit|jit|besh|ma3ndich|t3abt|fehmt|mn|weld|bnet|rjel|mra)\b/gi;
+  const tunisianScore = (text.match(tunisianWords) || []).length;
+
+  if (arabicChars > 3 && !hasNumLetters && tunisianScore === 0) {
+    return 'MODERN_ARABIC — Respond ONLY in Modern Standard Arabic (فصحى) using Arabic script (عربي). Never use Latin transliteration.';
   }
-  if (arabicChars > 5) return 'MODERN_ARABIC — Respond in Modern Standard Arabic (فصحى).';
+  if (tunisianScore >= 1 || hasNumLetters) {
+    return 'TUNISIAN_ARABIC — Respond ONLY in Tunisian Arabic dialect (دارجة تونسية). Write using ARABIC LETTERS (عربي) — never Latin transliteration like "3andek". Example: write "عندك" not "3andek".';
+  }
+  if (arabicChars > 0) {
+    return 'MODERN_ARABIC — Respond in Modern Standard Arabic (فصحى) using Arabic script.';
+  }
   if (/[şğüöçıİŞĞÜÖÇ]/i.test(text) ||
     /\b(merhaba|teşekkür|nasıl|tamam|evet|hayır|ne|bu|bir|var|yok|benim|senin|kültür|sulama|gübre|bitki|hava|tarih|sonraki|toplam|kaç|isim|isimler|listesi|kadar|değil)\b/i.test(text)
   ) return 'TURKISH — Respond in Turkish.';
@@ -52,7 +62,7 @@ function detectMessageLanguage(text = '') {
     /\b(the|is|are|and|for|with|your|you|this|have|will|hello|hi|how|what|when|why|yes|no|ok|please|thanks|help|need|want|my|can|crop|plant|water|weather|irrigation|farm|soil|harvest|next|date)\b/i.test(text)
   ) return 'ENGLISH — Respond in English.';
 
-  return 'TUNISIAN_ARABIC — Default. Respond in Tunisian Arabic (دارجة).';
+  return 'TUNISIAN_ARABIC — Default. Respond in Tunisian Arabic dialect (دارجة) using Arabic script.';
 }
 
 // ── Live weather (cache 30 min) ───────────────────────────────────────────────
@@ -137,6 +147,12 @@ function getNextFAOFertDate(nom) {
   return dates.find(d => d.date >= now) || dates[dates.length - 1];
 }
 
+// ── Normalise Arabic-Indic numerals → Western digits ─────────────────────────
+function normalizeNumerals(text) {
+  const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+  return text.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => map[d] || d);
+}
+
 function formatDate(date) {
   if (!date) return null;
   return new Date(date).toLocaleDateString('fr-FR', {
@@ -199,9 +215,17 @@ async function buildUserContext(userId, userCity = 'Tunis') {
     const irrigationNeeds = cultures.length > 0 && weather?.et0
       ? cultures.map(c => {
           if (!c.kcActuel || !weather.et0) return null;
-          const etc    = (weather.et0 * c.kcActuel).toFixed(2);
-          const volume = c.surface > 0 ? ((parseFloat(etc) * c.surface) / 1000).toFixed(2) : null;
-          return `• ${c.nom}: ETc=${etc} mm/j${volume ? ` → Volume recommandé: ${volume} m³/j` : ''}`;
+          const etc = (weather.et0 * c.kcActuel).toFixed(2);
+          const cid = c._id.toString();
+          const lastIrr = lastIrrigByCulture[cid];
+          const mode = lastIrr?.mode || 'goutte-à-goutte';
+          const effMap = [['goutte', 0.9], ['aspersion', 0.7], ['gravitaire', 0.6]];
+          const eff = effMap.find(([k]) => mode.toLowerCase().includes(k))?.[1] ?? 0.9;
+          const effPct = Math.round(eff * 100);
+          const volumeM3 = c.surface > 0 ? ((parseFloat(etc) * c.surface) / 1000 / eff).toFixed(2) : null;
+          const volumePerHa = (parseFloat(etc) * 10 / eff).toFixed(1);
+          const soilPart = c.typeSol ? ` | Sol: ${c.typeSol}` : '';
+          return `• ${c.nom} (${c.variete}): ET₀=${weather.et0} mm/j × Kc=${c.kcActuel} = ETc=${etc} mm/j${volumeM3 ? ` → Volume: ${volumeM3} m³/j (${c.surface} m²)` : ''} | ${volumePerHa} m³/ha/j | Mode: ${mode} η=${effPct}%${soilPart}`;
         }).filter(Boolean).join('\n')
       : 'Calcul ETc non disponible (météo manquante).';
 
@@ -299,11 +323,12 @@ You have access to real user data in [CONTEXTE UTILISATEUR]:
 - Calculated water needs (ETc = ET₀ × Kc)
 - Live weather (temperature, humidity, wind, ET₀)
 
-## RULES
-- Use ONLY data from [CONTEXTE UTILISATEUR] — never invent numbers.
-- If data is missing, say so in one sentence.
-- For water calculations: use the ETc values already computed in the context.
-- For next irrigation/fertilisation date: answer directly "La prochaine irrigation est le [date]" using context data only.
+## RULES — DATA ACCURACY ⚠️
+- Use ONLY numbers from [CONTEXTE UTILISATEUR] — NEVER invent or estimate values.
+- ETc, volume m³/j, volume m³/ha are already computed in the context — copy them exactly.
+- If asked "combien de m³/ha": read the "X m³/ha/j" value from context and state it.
+- If asked "kc": read "Kc=X" from context and state it.
+- If data is missing say so in one short sentence.
 - Always answer in the user's language.
 
 ## ARABIC TEXT-TO-SPEECH — CRITICAL
@@ -328,52 +353,60 @@ Navigation map (use only when relevant):
 // ── POST /api/ai/chat ─────────────────────────────────────────────────────────
 router.post('/chat', requireUser, async (req, res) => {
   try {
-    const { message, conversation_id, conversationHistory, city } = req.body;
+    const { message, history = [], city } = req.body;
 
     if (!message?.trim()) {
       return res.status(400).json({ success: false, error: 'Message requis.' });
     }
+
     if (!GROQ_API_KEY) {
-      return res.status(500).json({
-        success: false,
-        error: 'GROQ_API_KEY non configuré. Créez une clé gratuite sur console.groq.com et ajoutez-la dans votre .env',
-      });
+      return res.status(500).json({ success: false, error: 'GROQ_API_KEY manquante dans .env' });
     }
 
     const context  = await buildUserContext(req.userId, city || 'Tunis');
     const langHint = detectMessageLanguage(message.trim());
 
-    // Contexte injecté au 1er message, langue injectée à CHAQUE message
-    const history = Array.isArray(conversationHistory) ? conversationHistory : [];
-    const userContent = history.length === 0
-      ? `[CONTEXTE UTILISATEUR]
+    // ── Build messages array for Groq (OpenAI-compatible) ─────────────────────
+    const groqMessages = [{ role: 'system', content: SYSTEM_PROMPT }];
+
+    // Inject user context as first user message (hidden from UI)
+    const contextBlock = `[CONTEXTE UTILISATEUR]
 Cultures (${context.cropCount}): ${context.cropsSummary}
 Irrigation récente: ${context.irrigationSummary}
 Besoins ETc: ${context.irrigationNeeds}
 Prochaines irrigations: ${context.nextIrrigLines}
 Prochaines fertilisations: ${context.nextFertLines}
-Météo à ${context.city}: ${context.weatherSummary}
+Météo à ${context.city}: ${context.weatherSummary}`;
 
-[LANGUE DÉTECTÉE — OBLIGATOIRE]
-${langHint}
+    groqMessages.push({ role: 'user',      content: contextBlock });
+    groqMessages.push({ role: 'assistant', content: 'Contexte compris. Je suis prêt à répondre.' });
 
-[MESSAGE]
-${message.trim()}`
-      : `[LANGUE DÉTECTÉE — OBLIGATOIRE]\n${langHint}\n\n[MESSAGE]\n${message.trim()}`;
+    // Inject recent conversation history (last 3 exchanges = 6 messages)
+    if (Array.isArray(history) && history.length > 0) {
+      for (const m of history.slice(-6)) {
+        groqMessages.push({
+          role:    m.role === 'user' ? 'user' : 'assistant',
+          content: m.content,
+        });
+      }
+    }
 
-    const messages = [
-      ...history,
-      { role: 'user', content: userContent },
-    ];
+    // Final user message with language hint
+    groqMessages.push({
+      role: 'user',
+      content: `[LANGUE DÉTECTÉE — OBLIGATOIRE]\n${langHint}\n\n[MESSAGE]\n${message.trim()}`,
+    });
 
-    // ── Appel Groq API (compatible OpenAI) ────────────────────────────────
+    // ── Appel Groq API ────────────────────────────────────────────────────────
     const groqResponse = await axios.post(
-      'https://api.groq.com/openai/v1/chat/completions',
+      `${GROQ_BASE}/chat/completions`,
       {
         model:       GROQ_MODEL,
-        messages:    [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
-        max_tokens:  1024,
-        temperature: 0.6,
+        messages:    groqMessages,
+        max_tokens:  512,
+        temperature: 0.55,
+        top_p:       0.9,
+        stream:      false,
       },
       {
         headers: {
@@ -384,36 +417,31 @@ ${message.trim()}`
       }
     );
 
-    const answer = groqResponse.data.choices?.[0]?.message?.content || '';
-
-    const updatedHistory = [
-      ...messages,
-      { role: 'assistant', content: answer },
-    ];
+    const answer = normalizeNumerals(groqResponse.data.choices?.[0]?.message?.content?.trim() || '');
 
     return res.json({
-      success:             true,
+      success: true,
       answer,
-      conversation_id:     conversation_id || groqResponse.data.id,
-      conversationHistory: updatedHistory,
-      context: {
-        cropCount: context.cropCount,
-        city:      context.city,
-      },
+      context: { cropCount: context.cropCount, city: context.city },
     });
 
   } catch (error) {
-    console.error('❌ AI Chat error:', error.response?.data || error.message);
+    console.error('❌ Groq AI error:', error.response?.data || error.message);
 
-    if (error.response?.status === 401) {
-      return res.status(500).json({ success: false, error: 'Clé GROQ_API_KEY invalide.' });
+    const status = error.response?.status;
+
+    if (status === 401) {
+      return res.status(500).json({ success: false, error: 'GROQ_API_KEY invalide. Vérifiez console.groq.com.' });
     }
-    if (error.response?.status === 429) {
+    if (status === 429) {
       return res.status(429).json({
         success: false,
         error:   'rate_limit',
-        message: 'Trop de requêtes simultanées. Réessayez dans quelques secondes.',
+        message: 'Limite Groq atteinte. Réessayez dans quelques secondes.',
       });
+    }
+    if (status === 400) {
+      return res.status(400).json({ success: false, error: error.response?.data?.error?.message || 'Requête invalide.' });
     }
     return res.status(500).json({ success: false, error: 'Service IA temporairement indisponible. Réessayez.' });
   }
@@ -424,8 +452,9 @@ router.get('/status', (req, res) => {
   res.json({
     success:    true,
     configured: !!GROQ_API_KEY,
+    provider:   'Groq API',
     model:      GROQ_MODEL,
-    provider:   'Groq (gratuit, 24h/24)',
+    endpoint:   GROQ_BASE,
   });
 });
 
