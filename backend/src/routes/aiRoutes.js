@@ -13,8 +13,9 @@ const Fertilisation = require('../models/Fertilisation');
 const weatherService = require('../services/weatherService');
 
 const JWT_SECRET   = process.env.JWT_SECRET  || 'default-secret-change-in-production';
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';   // ← mets ta clé dans .env: GROQ_API_KEY=gsk_...
-const GROQ_MODEL   = 'llama-3.3-70b-versatile';        // gratuit, 32k context, rapide
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+// llama-3.1-8b-instant : TPM 20 000 (vs 6 000 pour 70b) → pas de rate-limit en usage normal
+const GROQ_MODEL   = 'llama-3.1-8b-instant';
 const GROQ_BASE    = 'https://api.groq.com/openai/v1';
 
 // ── Auth middleware ────────────────────────────────────────────────────────────
@@ -195,22 +196,23 @@ async function buildUserContext(userId, userCity = 'Tunis') {
     const weather = await getLiveWeather(userCity);
 
     const cropsSummary = cultures.length === 0
-      ? 'Aucune culture enregistrée.'
+      ? 'Aucune culture.'
       : cultures.map((c, i) => {
-          const surface = c.surface      ? `${c.surface} m²`          : 'surface inconnue';
-          const kc      = c.kcActuel     ? `Kc=${c.kcActuel}`         : '';
-          const stade   = c.stadeActuel  ? `Stade: ${c.stadeActuel}`  : '';
-          const arbres  = c.nombreArbres ? `${c.nombreArbres} arbres` : '';
-          return `${i + 1}. ${c.nom} (${c.variete}) — ${surface} ${arbres} ${kc} ${stade}`.trim();
-        }).join('\n');
+          const parts = [`${i + 1}. ${c.nom}`];
+          if (c.variete)     parts.push(`(${c.variete})`);
+          if (c.surface)     parts.push(`${c.surface}m²`);
+          if (c.kcActuel)    parts.push(`Kc=${c.kcActuel}`);
+          if (c.nombreArbres) parts.push(`${c.nombreArbres}arb`);
+          return parts.join(' ');
+        }).join(' | ');
 
     const irrigationSummary = irrigations.length === 0
       ? 'Aucune irrigation récente.'
-      : irrigations.slice(0, 5).map(irr => {
-          const name = irr.cultureId?.nom || 'Culture inconnue';
+      : irrigations.slice(0, 3).map(irr => {
+          const name = irr.cultureId?.nom || '?';
           const date = new Date(irr.date).toLocaleDateString('fr-FR');
-          return `• ${name}: ${irr.volume} L le ${date} (ETc: ${irr.etc} mm/j, Mode: ${irr.mode}, Kc: ${irr.kc})`;
-        }).join('\n');
+          return `${name}: ${irr.volume}L ${date} ETc=${irr.etc}`;
+        }).join(' | ');
 
     const irrigationNeeds = cultures.length > 0 && weather?.et0
       ? cultures.map(c => {
@@ -381,9 +383,9 @@ Météo à ${context.city}: ${context.weatherSummary}`;
     groqMessages.push({ role: 'user',      content: contextBlock });
     groqMessages.push({ role: 'assistant', content: 'Contexte compris. Je suis prêt à répondre.' });
 
-    // Inject recent conversation history (last 3 exchanges = 6 messages)
+    // Inject recent conversation history (last 2 exchanges = 4 messages)
     if (Array.isArray(history) && history.length > 0) {
-      for (const m of history.slice(-6)) {
+      for (const m of history.slice(-4)) {
         groqMessages.push({
           role:    m.role === 'user' ? 'user' : 'assistant',
           content: m.content,
@@ -403,8 +405,8 @@ Météo à ${context.city}: ${context.weatherSummary}`;
       {
         model:       GROQ_MODEL,
         messages:    groqMessages,
-        max_tokens:  512,
-        temperature: 0.55,
+        max_tokens:  300,
+        temperature: 0.5,
         top_p:       0.9,
         stream:      false,
       },
