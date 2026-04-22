@@ -462,7 +462,7 @@ router.get('/status', (req, res) => {
 
 // ── POST /api/ai/tts — Proxy ElevenLabs ──────────────────────────────────────
 const ELEVENLABS_API_KEY  = process.env.ELEVENLABS_API_KEY  || 'sk_fd88b305d46cb875bc5570685561f801fd04e343eb2ad874';
-const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'cgSgspJ2msm6clMCkdW9';
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'UR972wNGq3zluze0LoIp';
 
 router.post('/tts', requireUser, async (req, res) => {
   try {
