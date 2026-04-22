@@ -102,7 +102,10 @@ export const API_ENDPOINTS = {
   admin: {
     stats:       `${API_BASE_URL}/admin/stats`,
     users:       `${API_BASE_URL}/admin/users`,
-    volumeByDay: (days = 30) => `${API_BASE_URL}/admin/irrigations/volume-by-day?days=${days}`,
+    userStats:   (id) => `${API_BASE_URL}/admin/users/${id}/stats`,
+    adminProfile: `${API_BASE_URL}/admin/profile`,
+    volumeByDay: (days = 30, userId = null) =>
+      `${API_BASE_URL}/admin/irrigations/volume-by-day?days=${days}${userId ? `&userId=${userId}` : ''}`,
     messagesUnreadCount: `${API_BASE_URL}/admin/messages/unread-count`,
     messagesList: ({ limit = 30, skip = 0, unreadOnly = false } = {}) =>
       `${API_BASE_URL}/admin/messages?limit=${limit}&skip=${skip}&unreadOnly=${unreadOnly}`,

@@ -80,11 +80,16 @@ router.get('/stats', requireAdmin, async (req, res) => {
 // ✅ FIX : requireAdmin ajouté sur volume-by-day (était public avant)
 router.get('/irrigations/volume-by-day', requireAdmin, async (req, res) => {
   try {
+    const mongoose = require('mongoose');
     const days = parseInt(req.query.days) || 30;
     const from = new Date();
     from.setDate(from.getDate() - days);
+    const match = { date: { $gte: from } };
+    if (req.query.userId) {
+      try { match.userId = new mongoose.Types.ObjectId(req.query.userId); } catch {}
+    }
     const result = await Irrigation.aggregate([
-      { $match: { date: { $gte: from } } },
+      { $match: match },
       { $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
           volume: { $sum: '$volume' },
@@ -97,6 +102,32 @@ router.get('/irrigations/volume-by-day', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Volume by day error:', err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/admin/users/:id/stats — irrigation count + total volume for a user
+router.get('/users/:id/stats', requireAdmin, async (req, res) => {
+  try {
+    const mongoose = require('mongoose');
+    let userId;
+    try { userId = new mongoose.Types.ObjectId(req.params.id); } catch {
+      return res.status(400).json({ success: false, error: 'Invalid user ID' });
+    }
+    const irrigationCount = await Irrigation.countDocuments({ userId });
+    const volResult = await Irrigation.aggregate([
+      { $match: { userId } },
+      { $group: { _id: null, total: { $sum: '$volume' } } }
+    ]);
+    res.json({
+      success: true,
+      data: {
+        irrigationCount,
+        totalVolume: volResult[0]?.total || 0,
+      }
+    });
+  } catch (e) {
+    console.error('User stats error:', e);
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 

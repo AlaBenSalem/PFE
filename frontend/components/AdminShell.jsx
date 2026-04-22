@@ -2,9 +2,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -87,6 +89,7 @@ function DrawerContent({
   setLanguageDropdownOpen,
   handleSelectLanguage,
   handleSignOut,
+  onEditProfile,
   closeDrawer,
   t,
   isRTL,
@@ -102,10 +105,22 @@ function DrawerContent({
     >
       {/* Profile Card */}
       <View className="mt-2 mb-[18px] rounded-2xl bg-green-50 p-4">
-        <View className="mb-2.5 h-14 w-14 items-center justify-center rounded-full bg-white">
-          <Text className="text-xl font-bold text-green-600">
-            {getInitials(profile.name)}
-          </Text>
+        <View className="mb-2.5 flex-row items-start justify-between">
+          <View className="h-14 w-14 items-center justify-center rounded-full bg-white">
+            <Text className="text-xl font-bold text-green-600">
+              {getInitials(profile.name)}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={onEditProfile}
+            activeOpacity={0.8}
+            className="flex-row items-center rounded-[10px] border border-green-200 bg-white px-2.5 py-1.5"
+          >
+            <Ionicons name="pencil-outline" size={13} color="#16a34a" />
+            <Text className="ml-1 text-xs font-semibold text-green-600">
+              {t("drawer.editProfile")}
+            </Text>
+          </TouchableOpacity>
         </View>
         <Text className="text-[17px] font-bold text-slate-900">
           {profile.name || t("admin.manager")}
@@ -299,6 +314,10 @@ export function AdminShell({
   const [profile, setProfile] = useState({ name: "Admin", email: "" });
   const [unreadCount, setUnreadCount] = useState(0);
   const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false);
+  const [editNameModal, setEditNameModal] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [nameError, setNameError] = useState("");
 
   useEffect(() => {
     drawerWidthSV.value = drawerWidth;
@@ -386,6 +405,39 @@ export function AdminShell({
     await authAPI.logout();
     router.replace(AUTH_ROUTES.login);
   }
+
+  const openEditName = () => {
+    setNewName(profile.name || "");
+    setNameError("");
+    setEditNameModal(true);
+  };
+
+  const handleSaveName = async () => {
+    if (!newName.trim()) { setNameError(t("drawer.firstNameRequired")); return; }
+    setSavingName(true);
+    setNameError("");
+    try {
+      const token = await authAPI.getAdminToken();
+      const res = await apiFetch(API_ENDPOINTS.admin.adminProfile, {
+        method: "PATCH",
+        body: JSON.stringify({ fullName: newName.trim() }),
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) { setNameError(json?.message || "Erreur"); return; }
+      const updatedAdmin = json.admin;
+      const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+      const adminData = await AsyncStorage.getItem("adminData");
+      const parsed = adminData ? JSON.parse(adminData) : {};
+      await AsyncStorage.setItem("adminData", JSON.stringify({ ...parsed, fullName: updatedAdmin.fullName }));
+      setProfile(p => ({ ...p, name: updatedAdmin.fullName }));
+      setEditNameModal(false);
+    } catch (e) {
+      setNameError(e?.message || "Erreur serveur");
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   const closeDrawer = () => {
     progress.value = withSpring(0, SPRING);
@@ -583,7 +635,7 @@ export function AdminShell({
             drawerAnim,
           ]}
         >
-          <DrawerContent {...drawerProps} closeDrawer={closeDrawer} />
+          <DrawerContent {...drawerProps} closeDrawer={closeDrawer} onEditProfile={openEditName} />
         </Animated.View>
 
         {/* Main Content */}
@@ -651,6 +703,33 @@ export function AdminShell({
           />
         </GestureDetector>
       </View>
+
+      {/* Admin name edit modal */}
+      <Modal visible={editNameModal} transparent animationType="fade" onRequestClose={() => setEditNameModal(false)}>
+        <View style={{ flex:1, backgroundColor:"rgba(0,0,0,0.45)", alignItems:"center", justifyContent:"center", paddingHorizontal:24 }}>
+          <View style={{ backgroundColor:"#fff", borderRadius:20, padding:24, width:"100%", maxWidth:400 }}>
+            <Text style={{ fontSize:16, fontWeight:"700", color:"#111827", marginBottom:16 }}>{t("drawer.editProfile")}</Text>
+            <Text style={{ fontSize:12, color:"#6b7280", fontWeight:"600", marginBottom:6 }}>{t("drawer.firstName") + " / " + t("drawer.lastName")}</Text>
+            <TextInput
+              style={{ borderWidth:1, borderColor:"#e5e7eb", borderRadius:12, paddingHorizontal:14, paddingVertical:12, fontSize:14, color:"#111827", backgroundColor:"#f9fafb" }}
+              value={newName}
+              onChangeText={v => { setNewName(v); setNameError(""); }}
+              placeholder="Ex: Jean Dupont"
+              placeholderTextColor="#9ca3af"
+              autoCapitalize="words"
+            />
+            {!!nameError && <Text style={{ color:"#ef4444", fontSize:12, marginTop:6 }}>{nameError}</Text>}
+            <View style={{ flexDirection:"row", gap:10, marginTop:20 }}>
+              <TouchableOpacity style={{ flex:1, paddingVertical:13, borderRadius:12, borderWidth:1, borderColor:"#e5e7eb", alignItems:"center", backgroundColor:"#f9fafb" }} onPress={() => setEditNameModal(false)} activeOpacity={0.8}>
+                <Text style={{ fontSize:14, fontWeight:"600", color:"#6b7280" }}>{t("drawer.cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex:1, paddingVertical:13, borderRadius:12, alignItems:"center", backgroundColor:"#16a34a", opacity: savingName ? 0.7 : 1 }} onPress={handleSaveName} disabled={savingName} activeOpacity={0.85}>
+                {savingName ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ fontSize:14, fontWeight:"700", color:"#fff" }}>{t("drawer.save")}</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </GestureHandlerRootView>
   );
 }

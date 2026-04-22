@@ -242,6 +242,28 @@ function UserFormModal({ visible, user, onClose, onSave }) {
 function UserDetailModal({ user, visible, onClose, onEdit, onDelete, onToggle, allCultures, toggling }) {
   const { t, language } = useLanguage();
   const [tab, setTab] = useState("profile");
+  const [irrigStats, setIrrigStats] = useState(null);
+  const [irrigLoading, setIrrigLoading] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !user) return;
+    setTab("profile");
+    setIrrigStats(null);
+  }, [visible, user?._id]);
+
+  useEffect(() => {
+    if (tab !== "irrigations" || !user) return;
+    const load = async () => {
+      setIrrigLoading(true);
+      try {
+        const res = await adminAPI.getUserStats(user._id || user.id);
+        if (res?.success) setIrrigStats(res.data);
+      } catch {}
+      finally { setIrrigLoading(false); }
+    };
+    load();
+  }, [tab, user?._id]);
+
   if (!visible || !user) return null;
 
   const isActive = user.isActive !== false;
@@ -276,17 +298,50 @@ function UserDetailModal({ user, visible, onClose, onEdit, onDelete, onToggle, a
           </View>
           {/* Onglets */}
           <View style={{ flexDirection:"row", borderBottomWidth:1, borderBottomColor:C.border }}>
-            {["profile","cultures"].map(tk => (
-              <TouchableOpacity key={tk} style={[{ flex:1, flexDirection:"row", alignItems:"center", justifyContent:"center", gap:5, paddingVertical:13, borderBottomWidth:2, borderBottomColor: tk===tab ? C.greenDark : "transparent" }]} onPress={() => setTab(tk)} activeOpacity={0.8}>
-                <Ionicons name={tk==="profile"?"person-outline":"leaf-outline"} size={16} color={tk===tab?C.greenDark:C.muted} />
-                <Text style={{ fontSize:13, fontWeight:"600", color:tk===tab?C.greenDark:C.muted }}>
-                  {tk==="profile" ? t("admin.userTabProfile") : `${t("admin.userTabCultures")} (${userCultures.length})`}
+            {[
+              { key:"profile",    icon:"person-outline",  label: t("admin.userTabProfile") },
+              { key:"cultures",   icon:"leaf-outline",    label: `${t("admin.userTabCultures")} (${userCultures.length})` },
+              { key:"irrigations",icon:"water-outline",   label: t("admin.cardIrrigations") || "Irrigations" },
+            ].map(tk => (
+              <TouchableOpacity key={tk.key} style={[{ flex:1, flexDirection:"row", alignItems:"center", justifyContent:"center", gap:4, paddingVertical:13, borderBottomWidth:2, borderBottomColor: tk.key===tab ? C.greenDark : "transparent" }]} onPress={() => setTab(tk.key)} activeOpacity={0.8}>
+                <Ionicons name={tk.icon} size={15} color={tk.key===tab?C.greenDark:C.muted} />
+                <Text style={{ fontSize:11, fontWeight:"600", color:tk.key===tab?C.greenDark:C.muted }} numberOfLines={1}>
+                  {tk.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
           <ScrollView contentContainerStyle={{ padding:18, gap:10 }} showsVerticalScrollIndicator={false}>
-            {tab === "profile" ? (
+            {tab === "irrigations" ? (
+              irrigLoading ? (
+                <View style={{ alignItems:"center", paddingVertical:32 }}>
+                  <ActivityIndicator size="large" color={C.greenDark} />
+                </View>
+              ) : (
+                <View style={{ gap:12 }}>
+                  <View style={{ flexDirection:"row", gap:10 }}>
+                    <View style={{ flex:1, backgroundColor:"#eff6ff", borderRadius:16, padding:16, alignItems:"center" }}>
+                      <Ionicons name="water" size={28} color="#3b82f6" />
+                      <Text style={{ fontSize:28, fontWeight:"800", color:"#3b82f6", marginTop:8 }}>{irrigStats?.irrigationCount ?? "—"}</Text>
+                      <Text style={{ fontSize:12, color:"#60a5fa", fontWeight:"600", marginTop:4 }}>{t("admin.cardIrrigations") || "Irrigations"}</Text>
+                    </View>
+                    <View style={{ flex:1, backgroundColor:"#f0fdf4", borderRadius:16, padding:16, alignItems:"center" }}>
+                      <Ionicons name="analytics" size={28} color={C.greenDark} />
+                      <Text style={{ fontSize:22, fontWeight:"800", color:C.greenDark, marginTop:8 }}>
+                        {irrigStats ? ((irrigStats.totalVolume || 0) / 1000).toFixed(2) : "—"}
+                      </Text>
+                      <Text style={{ fontSize:12, color:"#4ade80", fontWeight:"600", marginTop:4 }}>m³ {t("admin.totalVolume") || "total"}</Text>
+                    </View>
+                  </View>
+                  {!irrigStats && (
+                    <View style={{ alignItems:"center", paddingVertical:24 }}>
+                      <Ionicons name="water-outline" size={40} color="#d1d5db" />
+                      <Text style={{ fontSize:14, color:C.muted, marginTop:8 }}>Aucune donnée disponible</Text>
+                    </View>
+                  )}
+                </View>
+              )
+            ) : tab === "profile" ? (
               <>
                 {[
                   { icon:"person-outline",   label:t("admin.userFullName"),   value:fullName||"—" },

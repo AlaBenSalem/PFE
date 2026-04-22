@@ -2,8 +2,9 @@
 // Fix : brancher setUnauthorizedCallback pour rediriger vers login si token expiré
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authAPI } from "@api/auth";
-import { setUnauthorizedCallback } from "@api/client";
+import { setUnauthorizedCallback, API_BASE_URL } from "@api/client";
 import { AUTH_ROUTES } from "@constants/routes";
 
 export function useSession() {
@@ -31,12 +32,36 @@ export function useSession() {
 
     async function loadSession() {
       try {
-        const [adminToken, userToken, admin, user] = await Promise.all([
+        const [adminToken, userToken, admin, cachedUser] = await Promise.all([
           authAPI.getAdminToken(),
           authAPI.getUserToken(),
           authAPI.getAdmin(),
           authAPI.getUser(),
         ]);
+
+        let user = cachedUser;
+
+        // Always fetch fresh profile from server so admin edits reflect immediately
+        if (userToken) {
+          try {
+            const res = await fetch(`${API_BASE_URL}/auth/profile`, {
+              headers: { Authorization: `Bearer ${userToken}` },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              const fresh = data?.data || data?.user;
+              if (fresh) {
+                user = fresh;
+                await AsyncStorage.setItem("userData", JSON.stringify(fresh));
+                // Sync display name so admin edits propagate to the drawer
+                const freshName = `${fresh.firstName || ""} ${fresh.lastName || ""}`.trim();
+                if (freshName) {
+                  await AsyncStorage.setItem("userDisplayName", freshName);
+                }
+              }
+            }
+          } catch {}
+        }
 
         if (!isMounted) return;
 

@@ -94,15 +94,14 @@ function AutocompleteInput({
   const showSuggestions = showList && filtered.length > 0;
 
   return (
-    <View
-      className={`mb-4 relative ${zIndex ? `z-${Math.min(zIndex, 50)}` : ""}`}
-    >
+    <View style={{ marginBottom: 16, zIndex, position: "relative" }}>
       <Text className="text-xs font-semibold text-gray-900 mb-1.5">
         {label}
         {required && <Text className="text-red-500"> *</Text>}
       </Text>
       <View
-        className={`flex-row items-center border rounded-xl bg-white h-12 ${error ? "border-red-500 bg-red-50" : "border-gray-200"}`}
+        style={{ borderColor: error ? "#ef4444" : "#e5e7eb", backgroundColor: error ? "#fef2f2" : "#ffffff" }}
+        className="flex-row items-center border rounded-xl h-12"
       >
         <TextInput
           className="flex-1 text-base text-gray-900 px-3.5 py-0"
@@ -130,21 +129,19 @@ function AutocompleteInput({
       </View>
       {error && <Text className="text-xs text-red-500 mt-1">{error}</Text>}
       {showSuggestions && (
-        <View className="absolute top-[78px] left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-50">
-          <ScrollView keyboardShouldPersistTaps="always" className="max-h-44">
+        <View style={{ position: "absolute", top: 78, left: 0, right: 0, zIndex: 9999, backgroundColor: "#fff", borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 8 }}>
+          <ScrollView keyboardShouldPersistTaps="always" style={{ maxHeight: 176 }}>
             {filtered.map((item, i) => (
               <TouchableOpacity
                 key={i}
-                className={`flex-row items-center justify-between px-3.5 py-3 border-b border-gray-100 ${item === value ? "bg-green-50" : ""}`}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#f3f4f6", backgroundColor: item === value ? "#f0fdf4" : "transparent" }}
                 onPress={() => {
                   onSelectSuggestion(item);
                   setShowList(false);
                 }}
                 activeOpacity={0.8}
               >
-                <Text
-                  className={`text-sm ${item === value ? "text-green-700 font-bold" : "text-gray-700"}`}
-                >
+                <Text style={{ fontSize: 14, color: item === value ? "#15803d" : "#374151", fontWeight: item === value ? "700" : "400" }}>
                   {item}
                 </Text>
                 {item === value && (

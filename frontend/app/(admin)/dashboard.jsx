@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Text, View } from "react-native";
+import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { AdminShell } from "@components/AdminShell";
 import { API_ENDPOINTS, apiFetch } from "@api/client";
 import { useLanguage } from "@context/LanguageContext";
+import { router } from "expo-router";
 
 const COLORS = {
   greenDark: "#16a34a",
@@ -21,10 +22,14 @@ function formatNumber(value) {
 }
 
 export default function AdminDashboard() {
-  const { t, language, isRTL } = useLanguage();
+  const { t, isRTL } = useLanguage();
   const [stats, setStats] = useState(null);
   const [volumeByDay, setVolumeByDay] = useState([]);
   const [totalKcCount, setTotalKcCount] = useState(0);
+  const [users, setUsers] = useState([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [chartLoading, setChartLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const dynStyles = useMemo(
@@ -52,20 +57,25 @@ export default function AdminDashboard() {
   const loadDashboard = async () => {
     setLoading(true);
     try {
-      const [statsRes, volumeRes, kcRes] = await Promise.all([
+      const [statsRes, volumeRes, kcRes, usersRes] = await Promise.all([
         apiFetch(API_ENDPOINTS.admin.stats),
         apiFetch(API_ENDPOINTS.admin.volumeByDay(14)),
-        apiFetch(API_ENDPOINTS.kc.search),
+        apiFetch(API_ENDPOINTS.kc.base),
+        apiFetch(API_ENDPOINTS.admin.users),
       ]);
 
       const statsJson = await statsRes.json();
       const volumeJson = await volumeRes.json();
       const kcJson = await kcRes.json().catch(() => ({}));
+      const usersJson = await usersRes.json().catch(() => ({}));
 
       if (statsRes.ok && statsJson.success) setStats(statsJson.data);
       if (volumeRes.ok && volumeJson.success) setVolumeByDay(volumeJson.data || []);
       if (kcRes.ok && kcJson.success && Array.isArray(kcJson.data)) {
         setTotalKcCount(kcJson.data.length);
+      }
+      if (usersRes.ok && Array.isArray(usersJson.users)) {
+        setUsers(usersJson.users);
       }
     } catch (error) {
       console.error("Dashboard load error:", error);
@@ -74,15 +84,33 @@ export default function AdminDashboard() {
     }
   };
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+  useEffect(() => { loadDashboard(); }, []);
 
-  const totalCultures = stats?.totalCultures ?? 0;
-  const totalIrrigations = stats?.totalIrrigations ?? 0;
-  const totalVolumeM3 = (stats?.totalVolume ?? 0) / 1000;
+  useEffect(() => {
+    if (!selectedUser) return;
+    const fetchUserVolume = async () => {
+      setChartLoading(true);
+      try {
+        const res = await apiFetch(API_ENDPOINTS.admin.volumeByDay(14, selectedUser._id || selectedUser.id));
+        const json = await res.json();
+        if (res.ok && json.success) setVolumeByDay(json.data || []);
+      } catch {}
+      finally { setChartLoading(false); }
+    };
+    fetchUserVolume();
+  }, [selectedUser]);
+
+  const totalKcTotal = totalKcCount;
   const todayCount = stats?.todayIrrigations ?? 0;
   const totalUsers = stats?.totalUsers ?? 0;
+
+  const filteredUsers = useMemo(() => {
+    const q = userSearch.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter(u =>
+      `${u.firstName || ""} ${u.lastName || ""} ${u.email || ""}`.toLowerCase().includes(q)
+    );
+  }, [users, userSearch]);
 
   const chartSeries = useMemo(() => {
     const today = new Date();
@@ -114,114 +142,33 @@ export default function AdminDashboard() {
       onRefresh={loadDashboard}
       loading={loading}
     >
-      <View className="mb-4 flex-row gap-2.5">
-        {[
-          {
-            label: t("admin.cardCultures"),
-            value: formatNumber(totalCultures),
-            bg: "#e9f7ef",
-            icon: (
-              <MaterialCommunityIcons
-                name="sprout"
-                size={20}
-                color={COLORS.greenDark}
-              />
-            ),
-          },
-          {
-            label: t("admin.cardIrrigations"),
-            value: formatNumber(totalIrrigations),
-            bg: "#eaf2ff",
-            icon: <Ionicons name="water-outline" size={20} color={COLORS.blue} />,
-          },
-          {
-            label: t("admin.cardVolumeTotal"),
-            value: `${totalVolumeM3.toFixed(2)} m3`,
-            bg: "#fff3e0",
-            icon: <Ionicons name="stats-chart" size={20} color={COLORS.orange} />,
-          },
-        ].map((card, index) => (
-          <View
-            key={index}
-            className="min-w-0 flex-1 rounded-2xl border border-[#edf1f0] bg-white p-3"
-          >
-            <View
-              className={`mb-3 min-h-[42px] flex-row items-center gap-2.5 ${
-                isRTL ? "flex-row-reverse" : ""
-              }`}
-            >
-              <View
-                className="h-[38px] w-[38px] shrink-0 items-center justify-center overflow-hidden rounded-xl"
-                style={{ backgroundColor: card.bg }}
-              >
-                {card.icon}
-              </View>
-              <Text
-                className="flex-1 text-[11px] font-bold leading-[14px] text-slate-500"
-                style={dynStyles.statLabel}
-                numberOfLines={2}
-              >
-                {card.label}
-              </Text>
-            </View>
-            <Text
-              className="pl-0.5 text-xl font-bold text-slate-900"
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.85}
-            >
-              {card.value}
-            </Text>
-          </View>
-        ))}
-      </View>
-
+      {/* ── 2 stat cards: Cultures (KC total) + Users ── */}
       <View className="mb-4 flex-row gap-2.5">
         <View className="min-w-0 flex-1 rounded-2xl border border-[#edf1f0] bg-white p-3">
-          <View
-            className={`mb-3 min-h-[42px] flex-row items-center gap-2.5 ${
-              isRTL ? "flex-row-reverse" : ""
-            }`}
-          >
+          <View className={`mb-3 min-h-[42px] flex-row items-center gap-2.5 ${isRTL ? "flex-row-reverse" : ""}`}>
+            <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-[#e9f7ef]">
+              <MaterialCommunityIcons name="sprout" size={20} color={COLORS.greenDark} />
+            </View>
+            <Text className="flex-1 text-[11px] font-bold leading-[14px] text-slate-500" style={dynStyles.statLabel} numberOfLines={2}>
+              {t("admin.cardCultures")}
+            </Text>
+          </View>
+          <Text className="pl-0.5 text-xl font-bold text-slate-900" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+            {formatNumber(totalKcTotal)}
+          </Text>
+        </View>
+
+        <View className="min-w-0 flex-1 rounded-2xl border border-[#edf1f0] bg-white p-3">
+          <View className={`mb-3 min-h-[42px] flex-row items-center gap-2.5 ${isRTL ? "flex-row-reverse" : ""}`}>
             <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-violet-100">
               <Ionicons name="people-outline" size={20} color="#7c3aed" />
             </View>
-            <Text
-              className="flex-1 text-[11px] font-bold leading-[14px] text-slate-500"
-              style={dynStyles.statLabel}
-              numberOfLines={2}
-            >
+            <Text className="flex-1 text-[11px] font-bold leading-[14px] text-slate-500" style={dynStyles.statLabel} numberOfLines={2}>
               {t("admin.cardTotalUsers")}
             </Text>
           </View>
           <Text className="pl-0.5 text-xl font-bold text-slate-900">
             {formatNumber(totalUsers)}
-          </Text>
-        </View>
-
-        <View className="min-w-0 flex-1 rounded-2xl border border-[#edf1f0] bg-white p-3">
-          <View
-            className={`mb-3 min-h-[42px] flex-row items-center gap-2.5 ${
-              isRTL ? "flex-row-reverse" : ""
-            }`}
-          >
-            <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-emerald-50">
-              <MaterialCommunityIcons
-                name="database-outline"
-                size={20}
-                color={COLORS.greenDark}
-              />
-            </View>
-            <Text
-              className="flex-1 text-[11px] font-bold leading-[14px] text-slate-500"
-              style={dynStyles.statLabel}
-              numberOfLines={2}
-            >
-              References Kc
-            </Text>
-          </View>
-          <Text className="pl-0.5 text-xl font-bold text-slate-900">
-            {formatNumber(totalKcCount)}
           </Text>
         </View>
       </View>
@@ -262,10 +209,25 @@ export default function AdminDashboard() {
       </View>
 
       <View className="mb-4 rounded-2xl border border-[#edf1f0] bg-white p-4">
-        <View className="mb-3">
-          <Text style={dynStyles.panelTitle}>{t("admin.chartVolumeTitle")}</Text>
-          <Text style={dynStyles.panelSubtitle}>14 {t("admin.lastDays")} (L)</Text>
+        <View className={`flex-row items-start justify-between mb-3 ${isRTL ? "flex-row-reverse" : ""}`}>
+          <View>
+            <Text style={dynStyles.panelTitle}>{t("admin.chartVolumeTitle")}</Text>
+            <Text style={dynStyles.panelSubtitle}>
+              14 {t("admin.lastDays")} (L){selectedUser ? ` · ${selectedUser.firstName || ""} ${selectedUser.lastName || ""}`.trim() : ""}
+            </Text>
+          </View>
+          {selectedUser && (
+            <TouchableOpacity
+              onPress={() => { setSelectedUser(null); loadDashboard(); }}
+              className="flex-row items-center gap-1 rounded-full bg-slate-100 px-3 py-1"
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close" size={13} color="#64748b" />
+              <Text className="text-[11px] font-semibold text-slate-500">{t("admin.userTotal")}</Text>
+            </TouchableOpacity>
+          )}
         </View>
+        {chartLoading && <View className="items-center py-3"><Text className="text-[12px] text-slate-400">...</Text></View>}
 
         {/* Valeur max mise en avant */}
         <View className={`flex-row items-center gap-2 mb-3 ${isRTL ? "flex-row-reverse" : ""}`}>
@@ -314,6 +276,84 @@ export default function AdminDashboard() {
             <Text className="text-[10px] text-slate-500">{t("admin.lastDays")}</Text>
           </View>
         </View>
+      </View>
+      {/* ── User search section ── */}
+      <View className="mb-4 rounded-2xl border border-[#edf1f0] bg-white p-4">
+        <View className={`flex-row items-center justify-between mb-3 ${isRTL ? "flex-row-reverse" : ""}`}>
+          <Text style={dynStyles.panelTitle}>{t("admin.cardTotalUsers")}</Text>
+          <TouchableOpacity
+            onPress={() => router.push("/(admin)/utilisateurs")}
+            className="flex-row items-center gap-1 rounded-full bg-violet-50 px-3 py-1"
+            activeOpacity={0.8}
+          >
+            <Text className="text-[12px] font-bold text-violet-600">{t("admin.userNew")}</Text>
+            <Ionicons name="chevron-forward" size={12} color="#7c3aed" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Search input */}
+        <View className="flex-row items-center gap-2 bg-slate-50 rounded-xl border border-[#edf1f0] px-3 py-2 mb-3">
+          <Ionicons name="search" size={15} color="#94a3b8" />
+          <TextInput
+            placeholder={t("admin.userSearch")}
+            placeholderTextColor="#94a3b8"
+            value={userSearch}
+            onChangeText={setUserSearch}
+            style={{ flex: 1, fontSize: 13, color: "#111827" }}
+          />
+          {userSearch.length > 0 && (
+            <TouchableOpacity onPress={() => setUserSearch("")} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+              <Ionicons name="close-circle" size={15} color="#94a3b8" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* User list */}
+        {filteredUsers.length === 0 ? (
+          <View className="items-center py-6">
+            <Ionicons name="people-outline" size={36} color="#e2e8f0" />
+            <Text className="text-[13px] text-slate-400 mt-2">{t("admin.userNone")}</Text>
+          </View>
+        ) : (
+          filteredUsers.slice(0, 8).map((u, i) => {
+            const fullName = `${u.firstName || ""} ${u.lastName || ""}`.trim();
+            const isActive = u.isActive !== false;
+            const initials = ((u.firstName?.[0] || "") + (u.lastName?.[0] || "")).toUpperCase() || "?";
+            return (
+              <TouchableOpacity
+                key={u._id || u.id || i}
+                className="flex-row items-center gap-3 py-2.5 border-b border-[#f1f5f9]"
+                onPress={() => setSelectedUser(selectedUser?._id === u._id ? null : u)}
+                activeOpacity={0.7}
+                style={selectedUser?._id === u._id ? { backgroundColor: "#f0fdf4", borderRadius: 10, paddingHorizontal: 6 } : {}}
+              >
+                <View className="w-9 h-9 rounded-xl bg-[#e8f8ed] items-center justify-center shrink-0">
+                  <Text className="text-[13px] font-bold text-green-700">{initials}</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[13px] font-bold text-slate-800" numberOfLines={1}>{fullName || "—"}</Text>
+                  <Text className="text-[11px] text-slate-400" numberOfLines={1}>{u.email}</Text>
+                </View>
+                <View style={{ backgroundColor: isActive ? "#e8f8ed" : "#fee2e2", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: isActive ? "#16a34a" : "#ef4444" }}>
+                    {isActive ? t("admin.userActive_label") : t("admin.userInactive_label")}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
+        {filteredUsers.length > 8 && (
+          <TouchableOpacity
+            className="mt-2 items-center py-2"
+            onPress={() => router.push("/(admin)/utilisateurs")}
+            activeOpacity={0.7}
+          >
+            <Text className="text-[12px] font-semibold text-violet-600">
+              +{filteredUsers.length - 8} {t("admin.userCount")}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </AdminShell>
   );

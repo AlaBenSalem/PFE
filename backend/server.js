@@ -285,6 +285,23 @@ app.use("/api/admin",      adminRoutes);
 app.use("/api/users",      userRoutes);
 app.use("/api/messages",   messageRoutes);
 
+// PATCH /api/admin/profile — update admin fullName
+app.patch("/api/admin/profile", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) return res.status(401).json({ message: "Token manquant." });
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded || decoded.role !== "admin") return res.status(403).json({ message: "Accès admin requis." });
+    const { fullName } = req.body;
+    if (!fullName || !fullName.trim()) return res.status(400).json({ message: "Nom requis." });
+    const admin = await Admin.findByIdAndUpdate(decoded.id, { fullName: fullName.trim() }, { new: true });
+    if (!admin) return res.status(404).json({ message: "Admin non trouvé." });
+    res.json({ success: true, admin: { id: admin._id, fullName: admin.fullName, email: admin.email } });
+  } catch (e) {
+    res.status(500).json({ message: "Erreur mise à jour." });
+  }
+});
+
 // ─── AUTH ROUTES ──────────────────────────────────────────────────────────────
 
 // POST /api/auth/register

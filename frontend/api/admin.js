@@ -71,6 +71,10 @@ export const adminAPI = {
   listCultures()         { return requestWithFallback("GET",    "/cultures"); },
   deleteCulture(id)      { return requestWithFallback("DELETE", `/cultures/${id}`); },
 
+  // ── User stats ───────────────────────────────────────────────────────────
+  getUserStats(id)       { return requestWithFallback("GET",    `/admin/users/${id}/stats`); },
+  updateAdminProfile(body) { return requestWithFallback("PATCH",  `/admin/profile`, body); },
+
   // ── Base Kc (KCReference) ────────────────────────────────────────────────
   // GET  /api/kc         → toutes les cultures de la base Kc
   listKcCultures()     { return requestWithFallback("GET", "/kc"); },
