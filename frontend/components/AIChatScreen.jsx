@@ -470,6 +470,7 @@ function AIChatSheet({ onClose }) {
 
   useEffect(() => {
     setMessages([{ id: "0", role: "assistant", text: INITIAL_MESSAGES[language] || INITIAL_MESSAGES.fr }]);
+    conversationIdRef.current = ""; // reset Dify conversation on language change
   }, [language]);
 
   const loadNativeVoices = async () => {
@@ -686,15 +687,12 @@ function AIChatSheet({ onClose }) {
   };
 
   // ── Send message ───────────────────────────────────────────────────────────
+  // Dify conversation_id — persiste pendant toute la session du chat
+  const conversationIdRef = useRef("");
+
   const sendMessage = useCallback(async (text) => {
     if (!text?.trim() || loading) return;
     const trimmed = text.trim();
-
-    // Build history from current messages (last 6 = 3 exchanges)
-    const history = messages
-      .filter((m) => m.id !== "0")
-      .slice(-6)
-      .map((m) => ({ role: m.role, content: m.text }));
 
     setMessages((prev) => [...prev, { id: Date.now().toString(), role: "user", text: trimmed }]);
     setInput("");
@@ -703,7 +701,11 @@ function AIChatSheet({ onClose }) {
     try {
       const res = await apiFetch(API_ENDPOINTS.ai?.chat || "/ai/chat", {
         method: "POST",
-        body: JSON.stringify({ message: trimmed, history, city: "Tunis" }),
+        body: JSON.stringify({
+          message:        trimmed,
+          conversationId: conversationIdRef.current || "",
+          city:           "Tunis",
+        }),
         timeoutMs: 45000,
       });
       const data = await res.json();
@@ -714,7 +716,6 @@ function AIChatSheet({ onClose }) {
       }
 
       if (!res.ok || !data?.success) {
-        // Afficher le vrai message d'erreur du serveur (ex: GROQ_API_KEY manquante)
         const serverMsg = data?.error || data?.message;
         const displayMsg = serverMsg
           ? `⚠️ ${serverMsg}`
@@ -722,6 +723,9 @@ function AIChatSheet({ onClose }) {
         setMessages((prev) => [...prev, { id: "err-" + Date.now(), role: "assistant", text: displayMsg }]);
         return;
       }
+
+      // Stocker le conversation_id retourné par Dify (clé pour la suite de la conversation)
+      if (data.conversationId) conversationIdRef.current = data.conversationId;
 
       const aiText = data.answer;
       setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", text: aiText }]);
@@ -732,14 +736,13 @@ function AIChatSheet({ onClose }) {
       await speakText(aiText, detected);
 
     } catch (err) {
-      // Vraie erreur réseau (timeout, pas de connexion)
       console.error("❌ [sendMessage]", err.message);
       setMessages((prev) => [...prev, { id: "err-" + Date.now(), role: "assistant", text: getErrorText("connection") }]);
     } finally {
       setLoading(false);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
-  }, [loading, messages, speakText]);
+  }, [loading, speakText]);
 
   const renderItem = ({ item }) => {
     const isUser = item.role === "user";
