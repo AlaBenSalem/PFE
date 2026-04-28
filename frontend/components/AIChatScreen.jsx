@@ -24,9 +24,9 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import { apiFetch, API_ENDPOINTS, API_BASE_URL } from "@api/client";
+import { apiFetch, API_ENDPOINTS } from "@api/client";
 import { useLanguage } from "@context/LanguageContext";
-import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 // ── Optional speech recognition ───────────────────────────────────────────────
 let ExpoSpeechRecognitionModule = null;
@@ -449,16 +449,16 @@ function AIChatSheet({ onClose }) {
   }, []);
 
   const pingServer = async (attempt) => {
-    if (!wakingUpRef.current || attempt >= 24) { setServerStatus("ready"); return; }
+    if (!wakingUpRef.current || attempt >= 5) { setServerStatus("ready"); return; }
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 8000);
+      const t = setTimeout(() => ctrl.abort(), 5000);
       const res = await fetch(API_ENDPOINTS.ai.status, { signal: ctrl.signal });
       clearTimeout(t);
       if (res.ok) { setServerStatus("ready"); wakingUpRef.current = false; return; }
     } catch {}
     if (wakingUpRef.current) {
-      wakeTimerRef.current = setTimeout(() => pingServer(attempt + 1), 5000);
+      wakeTimerRef.current = setTimeout(() => pingServer(attempt + 1), 3000);
     }
   };
 
@@ -706,7 +706,7 @@ function AIChatSheet({ onClose }) {
           conversationId: conversationIdRef.current || "",
           city:           "Tunis",
         }),
-        timeoutMs: 45000,
+        timeoutMs: 90000,
       });
       const data = await res.json();
 
@@ -724,7 +724,6 @@ function AIChatSheet({ onClose }) {
         return;
       }
 
-      // Stocker le conversation_id retourné par Dify (clé pour la suite de la conversation)
       if (data.conversationId) conversationIdRef.current = data.conversationId;
 
       const aiText = data.answer;
@@ -737,7 +736,11 @@ function AIChatSheet({ onClose }) {
 
     } catch (err) {
       console.error("❌ [sendMessage]", err.message);
-      setMessages((prev) => [...prev, { id: "err-" + Date.now(), role: "assistant", text: getErrorText("connection") }]);
+      const isTimeout = err?.name === "AbortError" || err?.name === "TimeoutError";
+      const errMsg = isTimeout
+        ? t({ fr: "⏳ Serveur en démarrage. Réessayez dans quelques secondes.", en: "⏳ Server starting up. Please retry in a few seconds.", ar: "⏳ الخادم يبدأ. أعد المحاولة.", tr: "⏳ Sunucu başlıyor. Lütfen tekrar deneyin." })
+        : getErrorText("connection");
+      setMessages((prev) => [...prev, { id: "err-" + Date.now(), role: "assistant", text: errMsg }]);
     } finally {
       setLoading(false);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
