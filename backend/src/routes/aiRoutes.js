@@ -303,6 +303,9 @@ const SYSTEM_PROMPT = `You are SmartIrrig AI, a smart irrigation assistant embed
   • "Quel est le nombre de cultures ?" → "Vous avez 3 cultures."
   • "What are my crops?" → "Orange, Tomato, Wheat."
   • "كم عدد الثقافات؟" → "عندك 3 ثقافات."
+  • "Quelle est la prochaine date d'irrigation ?" → "La prochaine irrigation de vos orangers est le jeudi 7 mai 2026."
+  • "متى الري القادم؟" → "الري القادم لـ البرتقال هو يوم الخميس 7 ماي 2026."
+- Always include the crop name when answering about irrigation, fertilisation, or Kc.
 - No greetings, no "bien sûr", no "voici", no filler words.
 - Use a short list ONLY if the user explicitly asks for names/details.
 
