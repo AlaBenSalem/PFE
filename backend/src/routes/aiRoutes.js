@@ -470,12 +470,55 @@ ${message.trim()}`;
 
   } catch (error) {
     console.error('❌ Dify AI error:', error.response?.data || error.message);
-    const status = error.response?.status;
+    const status    = error.response?.status;
+    const errorBody = JSON.stringify(error.response?.data || '');
+
+    // Quota Gemini/Dify épuisé (HTTP 400/429) → Groq en priorité
+    const isQuotaError =
+      errorBody.includes('RESOURCE_EXHAUSTED') ||
+      errorBody.includes('quota exceeded') ||
+      errorBody.includes('PluginInvokeError') ||
+      errorBody.includes('Run failed') ||
+      status === 429;
+
+    if (isQuotaError && GROQ_API_KEY) {
+      try {
+        console.warn(`⚠️ Dify quota error (HTTP ${status}) — falling back to Groq`);
+        const groqAnswer = await callGroq(message.trim(), context, langHint);
+        return res.json({
+          success:        true,
+          answer:         normalizeNumerals(groqAnswer),
+          conversationId: '',
+          context:        { cropCount: context.cropCount, city: context.city },
+          provider:       'groq',
+        });
+      } catch (groqErr) {
+        console.error('❌ Groq fallback also failed:', groqErr.message);
+        return res.status(503).json({ success: false, error: 'service_overloaded' });
+      }
+    }
+
     if (status === 401) return res.status(500).json({ success: false, error: 'Clé API Dify invalide.' });
     if (status === 404) return res.status(500).json({ success: false, error: 'App Dify introuvable. Vérifiez la clé API.' });
-    if (status === 400) return res.status(400).json({ success: false, error: error.response?.data?.message || 'Requête invalide.' });
+    if (status === 400) {
+      // 400 non lié au quota → Groq fallback quand même
+      if (GROQ_API_KEY) {
+        try {
+          console.warn('⚠️ Dify 400 error — trying Groq fallback');
+          const groqAnswer = await callGroq(message.trim(), context, langHint);
+          return res.json({
+            success:        true,
+            answer:         normalizeNumerals(groqAnswer),
+            conversationId: '',
+            context:        { cropCount: context.cropCount, city: context.city },
+            provider:       'groq',
+          });
+        } catch {}
+      }
+      return res.status(400).json({ success: false, error: error.response?.data?.message || 'Requête invalide.' });
+    }
 
-    // Network/timeout error → try Groq directly
+    // Network/timeout error → Groq
     if (GROQ_API_KEY) {
       try {
         console.warn('⚠️ Dify unavailable — falling back to Groq');
@@ -485,6 +528,7 @@ ${message.trim()}`;
           answer:         normalizeNumerals(groqAnswer),
           conversationId: '',
           context:        { cropCount: context.cropCount, city: context.city },
+          provider:       'groq',
         });
       } catch (groqErr) {
         console.error('❌ Groq fallback also failed:', groqErr.message);
