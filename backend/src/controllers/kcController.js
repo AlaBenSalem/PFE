@@ -31,21 +31,40 @@ function findKcInMemory(nameNorm, month) {
   };
 }
 
+// ─── Kc depuis valeurs manuelles ─────────────────────────────────────────────
+function getKcFromManuel(kcManuel, month) {
+  const { ini, mid, end } = kcManuel;
+  // Découpage annuel approximatif : mois 1-4 → ini, 5-9 → mid, 10-12 → end
+  if (month >= 1 && month <= 4 && ini != null) return { kc: ini, stade: 'Initial (manuel)' };
+  if (month >= 5 && month <= 9 && mid != null) return { kc: mid, stade: 'Mi-saison (manuel)' };
+  if (month >= 10 && month <= 12 && end != null) return { kc: end, stade: 'Fin saison (manuel)' };
+  // Fallback : valeur disponible la plus représentative
+  const kc = mid ?? ini ?? end ?? 0.65;
+  return { kc, stade: 'Manuel' };
+}
+
 // ─── Utilitaire partagé ───────────────────────────────────────────────────────
 
 /**
  * Recherche le Kc saisonnier FAO-56 pour une culture et un mois donnés.
- * Utilisé par kcController, irrigationController, cultureController.
+ * Si kcManuel est fourni (depuis culture.kcManuel), il est prioritaire.
  *
  * Ordre de recherche :
+ *  0. kcManuel (valeurs saisies manuellement par l'utilisateur) — PRIORITAIRE
  *  1. Correspondance exacte (insensible à la casse) sur `culture` ou `aliases` (MongoDB)
  *  2. Correspondance partielle sur le premier mot du nom (MongoDB)
  *  3. Fallback sur KC_DATA en mémoire (si collection MongoDB non initialisée)
  *  4. Valeur par défaut FAO : 0.65
  */
-async function getKcForCultureAndMonth(cultureName, mois) {
+async function getKcForCultureAndMonth(cultureName, mois, kcManuel = null) {
   const month    = mois || (new Date().getMonth() + 1);
   const nameNorm = (cultureName || '').toLowerCase().trim();
+
+  // 0. Kc manuel — prioritaire sur FAO-56
+  if (kcManuel && (kcManuel.ini != null || kcManuel.mid != null || kcManuel.end != null)) {
+    const { kc, stade } = getKcFromManuel(kcManuel, month);
+    return { kc, stade, source: 'manuel', found: true, isManual: true };
+  }
 
   // 1. Recherche principale en MongoDB
   let kcRef = await KCReference.findOne({
@@ -93,8 +112,9 @@ async function getKcForCultureAndMonth(cultureName, mois) {
   return { kc, stade, source: kcRef.culture, type: kcRef.type || null, found: true };
 }
 
-// Export de l'utilitaire pour les autres controllers
+// Export des utilitaires pour les autres controllers
 module.exports.getKcForCultureAndMonth = getKcForCultureAndMonth;
+module.exports.getKcFromManuel = getKcFromManuel;
 
 // ─── GET /api/kc/current?culture=Orange&mois=4 ───────────────────────────────
 /**

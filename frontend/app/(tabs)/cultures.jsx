@@ -1,5 +1,5 @@
 // app/(tabs)/cultures.jsx — Merge V1 (interface) + V2 (Type de Sol / RFU)
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -72,6 +72,70 @@ const getTypesSol = (t) => [
     ruInfo: "150 mm/m • RFU: 60%",
   },
 ];
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STAGE TRANSLATION HELPER
+// ══════════════════════════════════════════════════════════════════════════════
+function localizeStade(stade, t) {
+  if (!stade) return "";
+  const s = stade.toLowerCase();
+  if (s.includes("ini") || s.includes("début") || s.includes("start") || s.includes("initial")) return t("cultures.card.stadeIni") || stade;
+  if (s.includes("dev") || s.includes("growth") || s.includes("développe")) return t("cultures.card.stadeDev") || stade;
+  if (s.includes("mid") || s.includes("moyen") || s.includes("milieu") || s.includes("mi-")) return t("cultures.card.stadeMid") || stade;
+  if (s.includes("late") || s.includes("fin") || s.includes("end") || s.includes("matur")) return t("cultures.card.stadeLate") || stade;
+  return stade;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CROP & VARIETY NAME TRANSLATIONS (fr stored in DB → display in 4 langs)
+// ══════════════════════════════════════════════════════════════════════════════
+const CROP_NAME_MAP = {
+  "Orange":         { fr: "Orange",         en: "Orange",       ar: "البرتقال",         tr: "Portakal" },
+  "Citron":         { fr: "Citron",          en: "Lemon",        ar: "الليمون",           tr: "Limon" },
+  "Mandarine":      { fr: "Mandarine",       en: "Mandarin",     ar: "اليوسفي",           tr: "Mandalina" },
+  "Pamplemousse":   { fr: "Pamplemousse",    en: "Grapefruit",   ar: "الجريب فروت",       tr: "Greyfurt" },
+  "Olivier":        { fr: "Olivier",         en: "Olive tree",   ar: "الزيتون",           tr: "Zeytin" },
+  "Grenadier":      { fr: "Grenadier",       en: "Pomegranate",  ar: "الرمان",            tr: "Nar ağacı" },
+  "Figuier":        { fr: "Figuier",         en: "Fig tree",     ar: "التين",             tr: "İncir" },
+  "Pommier":        { fr: "Pommier",         en: "Apple tree",   ar: "شجرة التفاح",       tr: "Elma ağacı" },
+  "Poirier":        { fr: "Poirier",         en: "Pear tree",    ar: "شجرة الكمثرى",      tr: "Armut ağacı" },
+  "Pêcher":         { fr: "Pêcher",          en: "Peach tree",   ar: "شجرة الخوخ",        tr: "Şeftali ağacı" },
+  "Abricotier":     { fr: "Abricotier",      en: "Apricot tree", ar: "شجرة المشمش",       tr: "Kayısı ağacı" },
+  "Vigne":          { fr: "Vigne",           en: "Grapevine",    ar: "العنب",             tr: "Asma" },
+  "Dattier":        { fr: "Dattier",         en: "Date palm",    ar: "النخيل",            tr: "Hurma ağacı" },
+  "Tomate":         { fr: "Tomate",          en: "Tomato",       ar: "الطماطم",           tr: "Domates" },
+  "Pomme de terre": { fr: "Pomme de terre",  en: "Potato",       ar: "البطاطس",           tr: "Patates" },
+  "Poivron":        { fr: "Poivron",         en: "Bell pepper",  ar: "الفلفل",            tr: "Biber" },
+  "Oignon":         { fr: "Oignon",          en: "Onion",        ar: "البصل",             tr: "Soğan" },
+  "Concombre":      { fr: "Concombre",       en: "Cucumber",     ar: "الخيار",            tr: "Salatalık" },
+  "Courgette":      { fr: "Courgette",       en: "Zucchini",     ar: "الكوسا",            tr: "Kabak" },
+  "Laitue":         { fr: "Laitue",          en: "Lettuce",      ar: "الخس",              tr: "Marul" },
+  "Haricot":        { fr: "Haricot",         en: "Bean",         ar: "الفاصوليا",         tr: "Fasulye" },
+  "Melon":          { fr: "Melon",           en: "Melon",        ar: "الشمام",            tr: "Kavun" },
+  "Artichaut":      { fr: "Artichaut",       en: "Artichoke",    ar: "الأرضي شوكي",       tr: "Enginar" },
+  "Blé":            { fr: "Blé",             en: "Wheat",        ar: "القمح",             tr: "Buğday" },
+  "Orge":           { fr: "Orge",            en: "Barley",       ar: "الشعير",            tr: "Arpa" },
+  "Maïs":           { fr: "Maïs",            en: "Corn",         ar: "الذرة",             tr: "Mısır" },
+  "Tournesol":      { fr: "Tournesol",       en: "Sunflower",    ar: "عباد الشمس",        tr: "Ayçiçeği" },
+};
+
+const VARIETY_MAP = {
+  "Standard":              { fr: "Standard",              en: "Standard",         ar: "قياسي",             tr: "Standart" },
+  "Dur / Tendre":          { fr: "Dur / Tendre",          en: "Hard / Soft",      ar: "صلب / طري",         tr: "Sert / Yumuşak" },
+  "Table / Vin":           { fr: "Table / Vin",           en: "Table / Wine",     ar: "مائدة / نبيذ",      tr: "Sofralık / Şarap" },
+  "Golden / Red":          { fr: "Golden / Red",          en: "Golden / Red",     ar: "ذهبي / أحمر",       tr: "Altın / Kırmızı" },
+  "Cœur de bœuf / Ronde": { fr: "Cœur de bœuf / Ronde", en: "Beefheart / Round",ar: "قلب الثور / مستدير", tr: "Sığır kalbi / Yuvarlak" },
+};
+
+function translateCropName(nom, lang) {
+  const entry = CROP_NAME_MAP[nom];
+  return entry ? (entry[lang] || entry.fr) : nom;
+}
+
+function translateVariety(variete, lang) {
+  const entry = VARIETY_MAP[variete];
+  return entry ? (entry[lang] || entry.fr) : variete;
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // KC CULTURES FALLBACK (depuis V1)
@@ -185,13 +249,18 @@ function SelectPickerModal({
   onClose,
   loading = false,
   loadingText = "Chargement...",
+  t,
+  translateItem,
 }) {
   const [search, setSearch] = useState("");
   const searchRef = useRef(null);
 
-  const filtered = items.filter((item) =>
-    item.toLowerCase().includes(search.toLowerCase()),
-  );
+  const getDisplay = (item) => (translateItem ? translateItem(item) : item);
+
+  const filtered = items.filter((item) => {
+    const s = search.toLowerCase();
+    return item.toLowerCase().includes(s) || getDisplay(item).toLowerCase().includes(s);
+  });
 
   const handleClose = () => {
     setSearch("");
@@ -240,7 +309,7 @@ function SelectPickerModal({
             <TextInput
               ref={searchRef}
               className="flex-1 p-0 text-sm text-gray-900"
-              placeholder="Rechercher..."
+              placeholder={t ? t("cultures.modal.searchPlaceholder") : "Rechercher..."}
               placeholderTextColor="#9ca3af"
               value={search}
               onChangeText={setSearch}
@@ -259,9 +328,7 @@ function SelectPickerModal({
           </View>
           <View className="px-5 pb-2">
             <Text className="text-[11px] font-medium text-gray-400">
-              {loading
-                ? loadingText
-                : `${filtered.length} résultat${filtered.length !== 1 ? "s" : ""}`}
+              {loading ? loadingText : `${filtered.length} ${t ? t("cultures.modal.available") : "résultat(s)"}`}
             </Text>
           </View>
           {loading ? (
@@ -281,6 +348,7 @@ function SelectPickerModal({
               contentContainerStyle={{ paddingBottom: 20 }}
               renderItem={({ item }) => {
                 const isSelected = item === selectedValue;
+                const display = getDisplay(item);
                 return (
                   <TouchableOpacity
                     className={`flex-row items-center gap-3 border-b border-gray-50 px-4 py-3.5 ${isSelected ? "bg-green-50" : ""}`}
@@ -300,7 +368,7 @@ function SelectPickerModal({
                       className={`flex-1 text-sm ${isSelected ? "font-bold text-green-700" : "text-gray-700"}`}
                       numberOfLines={1}
                     >
-                      {item}
+                      {display}
                     </Text>
                     {isSelected && (
                       <Ionicons
@@ -316,7 +384,7 @@ function SelectPickerModal({
                 <View className="items-center py-10">
                   <Ionicons name="search-outline" size={36} color="#d1d5db" />
                   <Text className="mt-2.5 text-sm text-gray-400">
-                    Aucun résultat
+                    {t ? t("cultures.modal.noResults") : "Aucun résultat"}
                   </Text>
                 </View>
               }
@@ -475,7 +543,7 @@ function SelectField({
 // ══════════════════════════════════════════════════════════════════════════════
 // CULTURE CARD (V1 + badge sol de V2)
 // ══════════════════════════════════════════════════════════════════════════════
-function CultureCard({ item, deletingId, onDelete, formatDate, t, typesSol }) {
+function CultureCard({ item, deletingId, onDelete, formatDate, t, typesSol, language }) {
   const solData = (typesSol || []).find((sol) => sol.key === item.typeSol) || null;
 
   return (
@@ -483,20 +551,26 @@ function CultureCard({ item, deletingId, onDelete, formatDate, t, typesSol }) {
       <View className="flex-1">
         <View className="mb-1.5 flex-row flex-wrap items-center gap-2">
           <Text className="text-[17px] font-bold text-green-700">
-            {item.nom}
+            {translateCropName(item.nom, language)}
           </Text>
-          {item.kcActuel != null && (
+          {item.kcManuel?.mid != null ? (
+            <View className="rounded-full bg-amber-50 px-2.5 py-1 border border-amber-200">
+              <Text className="text-[11px] font-bold text-amber-700">
+                Kc manuel : {item.kcManuel.ini != null ? `ini ${item.kcManuel.ini} · ` : ""}mid {item.kcManuel.mid}{item.kcManuel.end != null ? ` · end ${item.kcManuel.end}` : ""}
+              </Text>
+            </View>
+          ) : item.kcActuel != null && (
             <View className="rounded-full bg-green-50 px-2.5 py-1">
               <Text className="text-[11px] font-bold text-green-600">
                 Kc {item.kcActuel.toFixed(2)}
-                {item.stadeActuel ? ` · ${item.stadeActuel}` : ""}
+                {item.stadeActuel ? ` · ${localizeStade(item.stadeActuel, t)}` : ""}
               </Text>
             </View>
           )}
         </View>
         <Text className="mb-0.5 text-[13px] text-gray-500">
           🌿 {t("cultures.card.variety")} :{" "}
-          <Text className="font-semibold text-gray-700">{item.variete}</Text>
+          <Text className="font-semibold text-gray-700">{translateVariety(item.variete, language)}</Text>
         </Text>
         {item.parcelle && (
           <Text className="mb-0.5 text-[13px] text-gray-500">
@@ -506,7 +580,7 @@ function CultureCard({ item, deletingId, onDelete, formatDate, t, typesSol }) {
         )}
         {item.region && (
           <Text className="mb-0.5 text-[13px] text-gray-500">
-            🌍 Région :{" "}
+            🌍 {t("cultures.card.region")} :{" "}
             <Text className="font-semibold text-gray-700">{item.region}</Text>
           </Text>
         )}
@@ -537,15 +611,15 @@ function CultureCard({ item, deletingId, onDelete, formatDate, t, typesSol }) {
         {/* ✅ Nouveaux champs système d'irrigation */}
         {item.debitGoutteur != null && (
           <Text className="mb-0.5 text-[13px] text-gray-500">
-            💧 Débit goutteur :{" "}
+            💧 {t("cultures.card.dripFlow")} :{" "}
             <Text className="font-semibold text-gray-700">
-              {item.debitGoutteur} L/h × {item.nbGoutteursParArbre ?? "?"} goutteurs/arbre
+              {item.debitGoutteur} L/h × {item.nbGoutteursParArbre ?? "?"}
             </Text>
           </Text>
         )}
         {item.densitePlantation != null && (
           <Text className="mb-0.5 text-[13px] text-gray-500">
-            🌿 Densité :{" "}
+            🌿 {t("cultures.card.density")} :{" "}
             <Text className="font-semibold text-gray-700">
               {item.densitePlantation} arb/ha
             </Text>
@@ -555,8 +629,22 @@ function CultureCard({ item, deletingId, onDelete, formatDate, t, typesSol }) {
           <Text className="mb-0.5 text-[13px] text-gray-500">
             🧪 θcc/θpf :{" "}
             <Text className="font-semibold text-violet-700">
-              {item.thetaCc ?? "—"} / {item.thetaPf ?? "—"} m³/m³
+              {item.thetaCc ?? "—"} / {item.thetaPf ?? "—"} cm³/cm³
             </Text>
+            {item.thetaSource === 'saxton_rawls' && (
+              <Text className="text-[10px] text-violet-400"> (Saxton & Rawls)</Text>
+            )}
+            {item.p != null && (
+              <Text className="text-[10px] text-violet-400">  p={item.p}  z={item.profondeurRacinaire ?? "—"}m</Text>
+            )}
+          </Text>
+        )}
+        {item.sableFraction != null && (
+          <Text className="mb-0.5 text-[11px] text-gray-400">
+            🏖 S={Math.round(item.sableFraction*100)}%  🪨 C={Math.round(item.argileFraction*100)}%  🌿 MO={item.matOrganique}%
+            {item.thetaCc != null && item.thetaPf != null && (
+              <Text>  · AWC={(item.thetaCc - item.thetaPf).toFixed(3)} m³/m³</Text>
+            )}
           </Text>
         )}
 
@@ -609,11 +697,25 @@ function CultureCard({ item, deletingId, onDelete, formatDate, t, typesSol }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// SAXTON & RAWLS (Saxton & Rawls, 2006 — FAO pédotransfert)
+// S, C ∈ [0,1]  OM en %
+// θFC (à -33 kPa)  θWP (à -1500 kPa)
+// ══════════════════════════════════════════════════════════════════════════════
+function saxtonRawls(S, C, OM) {
+  const fc = -0.251*S + 0.195*C + 0.011*OM + 0.006*S*OM - 0.027*C*OM + 0.452*S*C + 0.299;
+  const wp = -0.024*S + 0.487*C + 0.006*OM + 0.005*S*OM - 0.013*C*OM + 0.068*S*C + 0.031;
+  return {
+    fc: Math.max(0, Math.min(0.65, parseFloat(fc.toFixed(4)))),
+    wp: Math.max(0, Math.min(0.55, parseFloat(wp.toFixed(4)))),
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 export default function CulturesPage() {
-  const { t } = useLanguage();
-  const TYPES_SOL = getTypesSol(t);
+  const { t, language } = useLanguage();
+  const TYPES_SOL = useMemo(() => getTypesSol(t), [t]);
 
   const [cultures, setCultures] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -649,8 +751,19 @@ export default function CulturesPage() {
     nbGoutteursParArbre: "", // nb goutteurs/arbre (FAO-56: 2–4 pour arbre fruitier)
     densitePlantation: "",   // arbres/ha (calculé auto si surface+arbres, sinon manuel)
     // ✅ NOUVEAUX — Paramètres hydriques sol (optionnels, FAO-56 §3.1)
-    thetaCc: "",  // θcc : teneur volumique à capacité au champ (m³/m³)
-    thetaPf: "",  // θpf : teneur volumique au point de flétrissement (m³/m³)
+    thetaCc: "",  // θcc : teneur volumique à capacité au champ (cm³/cm³)
+    thetaPf: "",  // θpf : teneur volumique au point de flétrissement (cm³/cm³)
+    // Texture Saxton & Rawls
+    sablePct:  "", // sable %
+    argilePct: "", // argile %
+    om:        "", // matière organique %
+    p:   "0.5",   // fraction de dépletion FAO-56 (0.3–0.7)
+    z:   "0.6",   // profondeur racinaire effective (m)
+    // Kc manuel (optionnel, remplace FAO-56 si renseigné)
+    kcMode: "auto",  // "auto" = FAO-56 | "manuel" = saisie utilisateur
+    kcIni: "",   // Kc stade initial
+    kcMid: "",   // Kc mi-saison
+    kcEnd: "",   // Kc fin de saison
   });
 
   const formatDate = (date) => {
@@ -678,9 +791,10 @@ export default function CulturesPage() {
         formatDate={formatDate}
         t={t}
         typesSol={TYPES_SOL}
+        language={language}
       />
     ),
-    [deletingId, TYPES_SOL],
+    [deletingId, TYPES_SOL, language],
   ); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadAllAvailableCultures = async () => {
@@ -805,18 +919,33 @@ export default function CulturesPage() {
     if (newCulture.thetaCc.trim()) {
       const cc = parseFloat(newCulture.thetaCc);
       if (isNaN(cc) || cc <= 0 || cc > 0.6)
-        errs.thetaCc = t("cultures.modal.thetaCc_invalid") || "θcc invalide (0.05–0.60 m³/m³)";
+        errs.thetaCc = t("cultures.modal.thetaCc_invalid") || "θcc invalide (0.05–0.60 cm³/cm³)";
     }
     if (newCulture.thetaPf.trim()) {
       const pf = parseFloat(newCulture.thetaPf);
       if (isNaN(pf) || pf <= 0 || pf > 0.4)
-        errs.thetaPf = t("cultures.modal.thetaPf_invalid") || "θpf invalide (0.02–0.40 m³/m³)";
+        errs.thetaPf = t("cultures.modal.thetaPf_invalid") || "θpf invalide (0.02–0.40 cm³/cm³)";
     }
     if (newCulture.thetaCc.trim() && newCulture.thetaPf.trim()) {
       const cc = parseFloat(newCulture.thetaCc);
       const pf = parseFloat(newCulture.thetaPf);
       if (!isNaN(cc) && !isNaN(pf) && pf >= cc)
         errs.thetaPf = t("cultures.modal.thetaPf_lt_cc") || "θpf doit être inférieur à θcc";
+    }
+    // ✅ Kc manuel — si mode manuel, au moins kcMid requis
+    if (newCulture.kcMode === "manuel") {
+      const checkKc = (v, key) => {
+        if (!v.trim()) return;
+        const n = parseFloat(v);
+        if (isNaN(n) || n < 0.1 || n > 1.5) errs[key] = "Kc invalide (0.10–1.50)";
+      };
+      if (!newCulture.kcMid.trim()) {
+        errs.kcMid = "Kc mi-saison requis";
+      } else {
+        checkKc(newCulture.kcMid, "kcMid");
+      }
+      checkKc(newCulture.kcIni, "kcIni");
+      checkKc(newCulture.kcEnd, "kcEnd");
     }
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
@@ -854,6 +983,24 @@ export default function CulturesPage() {
         // ✅ Paramètres hydriques optionnels (FAO-56 §3.1)
         thetaCc: newCulture.thetaCc.trim() ? parseFloat(newCulture.thetaCc) : undefined,
         thetaPf: newCulture.thetaPf.trim() ? parseFloat(newCulture.thetaPf) : undefined,
+        // ✅ p (fraction dépletion) et z (profondeur racinaire)
+        p: newCulture.p.trim() ? parseFloat(newCulture.p) : undefined,
+        profondeurRacinaire: newCulture.z.trim() ? parseFloat(newCulture.z) : undefined,
+        // ✅ Texture Saxton & Rawls
+        ...(newCulture.sablePct.trim() && newCulture.argilePct.trim() && newCulture.om.trim() ? {
+          sableFraction:  parseFloat(newCulture.sablePct)  / 100,
+          argileFraction: parseFloat(newCulture.argilePct) / 100,
+          matOrganique:   parseFloat(newCulture.om),
+          thetaSource:    'saxton_rawls',
+        } : newCulture.thetaCc.trim() ? { thetaSource: 'manuel' } : {}),
+        // ✅ Kc manuel (remplace FAO-56 si mode=manuel)
+        ...(newCulture.kcMode === 'manuel' && newCulture.kcMid.trim() ? {
+          kcManuel: {
+            ini: newCulture.kcIni.trim() ? parseFloat(newCulture.kcIni) : undefined,
+            mid: parseFloat(newCulture.kcMid),
+            end: newCulture.kcEnd.trim() ? parseFloat(newCulture.kcEnd) : undefined,
+          },
+        } : {}),
       });
       if (result.success) {
         setModalVisible(false);
@@ -867,16 +1014,19 @@ export default function CulturesPage() {
         );
       }
     } catch (err) {
+      const isTimeout = err?.name === "AbortError" || err?.name === "TimeoutError";
       Alert.alert(
         t("common.errorTitle"),
-        err.message || t("cultures.modal.errorServer"),
+        isTimeout
+          ? "Serveur en démarrage. Veuillez réessayer dans quelques instants."
+          : err.message || t("cultures.modal.errorServer"),
       );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const deleteCulture = (id) => setConfirmDelete({ visible: true, id });
+  const deleteCulture = useCallback((id) => setConfirmDelete({ visible: true, id }), []);
 
   const doConfirmedDelete = async () => {
     const id = confirmDelete.id;
@@ -917,6 +1067,15 @@ export default function CulturesPage() {
       densitePlantation: "",
       thetaCc: "",
       thetaPf: "",
+      sablePct: "",
+      argilePct: "",
+      om: "",
+      p: "0.5",
+      z: "0.6",
+      kcMode: "auto",
+      kcIni: "",
+      kcMid: "",
+      kcEnd: "",
     });
     setFieldErrors({});
     setNomPickerVisible(false);
@@ -1418,6 +1577,106 @@ export default function CulturesPage() {
               </View>
 
               {/* ═══════════════════════════════════════════════════════ */}
+              {/* SECTION KC MANUEL (FAO-56 §6) — OPTIONNEL              */}
+              {/* ═══════════════════════════════════════════════════════ */}
+              <View className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <View className="mb-1 flex-row items-center gap-2">
+                  <Text className="text-base">🌾</Text>
+                  <Text className="text-[14px] font-bold text-amber-800">
+                    Coefficient cultural Kc
+                  </Text>
+                  <View className="rounded-full bg-amber-200 px-2 py-0.5">
+                    <Text className="text-[10px] font-bold text-amber-700">optionnel</Text>
+                  </View>
+                </View>
+                <Text className="mb-3 text-[11px] leading-4 text-amber-600">
+                  FAO-56 §6 : Par défaut les Kc FAO-56 sont utilisés automatiquement selon la saison. Si vous disposez de mesures locales, activez la saisie manuelle.
+                </Text>
+
+                {/* Toggle auto / manuel */}
+                <View className="mb-3 flex-row overflow-hidden rounded-xl border border-amber-200">
+                  <TouchableOpacity
+                    className={`flex-1 items-center py-2.5 ${newCulture.kcMode === "auto" ? "bg-amber-500" : "bg-white"}`}
+                    onPress={() => setNewCulture(p => ({ ...p, kcMode: "auto" }))}
+                    activeOpacity={0.8}
+                  >
+                    <Text className={`text-[13px] font-bold ${newCulture.kcMode === "auto" ? "text-white" : "text-amber-700"}`}>
+                      Auto FAO-56
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className={`flex-1 items-center py-2.5 ${newCulture.kcMode === "manuel" ? "bg-amber-500" : "bg-white"}`}
+                    onPress={() => setNewCulture(p => ({ ...p, kcMode: "manuel" }))}
+                    activeOpacity={0.8}
+                  >
+                    <Text className={`text-[13px] font-bold ${newCulture.kcMode === "manuel" ? "text-white" : "text-amber-700"}`}>
+                      Saisie manuelle
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {newCulture.kcMode === "manuel" && (
+                  <>
+                    <View className="flex-row gap-2">
+                      {/* Kc ini */}
+                      <View className="flex-1">
+                        <Text className="mb-1 text-xs font-semibold text-gray-700">Kc ini</Text>
+                        <TextInput
+                          className={`rounded-lg border bg-white px-2.5 py-2.5 text-sm text-gray-900 ${fieldErrors.kcIni ? "border-red-400" : "border-gray-300"}`}
+                          placeholder="ex: 0.55"
+                          keyboardType="numeric"
+                          value={newCulture.kcIni}
+                          onChangeText={(v) => {
+                            setNewCulture(p => ({ ...p, kcIni: v }));
+                            setFieldErrors(p => ({ ...p, kcIni: null }));
+                          }}
+                        />
+                        <Text className="mt-0.5 text-[10px] text-amber-600">Stade initial</Text>
+                        {fieldErrors.kcIni && <Text className="mt-0.5 text-[10px] text-red-500">{fieldErrors.kcIni}</Text>}
+                      </View>
+                      {/* Kc mid */}
+                      <View className="flex-1">
+                        <Text className="mb-1 text-xs font-semibold text-gray-700">Kc mid</Text>
+                        <TextInput
+                          className={`rounded-lg border bg-white px-2.5 py-2.5 text-sm text-gray-900 ${fieldErrors.kcMid ? "border-red-400" : "border-gray-300"}`}
+                          placeholder="ex: 0.85"
+                          keyboardType="numeric"
+                          value={newCulture.kcMid}
+                          onChangeText={(v) => {
+                            setNewCulture(p => ({ ...p, kcMid: v }));
+                            setFieldErrors(p => ({ ...p, kcMid: null }));
+                          }}
+                        />
+                        <Text className="mt-0.5 text-[10px] text-amber-600">Mi-saison</Text>
+                        {fieldErrors.kcMid && <Text className="mt-0.5 text-[10px] text-red-500">{fieldErrors.kcMid}</Text>}
+                      </View>
+                      {/* Kc end */}
+                      <View className="flex-1">
+                        <Text className="mb-1 text-xs font-semibold text-gray-700">Kc end</Text>
+                        <TextInput
+                          className={`rounded-lg border bg-white px-2.5 py-2.5 text-sm text-gray-900 ${fieldErrors.kcEnd ? "border-red-400" : "border-gray-300"}`}
+                          placeholder="ex: 0.70"
+                          keyboardType="numeric"
+                          value={newCulture.kcEnd}
+                          onChangeText={(v) => {
+                            setNewCulture(p => ({ ...p, kcEnd: v }));
+                            setFieldErrors(p => ({ ...p, kcEnd: null }));
+                          }}
+                        />
+                        <Text className="mt-0.5 text-[10px] text-amber-600">Fin saison</Text>
+                        {fieldErrors.kcEnd && <Text className="mt-0.5 text-[10px] text-red-500">{fieldErrors.kcEnd}</Text>}
+                      </View>
+                    </View>
+                    <View className="mt-2 rounded-lg bg-amber-100 p-2">
+                      <Text className="text-[10px] text-amber-700">
+                        ⚡ Ces valeurs remplaceront les Kc FAO-56 dans tout le calcul d'irrigation pour cette culture.
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </View>
+
+              {/* ═══════════════════════════════════════════════════════ */}
               {/* SECTION PARAMÈTRES HYDRIQUES (FAO-56 §3.1) — OPTIONNEL */}
               {/* ═══════════════════════════════════════════════════════ */}
               <View className="mb-6 rounded-2xl border border-violet-200 bg-violet-50 p-4">
@@ -1436,11 +1695,160 @@ export default function CulturesPage() {
                   {t("cultures.modal.hydric_desc") || "FAO-56 §3.1 : Si vous avez fait une analyse de sol, entrez θcc et θpf pour un calcul RU plus précis. Sinon, les valeurs standard du type de sol seront utilisées."}
                 </Text>
 
+                {/* ── Calculateur Saxton & Rawls ── */}
+                <View className="mb-4 rounded-xl border border-violet-300 bg-white p-3">
+                  <Text className="mb-1 text-[13px] font-bold text-violet-700">
+                    🔬 Calculateur Saxton & Rawls
+                  </Text>
+                  <Text className="mb-2.5 text-[11px] text-violet-500">
+                    Entrez la texture de votre sol → θFC et θWP calculés automatiquement
+                  </Text>
+                  {/* p et z */}
+                  <View className="mb-2 flex-row gap-2">
+                    <View className="flex-1">
+                      <Text className="mb-1 text-xs font-semibold text-gray-600">p (dépletion)</Text>
+                      <TextInput
+                        className="rounded-lg border border-gray-300 bg-gray-50 px-2.5 py-2.5 text-sm text-gray-900"
+                        placeholder="ex: 0.50"
+                        keyboardType="numeric"
+                        value={newCulture.p}
+                        onChangeText={(v) => setNewCulture(prev => ({ ...prev, p: v }))}
+                      />
+                      <Text className="mt-0.5 text-[10px] text-violet-500">FAO-56 §3.1 (0.3–0.7)</Text>
+                    </View>
+                    <View className="flex-1">
+                      <Text className="mb-1 text-xs font-semibold text-gray-600">z racinaire (m)</Text>
+                      <TextInput
+                        className="rounded-lg border border-gray-300 bg-gray-50 px-2.5 py-2.5 text-sm text-gray-900"
+                        placeholder="ex: 0.60"
+                        keyboardType="numeric"
+                        value={newCulture.z}
+                        onChangeText={(v) => setNewCulture(prev => ({ ...prev, z: v }))}
+                      />
+                      <Text className="mt-0.5 text-[10px] text-violet-500">Profondeur effective</Text>
+                    </View>
+                  </View>
+
+                  <View className="flex-row gap-2">
+                    {/* Sable */}
+                    <View className="flex-1">
+                      <Text className="mb-1 text-xs font-semibold text-gray-600">Sable (%)</Text>
+                      <TextInput
+                        className={`rounded-lg border bg-gray-50 px-2.5 py-2.5 text-sm text-gray-900 ${fieldErrors.sablePct ? "border-red-400" : "border-gray-300"}`}
+                        placeholder="ex: 40"
+                        keyboardType="numeric"
+                        value={newCulture.sablePct}
+                        onChangeText={(v) => {
+                          const updated = { ...newCulture, sablePct: v };
+                          const S = parseFloat(v) / 100;
+                          const C = parseFloat(updated.argilePct) / 100;
+                          const OM = parseFloat(updated.om);
+                          if (!isNaN(S) && !isNaN(C) && !isNaN(OM) && S >= 0 && C >= 0 && S + C <= 1 && OM > 0) {
+                            const r = saxtonRawls(S, C, OM);
+                            updated.thetaCc = String(r.fc);
+                            updated.thetaPf = String(r.wp);
+                          }
+                          setNewCulture(updated);
+                          setFieldErrors(p => ({ ...p, sablePct: null, thetaCc: null, thetaPf: null }));
+                        }}
+                      />
+                    </View>
+                    {/* Argile */}
+                    <View className="flex-1">
+                      <Text className="mb-1 text-xs font-semibold text-gray-600">Argile (%)</Text>
+                      <TextInput
+                        className={`rounded-lg border bg-gray-50 px-2.5 py-2.5 text-sm text-gray-900 ${fieldErrors.argilePct ? "border-red-400" : "border-gray-300"}`}
+                        placeholder="ex: 25"
+                        keyboardType="numeric"
+                        value={newCulture.argilePct}
+                        onChangeText={(v) => {
+                          const updated = { ...newCulture, argilePct: v };
+                          const S = parseFloat(updated.sablePct) / 100;
+                          const C = parseFloat(v) / 100;
+                          const OM = parseFloat(updated.om);
+                          if (!isNaN(S) && !isNaN(C) && !isNaN(OM) && S >= 0 && C >= 0 && S + C <= 1 && OM > 0) {
+                            const r = saxtonRawls(S, C, OM);
+                            updated.thetaCc = String(r.fc);
+                            updated.thetaPf = String(r.wp);
+                          }
+                          setNewCulture(updated);
+                          setFieldErrors(p => ({ ...p, argilePct: null, thetaCc: null, thetaPf: null }));
+                        }}
+                      />
+                    </View>
+                    {/* MO */}
+                    <View className="flex-1">
+                      <Text className="mb-1 text-xs font-semibold text-gray-600">MO (%)</Text>
+                      <TextInput
+                        className="rounded-lg border border-gray-300 bg-gray-50 px-2.5 py-2.5 text-sm text-gray-900"
+                        placeholder="ex: 1.5"
+                        keyboardType="numeric"
+                        value={newCulture.om}
+                        onChangeText={(v) => {
+                          const updated = { ...newCulture, om: v };
+                          const S = parseFloat(updated.sablePct) / 100;
+                          const C = parseFloat(updated.argilePct) / 100;
+                          const OM = parseFloat(v);
+                          if (!isNaN(S) && !isNaN(C) && !isNaN(OM) && S >= 0 && C >= 0 && S + C <= 1 && OM > 0) {
+                            const r = saxtonRawls(S, C, OM);
+                            updated.thetaCc = String(r.fc);
+                            updated.thetaPf = String(r.wp);
+                          }
+                          setNewCulture(updated);
+                          setFieldErrors(p => ({ ...p, thetaCc: null, thetaPf: null }));
+                        }}
+                      />
+                    </View>
+                  </View>
+                  {/* Validation S+C */}
+                  {(() => {
+                    const S = parseFloat(newCulture.sablePct);
+                    const C = parseFloat(newCulture.argilePct);
+                    if (!isNaN(S) && !isNaN(C) && (S + C) > 100) {
+                      return <Text className="mt-1.5 text-[11px] font-medium text-red-500">⚠ Sable + Argile ne peut pas dépasser 100%</Text>;
+                    }
+                    return null;
+                  })()}
+                  {/* Résultat calculé */}
+                  {(() => {
+                    const S = parseFloat(newCulture.sablePct) / 100;
+                    const C = parseFloat(newCulture.argilePct) / 100;
+                    const OM = parseFloat(newCulture.om);
+                    if (!isNaN(S) && !isNaN(C) && !isNaN(OM) && S >= 0 && C >= 0 && S + C <= 1 && OM > 0) {
+                      const r = saxtonRawls(S, C, OM);
+                      return (
+                        <View className="mt-2 rounded-lg bg-violet-50 p-2.5">
+                          <Text className="text-[11px] font-bold text-violet-700">
+                            ✓ Saxton & Rawls (2006) :
+                          </Text>
+                          <Text className="mt-0.5 text-[11px] text-violet-600">
+                            θFC = <Text className="font-bold">{r.fc} cm³/cm³</Text>  ·  θWP = <Text className="font-bold">{r.wp} cm³/cm³</Text>
+                          </Text>
+                          <Text className="mt-0.5 text-[11px] text-violet-500">
+                            AWC = <Text className="font-semibold">{(r.fc - r.wp).toFixed(4)} cm³/cm³</Text>  ·  RU (z={parseFloat(newCulture.z)||0.6}m) = <Text className="font-semibold">{((r.fc - r.wp) * (parseFloat(newCulture.z)||0.6) * 1000).toFixed(0)} mm</Text>
+                          </Text>
+                          <Text className="mt-0.5 text-[11px] text-violet-500">
+                            RFU (p={parseFloat(newCulture.p)||0.5}) = <Text className="font-semibold">{((r.fc - r.wp) * (parseFloat(newCulture.z)||0.6) * (parseFloat(newCulture.p)||0.5) * 1000).toFixed(0)} mm</Text>
+                          </Text>
+                          <Text className="mt-0.5 text-[10px] text-violet-400">
+                            → Valeurs copiées automatiquement dans θcc et θpf ci-dessous
+                          </Text>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })()}
+                </View>
+
+                <Text className="mb-2 text-[11px] text-gray-400">
+                  — Ou entrez θcc / θpf manuellement ci-dessous (mesure laboratoire) —
+                </Text>
+
                 <View className="flex-row gap-3">
                   {/* θcc */}
                   <View className="flex-1">
                     <Text className="mb-1.5 text-sm font-semibold text-gray-700">
-                      θcc (m³/m³)
+                      θcc (cm³/cm³)
                     </Text>
                     <TextInput
                       className={`rounded-xl border bg-white px-3.5 py-3 text-sm text-gray-900 ${
@@ -1467,7 +1875,7 @@ export default function CulturesPage() {
                   {/* θpf */}
                   <View className="flex-1">
                     <Text className="mb-1.5 text-sm font-semibold text-gray-700">
-                      θpf (m³/m³)
+                      θpf (cm³/cm³)
                     </Text>
                     <TextInput
                       className={`rounded-xl border bg-white px-3.5 py-3 text-sm text-gray-900 ${
@@ -1503,13 +1911,15 @@ export default function CulturesPage() {
                       {(() => {
                         const cc = parseFloat(newCulture.thetaCc);
                         const pf = parseFloat(newCulture.thetaPf);
-                        const z = 0.6;
-                        const ru = ((cc - pf) * z * 1000).toFixed(0);
-                        return `(${cc} − ${pf}) × ${z} m × 1000 = ${ru} mm`;
+                        const z  = parseFloat(newCulture.z)  || 0.6;
+                        const p  = parseFloat(newCulture.p)  || 0.5;
+                        const ru  = ((cc - pf) * z * 1000).toFixed(0);
+                        const rfu = ((cc - pf) * z * p * 1000).toFixed(0);
+                        return `RU = (${cc}−${pf})×${z}×1000 = ${ru} mm  |  RFU(p=${p}) = ${rfu} mm`;
                       })()}
                     </Text>
                     <Text className="text-[10px] text-violet-500 mt-0.5">
-                      {t("cultures.modal.ru_formula") || "FAO-56 Eq. 3.1 : RU = (θcc − θpf) × z × 1000"}
+                      {t("cultures.modal.ru_formula") || "FAO-56 : RU = (θcc − θpf) × z × 1000  |  RFU = p × RU"}
                     </Text>
                   </View>
                 )}
@@ -1555,6 +1965,8 @@ export default function CulturesPage() {
             onClose={() => setNomPickerVisible(false)}
             loading={loadingSuggestions}
             loadingText={t("cultures.modal.loading")}
+            t={t}
+            translateItem={(nom) => translateCropName(nom, language)}
           />
           <SelectPickerModal
             visible={varietePickerVisible}
@@ -1565,6 +1977,8 @@ export default function CulturesPage() {
             onClose={() => setVarietePickerVisible(false)}
             loading={loadingSuggestions}
             loadingText={t("cultures.modal.loading")}
+            t={t}
+            translateItem={(v) => translateVariety(v, language)}
           />
           {/* ✅ SOL PICKER */}
           <SolPickerModal
