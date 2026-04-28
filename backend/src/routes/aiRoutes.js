@@ -1,5 +1,4 @@
-// backend/src/routes/aiRoutes.js
-// ✅ Dify CHATFLOW — SmartIrrig Assistant
+// backend/src/routes/aiRoutes.js — SmartIrrig AI (Groq primary, 24/7)
 
 const express = require('express');
 const router  = express.Router();
@@ -11,10 +10,11 @@ const Fertilisation = require('../models/Fertilisation');
 const weatherService = require('../services/weatherService');
 
 const JWT_SECRET   = process.env.JWT_SECRET   || 'default-secret-change-in-production';
-const DIFY_API_KEY = process.env.DIFY_API_KEY || 'app-1rRDbUduFHjDIDbZ37m1Vvjb';
-const DIFY_BASE    = 'https://api.dify.ai/v1';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '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';
 const GROQ_BASE    = 'https://api.groq.com/openai/v1';
+
+// Two-model cascade: high quality → fast fallback (higher token/min limit)
+const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
 
 // ── Auth middleware ────────────────────────────────────────────────────────────
 function requireUser(req, res, next) {
@@ -350,7 +350,7 @@ Navigation map (use only when relevant):
 - Contact/support → 📍 Contact`;
 
 
-// ── Groq fallback (when Dify quota is exhausted) ──────────────────────────────
+// ── Groq call with model cascade (70b → 8b on rate limit) ───────────────────
 async function callGroq(userMessage, context, langHint) {
   const contextBlock = `[CONTEXTE UTILISATEUR]
 Cultures (${context.cropCount}): ${context.cropsSummary}
@@ -360,119 +360,62 @@ Prochaines irrigations: ${context.nextIrrigLines}
 Prochaines fertilisations: ${context.nextFertLines}
 Météo à ${context.city}: ${context.weatherSummary}`;
 
-  const response = await axios.post(
-    `${GROQ_BASE}/chat/completions`,
-    {
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT + '\n\n' + contextBlock },
-        { role: 'user',   content: `[LANGUE DÉTECTÉE — RÉPONDRE EN CETTE LANGUE]\n${langHint}\n\n[MESSAGE]\n${userMessage}` },
-      ],
-      max_tokens: 512,
-      temperature: 0.4,
-    },
-    {
-      headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-      timeout: 30000,
-    }
-  );
-  return response.data.choices[0]?.message?.content?.trim() || '';
-}
+  const body = {
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT + '\n\n' + contextBlock },
+      { role: 'user',   content: `[LANGUE DÉTECTÉE — RÉPONDRE EN CETTE LANGUE]\n${langHint}\n\n[MESSAGE]\n${userMessage}` },
+    ],
+    max_tokens: 512,
+    temperature: 0.4,
+  };
 
-function isDifyQuotaError(answer = '') {
-  return (
-    answer.includes('PluginInvokeError') ||
-    answer.includes('RESOURCE_EXHAUSTED') ||
-    answer.includes('quota exceeded') ||
-    answer.includes('Run failed')
-  );
+  let lastErr;
+  for (const model of GROQ_MODELS) {
+    try {
+      const response = await axios.post(
+        `${GROQ_BASE}/chat/completions`,
+        { ...body, model },
+        {
+          headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+          timeout: 30000,
+        }
+      );
+      return response.data.choices[0]?.message?.content?.trim() || '';
+    } catch (err) {
+      const status = err.response?.status;
+      lastErr = err;
+      if (status === 429 || status === 503) {
+        console.warn(`⚠️ Groq ${model} rate-limited (${status}), trying next model`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 }
 
 // ── POST /api/ai/chat ─────────────────────────────────────────────────────────
 router.post('/chat', requireUser, async (req, res) => {
+  const { message, city } = req.body;
+
+  if (!message?.trim()) {
+    return res.status(400).json({ success: false, error: 'Message requis.' });
+  }
+
   try {
-    const { message, conversationId, city } = req.body;
-
-    if (!message?.trim()) {
-      return res.status(400).json({ success: false, error: 'Message requis.' });
-    }
-
     const context  = await buildUserContext(req.userId, city || 'Tunis');
     const langHint = detectMessageLanguage(message.trim());
-
-    // ── Groq en PRIMARY (24/7, quota généreux) ───────────────────────────────
-    if (GROQ_API_KEY) {
-      try {
-        const groqAnswer = await callGroq(message.trim(), context, langHint);
-        return res.json({
-          success:        true,
-          answer:         normalizeNumerals(groqAnswer),
-          conversationId: '',
-          context:        { cropCount: context.cropCount, city: context.city },
-          provider:       'groq',
-        });
-      } catch (groqErr) {
-        console.error('❌ Groq primary failed:', groqErr.message, '— trying Dify');
-      }
-    }
-
-    // ── Fallback Dify (si Groq indisponible) ─────────────────────────────────
-    const isNewConversation = !conversationId;
-    const query = isNewConversation
-      ? `[CONTEXTE UTILISATEUR - ne pas afficher, utiliser pour répondre]
-Cultures (${context.cropCount}): ${context.cropsSummary}
-Irrigation récente: ${context.irrigationSummary}
-Besoins ETc: ${context.irrigationNeeds}
-Prochaines irrigations: ${context.nextIrrigLines}
-Prochaines fertilisations: ${context.nextFertLines}
-Météo à ${context.city}: ${context.weatherSummary}
-
-[LANGUE DÉTECTÉE — RÉPONDRE OBLIGATOIREMENT EN CETTE LANGUE]
-${langHint}
-
-[MESSAGE]
-${message.trim()}`
-      : `[LANGUE DÉTECTÉE — RÉPONDRE OBLIGATOIREMENT EN CETTE LANGUE]
-${langHint}
-
-[MESSAGE]
-${message.trim()}`;
-
-    const difyResponse = await axios.post(
-      `${DIFY_BASE}/chat-messages`,
-      {
-        inputs:          {},
-        query,
-        response_mode:   'blocking',
-        conversation_id: conversationId || '',
-        user:            String(req.userId),
-      },
-      {
-        headers: {
-          Authorization:  `Bearer ${DIFY_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000,
-      }
-    );
-
-    const rawAnswer         = difyResponse.data.answer?.trim() || '';
-    const newConversationId = difyResponse.data.conversation_id || '';
-
-    if (isDifyQuotaError(rawAnswer)) {
-      return res.status(503).json({ success: false, error: 'service_overloaded' });
-    }
+    const answer   = await callGroq(message.trim(), context, langHint);
 
     return res.json({
       success:        true,
-      answer:         normalizeNumerals(rawAnswer),
-      conversationId: newConversationId,
+      answer:         normalizeNumerals(answer),
+      conversationId: '',
       context:        { cropCount: context.cropCount, city: context.city },
-      provider:       'dify',
+      provider:       'groq',
     });
-
   } catch (error) {
-    console.error('❌ AI error:', error.response?.data || error.message);
+    console.error('❌ Groq error:', error.response?.data || error.message);
     return res.status(503).json({ success: false, error: 'service_overloaded' });
   }
 });
@@ -480,10 +423,9 @@ ${message.trim()}`;
 // ── GET /api/ai/status ────────────────────────────────────────────────────────
 router.get('/status', (req, res) => {
   res.json({
-    success:    true,
-    configured: !!DIFY_API_KEY,
-    provider:   'Dify',
-    endpoint:   DIFY_BASE,
+    success:  true,
+    provider: 'groq',
+    models:   GROQ_MODELS,
   });
 });
 
