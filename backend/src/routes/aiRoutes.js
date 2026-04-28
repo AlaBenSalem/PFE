@@ -400,10 +400,24 @@ router.post('/chat', requireUser, async (req, res) => {
     const context  = await buildUserContext(req.userId, city || 'Tunis');
     const langHint = detectMessageLanguage(message.trim());
 
-    // Pour la première question : on inclut le contexte utilisateur + la langue
-    // Pour les suivantes : juste le message (Dify garde l'historique via conversation_id)
-    const isNewConversation = !conversationId;
+    // ── Groq en PRIMARY (24/7, quota généreux) ───────────────────────────────
+    if (GROQ_API_KEY) {
+      try {
+        const groqAnswer = await callGroq(message.trim(), context, langHint);
+        return res.json({
+          success:        true,
+          answer:         normalizeNumerals(groqAnswer),
+          conversationId: '',
+          context:        { cropCount: context.cropCount, city: context.city },
+          provider:       'groq',
+        });
+      } catch (groqErr) {
+        console.error('❌ Groq primary failed:', groqErr.message, '— trying Dify');
+      }
+    }
 
+    // ── Fallback Dify (si Groq indisponible) ─────────────────────────────────
+    const isNewConversation = !conversationId;
     const query = isNewConversation
       ? `[CONTEXTE UTILISATEUR - ne pas afficher, utiliser pour répondre]
 Cultures (${context.cropCount}): ${context.cropsSummary}
@@ -424,7 +438,6 @@ ${langHint}
 [MESSAGE]
 ${message.trim()}`;
 
-    // ── Appel Dify API ────────────────────────────────────────────────────────
     const difyResponse = await axios.post(
       `${DIFY_BASE}/chat-messages`,
       {
@@ -446,19 +459,8 @@ ${message.trim()}`;
     const rawAnswer         = difyResponse.data.answer?.trim() || '';
     const newConversationId = difyResponse.data.conversation_id || '';
 
-    // Dify quota exhausted → fall back to Groq
     if (isDifyQuotaError(rawAnswer)) {
-      if (!GROQ_API_KEY) {
-        return res.status(503).json({ success: false, error: 'service_overloaded' });
-      }
-      console.warn('⚠️ Dify quota exhausted — falling back to Groq');
-      const groqAnswer = await callGroq(message.trim(), context, langHint);
-      return res.json({
-        success:        true,
-        answer:         normalizeNumerals(groqAnswer),
-        conversationId: '',
-        context:        { cropCount: context.cropCount, city: context.city },
-      });
+      return res.status(503).json({ success: false, error: 'service_overloaded' });
     }
 
     return res.json({
@@ -466,76 +468,12 @@ ${message.trim()}`;
       answer:         normalizeNumerals(rawAnswer),
       conversationId: newConversationId,
       context:        { cropCount: context.cropCount, city: context.city },
+      provider:       'dify',
     });
 
   } catch (error) {
-    console.error('❌ Dify AI error:', error.response?.data || error.message);
-    const status    = error.response?.status;
-    const errorBody = JSON.stringify(error.response?.data || '');
-
-    // Quota Gemini/Dify épuisé (HTTP 400/429) → Groq en priorité
-    const isQuotaError =
-      errorBody.includes('RESOURCE_EXHAUSTED') ||
-      errorBody.includes('quota exceeded') ||
-      errorBody.includes('PluginInvokeError') ||
-      errorBody.includes('Run failed') ||
-      status === 429;
-
-    if (isQuotaError && GROQ_API_KEY) {
-      try {
-        console.warn(`⚠️ Dify quota error (HTTP ${status}) — falling back to Groq`);
-        const groqAnswer = await callGroq(message.trim(), context, langHint);
-        return res.json({
-          success:        true,
-          answer:         normalizeNumerals(groqAnswer),
-          conversationId: '',
-          context:        { cropCount: context.cropCount, city: context.city },
-          provider:       'groq',
-        });
-      } catch (groqErr) {
-        console.error('❌ Groq fallback also failed:', groqErr.message);
-        return res.status(503).json({ success: false, error: 'service_overloaded' });
-      }
-    }
-
-    if (status === 401) return res.status(500).json({ success: false, error: 'Clé API Dify invalide.' });
-    if (status === 404) return res.status(500).json({ success: false, error: 'App Dify introuvable. Vérifiez la clé API.' });
-    if (status === 400) {
-      // 400 non lié au quota → Groq fallback quand même
-      if (GROQ_API_KEY) {
-        try {
-          console.warn('⚠️ Dify 400 error — trying Groq fallback');
-          const groqAnswer = await callGroq(message.trim(), context, langHint);
-          return res.json({
-            success:        true,
-            answer:         normalizeNumerals(groqAnswer),
-            conversationId: '',
-            context:        { cropCount: context.cropCount, city: context.city },
-            provider:       'groq',
-          });
-        } catch {}
-      }
-      return res.status(400).json({ success: false, error: error.response?.data?.message || 'Requête invalide.' });
-    }
-
-    // Network/timeout error → Groq
-    if (GROQ_API_KEY) {
-      try {
-        console.warn('⚠️ Dify unavailable — falling back to Groq');
-        const groqAnswer = await callGroq(message.trim(), context, langHint);
-        return res.json({
-          success:        true,
-          answer:         normalizeNumerals(groqAnswer),
-          conversationId: '',
-          context:        { cropCount: context.cropCount, city: context.city },
-          provider:       'groq',
-        });
-      } catch (groqErr) {
-        console.error('❌ Groq fallback also failed:', groqErr.message);
-      }
-    }
-
-    return res.status(500).json({ success: false, error: 'Service IA temporairement indisponible.' });
+    console.error('❌ AI error:', error.response?.data || error.message);
+    return res.status(503).json({ success: false, error: 'service_overloaded' });
   }
 });
 
