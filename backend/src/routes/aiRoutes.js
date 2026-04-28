@@ -10,7 +10,7 @@ const Fertilisation = require('../models/Fertilisation');
 const weatherService = require('../services/weatherService');
 
 const JWT_SECRET   = process.env.JWT_SECRET   || 'default-secret-change-in-production';
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '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';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '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';
 const GROQ_BASE    = 'https://api.groq.com/openai/v1';
 
 // Two-model cascade: high quality → fast fallback (higher token/min limit)
