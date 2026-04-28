@@ -26,14 +26,17 @@ const nodemailer = require("nodemailer");
 const { Resend } = require("resend");
 const { OAuth2Client } = require("google-auth-library"); // ✅ NOUVEAU
 
-const weatherRoutes    = require("./src/routes/weatherRoutes");
-const kcRoutes         = require("./src/routes/kcRoutes");
-const cultureRoutes    = require("./src/routes/cultureRoutes");
-const irrigationRoutes = require("./src/routes/irrigationRoutes");
-const adminRoutes      = require("./src/routes/adminRoutes");
-const userRoutes       = require("./src/routes/userRoutes");
-const messageRoutes    = require("./src/routes/messageRoutes");
+const weatherRoutes       = require("./src/routes/weatherRoutes");
+const kcRoutes            = require("./src/routes/kcRoutes");
+const cultureRoutes       = require("./src/routes/cultureRoutes");
+const irrigationRoutes    = require("./src/routes/irrigationRoutes");
+const fertilisationRoutes = require("./src/routes/fertilisationRoutes");
+const adminRoutes         = require("./src/routes/adminRoutes");
+const userRoutes          = require("./src/routes/userRoutes");
+const messageRoutes       = require("./src/routes/messageRoutes");
 const Irrigation       = require("./src/models/Irrigation");
+const KCReference      = require("./src/models/KCReference");
+const KC_DATA          = require("./src/data/kcData");
 const { connectAllMongo } = require("./config/mongodbConnections");
 
 const aiRoutes = require('./src/routes/aiRoutes');
@@ -215,6 +218,18 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+async function ensureKCData() {
+  try {
+    const count = await KCReference.countDocuments();
+    if (count === 0) {
+      await KCReference.insertMany(KC_DATA);
+      console.log(`✅ KCReference auto-initialisée: ${KC_DATA.length} cultures FAO-56 chargées`);
+    }
+  } catch (err) {
+    console.warn(`⚠️  ensureKCData: ${err.message}`);
+  }
+}
+
 async function ensureAdminAccount() {
   if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
     console.warn("ADMIN_EMAIL / ADMIN_PASSWORD non définis.");
@@ -277,13 +292,14 @@ app.get("/api/health", (req, res) => {
 });
 
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
-app.use("/api/weather",    weatherRoutes);
-app.use("/api/kc",         kcRoutes);
-app.use("/api/cultures",   cultureRoutes);
-app.use("/api/irrigations",irrigationRoutes);
-app.use("/api/admin",      adminRoutes);
-app.use("/api/users",      userRoutes);
-app.use("/api/messages",   messageRoutes);
+app.use("/api/weather",        weatherRoutes);
+app.use("/api/kc",             kcRoutes);
+app.use("/api/cultures",       cultureRoutes);
+app.use("/api/irrigations",    irrigationRoutes);
+app.use("/api/fertilisations", fertilisationRoutes);
+app.use("/api/admin",          adminRoutes);
+app.use("/api/users",          userRoutes);
+app.use("/api/messages",       messageRoutes);
 
 // PATCH /api/admin/profile — update admin fullName
 app.patch("/api/admin/profile", async (req, res) => {
@@ -542,6 +558,7 @@ async function startServer() {
     console.log("Starting SmartIrrig Backend...");
     await connectAllMongo();
     await ensureAdminAccount();
+    await ensureKCData();
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || "development"}`);

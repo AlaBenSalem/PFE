@@ -2,6 +2,34 @@
 const KCReference = require('../models/KCReference');
 const KC_DATA = require('../data/kcData'); // données FAO-56
 
+// ─── Recherche en mémoire (fallback si KCReference MongoDB vide) ──────────────
+function findKcInMemory(nameNorm, month) {
+  const entry = KC_DATA.find((item) => {
+    const name = item.culture.toLowerCase();
+    if (name === nameNorm || name.includes(nameNorm) || nameNorm.includes(name)) return true;
+    return (item.aliases || []).some((a) => {
+      const al = a.toLowerCase();
+      return al === nameNorm || al.includes(nameNorm) || nameNorm.includes(al);
+    });
+  });
+  if (!entry) return null;
+  let stadeTrouve = null;
+  for (const stade of entry.stades) {
+    const { debut, fin } = stade.periode;
+    if (debut <= fin) {
+      if (month >= debut && month <= fin) { stadeTrouve = stade; break; }
+    } else {
+      if (month >= debut || month <= fin) { stadeTrouve = stade; break; }
+    }
+  }
+  return {
+    kc:     stadeTrouve ? stadeTrouve.kc  : entry.kcMoyen,
+    stade:  stadeTrouve ? stadeTrouve.nom : 'Moyen annuel',
+    source: entry.culture,
+    found:  true,
+  };
+}
+
 // ─── Utilitaire partagé ───────────────────────────────────────────────────────
 
 /**
@@ -9,15 +37,16 @@ const KC_DATA = require('../data/kcData'); // données FAO-56
  * Utilisé par kcController, irrigationController, cultureController.
  *
  * Ordre de recherche :
- *  1. Correspondance exacte (insensible à la casse) sur `culture` ou `aliases`
- *  2. Correspondance partielle sur le premier mot du nom
- *  3. Valeur par défaut FAO : 0.65
+ *  1. Correspondance exacte (insensible à la casse) sur `culture` ou `aliases` (MongoDB)
+ *  2. Correspondance partielle sur le premier mot du nom (MongoDB)
+ *  3. Fallback sur KC_DATA en mémoire (si collection MongoDB non initialisée)
+ *  4. Valeur par défaut FAO : 0.65
  */
 async function getKcForCultureAndMonth(cultureName, mois) {
   const month    = mois || (new Date().getMonth() + 1);
   const nameNorm = (cultureName || '').toLowerCase().trim();
 
-  // 1. Recherche principale
+  // 1. Recherche principale en MongoDB
   let kcRef = await KCReference.findOne({
     $or: [
       { culture: { $regex: nameNorm, $options: 'i' } },
@@ -38,11 +67,14 @@ async function getKcForCultureAndMonth(cultureName, mois) {
     }
   }
 
+  // 3. Fallback sur KC_DATA en mémoire (si collection MongoDB vide ou culture absente)
   if (!kcRef) {
+    const inMemory = findKcInMemory(nameNorm, month);
+    if (inMemory) return inMemory;
     return { kc: 0.65, stade: 'Moyen FAO', source: 'default', found: false };
   }
 
-  // 3. Trouver le stade correspondant au mois courant
+  // 4. Trouver le stade correspondant au mois courant
   let stadeTrouve = null;
   for (const stade of kcRef.stades) {
     const { debut, fin } = stade.periode;
