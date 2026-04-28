@@ -26,6 +26,7 @@ function findKcInMemory(nameNorm, month) {
     kc:     stadeTrouve ? stadeTrouve.kc  : entry.kcMoyen,
     stade:  stadeTrouve ? stadeTrouve.nom : 'Moyen annuel',
     source: entry.culture,
+    type:   entry.type || null,
     found:  true,
   };
 }
@@ -86,10 +87,10 @@ async function getKcForCultureAndMonth(cultureName, mois) {
     }
   }
 
-  const kc    = stadeTrouve ? stadeTrouve.kc  : kcRef.kcMoyen;
-  const stade = stadeTrouve ? stadeTrouve.nom  : 'Moyen annuel';
+  const kc    = stadeTrouve ? stadeTrouve.kc    : kcRef.kcMoyen;
+  const stade = stadeTrouve ? stadeTrouve.nom   : 'Moyen annuel';
 
-  return { kc, stade, source: kcRef.culture, found: true };
+  return { kc, stade, source: kcRef.culture, type: kcRef.type || null, found: true };
 }
 
 // Export de l'utilitaire pour les autres controllers

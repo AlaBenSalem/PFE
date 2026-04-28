@@ -21,12 +21,18 @@ exports.getAllCultures = async (req, res) => {
 
     const updated = await Promise.all(
       cultures.map(async (culture) => {
-        const { kc, stade } = await getKcForCultureAndMonth(culture.nom, currentMonth);
+        const { kc, stade, type: cultureType } = await getKcForCultureAndMonth(culture.nom, currentMonth);
+        let dirty = false;
         if (Math.abs((culture.kcActuel || 0) - kc) > 0.001 || !culture.kcActuel) {
           culture.kcActuel = kc;
           culture.stadeActuel = stade;
-          await culture.save();
+          dirty = true;
         }
+        if (!culture.type && cultureType) {
+          culture.type = cultureType;
+          dirty = true;
+        }
+        if (dirty) await culture.save();
         return culture;
       })
     );
@@ -66,12 +72,22 @@ exports.createCulture = async (req, res) => {
       parcelle, nom, variete, datePlantation,
       surface, nombreArbres,
       typeSol = 'limoneux',
-      region,                   // ✅ NOUVEAU
+      region,
       profondeurRacinaire,
+      irrigation,
+      debitGoutteur,
+      nbGoutteursParArbre,
+      densitePlantation,
+      thetaCc,
+      thetaPf,
+      sableFraction,
+      argileFraction,
+      matOrganique,
+      thetaSource,
     } = req.body;
 
     const currentMonth = new Date().getMonth() + 1;
-    const { kc, stade, source, found } = await getKcForCultureAndMonth(nom, currentMonth);
+    const { kc, stade, source, found, type: cultureType } = await getKcForCultureAndMonth(nom, currentMonth);
 
     console.log(`🌿 Kc pour "${nom}" (mois ${currentMonth}): ${kc} — stade: ${stade}`);
 
@@ -83,9 +99,9 @@ exports.createCulture = async (req, res) => {
     }
 
     const culture = new Culture({
-      userId:             req.userId || null,
+      userId:             req.userRole === 'admin' ? null : (req.userId || null),
       parcelle:           parcelle || null,
-      region:             region?.trim() || null,  // ✅ NOUVEAU
+      region:             region?.trim() || null,
       nom,
       variete,
       datePlantation:     datePlantation ? new Date(datePlantation) : null,
@@ -94,8 +110,26 @@ exports.createCulture = async (req, res) => {
       densite,
       kcActuel:           kc,
       stadeActuel:        stade,
+      type:               cultureType || undefined,
       typeSol,
       profondeurRacinaire: profondeurRacinaire ? parseFloat(profondeurRacinaire) : null,
+      // Système d'irrigation
+      irrigation: irrigation ? {
+        type:      irrigation.type      || 'goutte-a-goutte',
+        debit:     irrigation.debit     ? parseFloat(irrigation.debit)     : null,
+        efficacite:irrigation.efficacite? parseFloat(irrigation.efficacite): 0.9,
+      } : undefined,
+      debitGoutteur:       debitGoutteur       != null ? parseFloat(debitGoutteur)       : null,
+      nbGoutteursParArbre: nbGoutteursParArbre != null ? parseInt(nbGoutteursParArbre)   : null,
+      densitePlantation:   densitePlantation   != null ? parseFloat(densitePlantation)   : null,
+      // Paramètres hydriques sol (FAO-56 §3.1)
+      thetaCc: thetaCc != null ? parseFloat(thetaCc) : null,
+      thetaPf: thetaPf != null ? parseFloat(thetaPf) : null,
+      // Texture Saxton & Rawls
+      sableFraction:  sableFraction  != null ? parseFloat(sableFraction)  : null,
+      argileFraction: argileFraction != null ? parseFloat(argileFraction) : null,
+      matOrganique:   matOrganique   != null ? parseFloat(matOrganique)   : null,
+      thetaSource:    thetaSource    || null,
     });
 
     await culture.save();
