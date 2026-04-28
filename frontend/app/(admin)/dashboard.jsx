@@ -25,7 +25,6 @@ export default function AdminDashboard() {
   const { t, isRTL } = useLanguage();
   const [stats, setStats] = useState(null);
   const [volumeByDay, setVolumeByDay] = useState([]);
-  const [totalKcCount, setTotalKcCount] = useState(0);
   const [users, setUsers] = useState([]);
   const [userSearch, setUserSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
@@ -57,23 +56,18 @@ export default function AdminDashboard() {
   const loadDashboard = async () => {
     setLoading(true);
     try {
-      const [statsRes, volumeRes, kcRes, usersRes] = await Promise.all([
+      const [statsRes, volumeRes, usersRes] = await Promise.all([
         apiFetch(API_ENDPOINTS.admin.stats),
         apiFetch(API_ENDPOINTS.admin.volumeByDay(14)),
-        apiFetch(API_ENDPOINTS.kc.base),
         apiFetch(API_ENDPOINTS.admin.users),
       ]);
 
       const statsJson = await statsRes.json();
       const volumeJson = await volumeRes.json();
-      const kcJson = await kcRes.json().catch(() => ({}));
       const usersJson = await usersRes.json().catch(() => ({}));
 
       if (statsRes.ok && statsJson.success) setStats(statsJson.data);
       if (volumeRes.ok && volumeJson.success) setVolumeByDay(volumeJson.data || []);
-      if (kcRes.ok && kcJson.success && Array.isArray(kcJson.data)) {
-        setTotalKcCount(kcJson.data.length);
-      }
       if (usersRes.ok && Array.isArray(usersJson.users)) {
         setUsers(usersJson.users);
       }
@@ -100,7 +94,6 @@ export default function AdminDashboard() {
     fetchUserVolume();
   }, [selectedUser]);
 
-  const totalKcTotal = totalKcCount;
   const todayCount = stats?.todayIrrigations ?? 0;
   const totalUsers = stats?.totalUsers ?? 0;
 
@@ -154,8 +147,22 @@ export default function AdminDashboard() {
             </Text>
           </View>
           <Text className="pl-0.5 text-xl font-bold text-slate-900" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
-            {formatNumber(totalKcTotal)}
+            {formatNumber(stats?.totalCulturesAll ?? 0)}
           </Text>
+          <View className="mt-1.5 gap-0.5">
+            <View className="flex-row items-center gap-1">
+              <View className="h-1.5 w-1.5 rounded-full bg-green-400" />
+              <Text className="text-[10px] text-slate-500">
+                {stats?.kcDataCount ?? 0} types FAO-56
+              </Text>
+            </View>
+            <View className="flex-row items-center gap-1">
+              <View className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+              <Text className="text-[10px] text-slate-500">
+                {stats?.culturesByAdmin ?? 0} ajoutées par l'admin
+              </Text>
+            </View>
+          </View>
         </View>
 
         <View className="min-w-0 flex-1 rounded-2xl border border-[#edf1f0] bg-white p-3">

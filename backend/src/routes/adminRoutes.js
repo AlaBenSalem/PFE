@@ -4,12 +4,14 @@ const express = require('express');
 const router  = express.Router();
 const jwt     = require('jsonwebtoken');
 const bcrypt  = require('bcryptjs');
-const Culture    = require('../models/Culture');
-const Irrigation = require('../models/Irrigation');
-const Weather    = require('../models/Weather');
-const Message    = require('../models/Message');
+const Culture       = require('../models/Culture');
+const Irrigation    = require('../models/Irrigation');
+const Fertilisation = require('../models/Fertilisation');
+const Weather       = require('../models/Weather');
+const Message       = require('../models/Message');
+const KC_DATA       = require('../data/kcData');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
+const JWT_SECRET  = process.env.JWT_SECRET || 'default-secret-change-in-production';
 
 function requireAdmin(req, res, next) {
   try {
@@ -32,7 +34,24 @@ router.get('/stats', requireAdmin, async (req, res) => {
     const mongoose = require('mongoose');
     const User = mongoose.models.User;
 
-    const totalCultures    = await Culture.countDocuments({});
+    const totalCultures   = await Culture.countDocuments({});
+    const allUserIds      = User ? await User.distinct('_id') : [];
+    const culturesByUsers = await Culture.countDocuments({ userId: { $in: allUserIds } });
+    // Répartition par utilisateur
+    const culturesByUserBreakdown = await Culture.aggregate([
+      { $match: { userId: { $in: allUserIds } } },
+      { $group: { _id: '$userId', count: { $sum: 1 } } },
+    ]);
+    // Catalogue KC : données statiques FAO-56 (kcData.js)
+    const kcCatalogCount = Array.isArray(KC_DATA) ? KC_DATA.length : 0;
+
+    // Cultures ajoutées manuellement par l'admin (KCReference avec fao != true)
+    let adminAddedCount = 0;
+    try {
+      const KCReference = require('../models/KCReference');
+      adminAddedCount = await KCReference.countDocuments({ 'references.fao': { $ne: true } });
+    } catch (_e) { /* KCReference non disponible, on garde 0 */ }
+
     const totalIrrigations = await Irrigation.countDocuments();
     const todayCount       = await Irrigation.countDocuments({
       date: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
@@ -58,6 +77,11 @@ router.get('/stats', requireAdmin, async (req, res) => {
       success: true,
       data: {
         totalCultures,
+        culturesByUsers,
+        culturesByAdmin:  adminAddedCount,
+        culturesByUserBreakdown,
+        kcDataCount:      kcCatalogCount,
+        totalCulturesAll: kcCatalogCount + adminAddedCount,
         totalIrrigations,
         totalUsers,
         activeUsers,
@@ -255,7 +279,15 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) return res.status(404).json({ success: false, message: 'Utilisateur non trouve.' });
 
+    const cultures = await Culture.find({ userId: req.params.id }).select('_id');
+    const cultureIds = cultures.map(c => c._id);
+
+    await Irrigation.deleteMany({ userId: req.params.id });
+    if (cultureIds.length > 0) {
+      await Fertilisation.deleteMany({ cultureId: { $in: cultureIds } });
+    }
     await Culture.deleteMany({ userId: req.params.id });
+
     res.json({ success: true, message: 'Utilisateur supprime.' });
   } catch (e) {
     console.error('Delete user error:', e);
@@ -295,6 +327,75 @@ router.patch('/messages/:id/read', requireAdmin, async (req, res) => {
     if (!message.readAt) { message.readAt = new Date(); await message.save(); }
     res.json({ success: true, data: { id: message._id, readAt: message.readAt } });
   } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/admin/messages/:id/reply
+router.post('/messages/:id/reply', requireAdmin, async (req, res) => {
+  try {
+    const replyText = String(req.body?.replyBody ?? '').trim();
+    if (!replyText) return res.status(400).json({ success: false, message: 'Reponse vide.' });
+
+    const message = await Message.findById(req.params.id);
+    if (!message) return res.status(404).json({ success: false, message: 'Message non trouve.' });
+
+    const toEmail = message.senderEmail;
+    if (!toEmail) return res.status(400).json({ success: false, message: 'Adresse email introuvable.' });
+
+    // Send reply email
+    const nodemailer = require('nodemailer');
+    const { Resend }  = require('resend');
+
+    const subjectLine = message.subject?.trim()
+      ? `Re: ${message.subject.trim()}`
+      : 'Reponse de SmartIrrig Admin';
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;background:#f4f6f8;padding:24px;">
+        <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e7eb;">
+          <h2 style="margin:0;color:#16a34a;">SmartIrrig — Reponse de l'administrateur</h2>
+          <p style="color:#64748b;margin-top:8px;">Cher(e) <strong>${message.senderName || toEmail}</strong>,</p>
+          <div style="margin-top:14px;padding:14px;border-radius:12px;background:#f0fdf4;border:1px solid #bbf7d0;white-space:pre-wrap;color:#0f172a;">${String(replyText).replace(/</g,'&lt;')}</div>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;">
+          <p style="color:#94a3b8;font-size:12px;margin:0;">
+            En reponse a votre message du ${new Date(message.createdAt).toLocaleDateString('fr-FR')}<br>
+            Objet: ${message.subject || '(sans objet)'}
+          </p>
+        </div>
+      </div>`;
+
+    let emailSent = false;
+
+    if (process.env.RESEND_API_KEY) {
+      const resend   = new Resend(process.env.RESEND_API_KEY);
+      const emailFrom = process.env.EMAIL_FROM || 'SmartIrrig <onboarding@resend.dev>';
+      const { error } = await resend.emails.send({ from: emailFrom, to: toEmail, subject: subjectLine, html });
+      if (!error) emailSent = true;
+    }
+
+    if (!emailSent && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      });
+      await transporter.sendMail({ from: process.env.EMAIL_USER, to: toEmail, subject: subjectLine, html });
+      emailSent = true;
+    }
+
+    // Persist reply regardless of email success
+    message.repliedAt = new Date();
+    message.replyBody = replyText;
+    if (!message.readAt) message.readAt = message.repliedAt;
+    await message.save();
+
+    res.json({
+      success: true,
+      emailSent,
+      data: { id: message._id, repliedAt: message.repliedAt },
+    });
+  } catch (e) {
+    console.error('[AdminReply]', e.message);
     res.status(500).json({ success: false, error: e.message });
   }
 });
