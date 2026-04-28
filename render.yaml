@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: smartirrig-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_ANDROID_CLIENT_ID
+        sync: false
+      - key: GOOGLE_IOS_CLIENT_ID
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: OPENWEATHER_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DIFY_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: ADMIN_NOTIFY_EMAIL
+        sync: false
+      - key: ENABLE_ADMIN_MESSAGE_EMAIL
+        value: "true"
+      - key: ET0_MIN_VALID
+        value: "0.1"
+      - key: ET0_MAX_VALID
+        value: "30"
