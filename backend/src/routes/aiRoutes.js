@@ -13,6 +13,8 @@ const weatherService = require('../services/weatherService');
 const JWT_SECRET   = process.env.JWT_SECRET   || 'default-secret-change-in-production';
 const DIFY_API_KEY = process.env.DIFY_API_KEY || 'app-1rRDbUduFHjDIDbZ37m1Vvjb';
 const DIFY_BASE    = 'https://api.dify.ai/v1';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const GROQ_BASE    = 'https://api.groq.com/openai/v1';
 
 // ── Auth middleware ────────────────────────────────────────────────────────────
 function requireUser(req, res, next) {
@@ -348,6 +350,44 @@ Navigation map (use only when relevant):
 - Contact/support → 📍 Contact`;
 
 
+// ── Groq fallback (when Dify quota is exhausted) ──────────────────────────────
+async function callGroq(userMessage, context, langHint) {
+  const contextBlock = `[CONTEXTE UTILISATEUR]
+Cultures (${context.cropCount}): ${context.cropsSummary}
+Irrigation récente: ${context.irrigationSummary}
+Besoins ETc: ${context.irrigationNeeds}
+Prochaines irrigations: ${context.nextIrrigLines}
+Prochaines fertilisations: ${context.nextFertLines}
+Météo à ${context.city}: ${context.weatherSummary}`;
+
+  const response = await axios.post(
+    `${GROQ_BASE}/chat/completions`,
+    {
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT + '\n\n' + contextBlock },
+        { role: 'user',   content: `[LANGUE DÉTECTÉE — RÉPONDRE EN CETTE LANGUE]\n${langHint}\n\n[MESSAGE]\n${userMessage}` },
+      ],
+      max_tokens: 512,
+      temperature: 0.4,
+    },
+    {
+      headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+      timeout: 30000,
+    }
+  );
+  return response.data.choices[0]?.message?.content?.trim() || '';
+}
+
+function isDifyQuotaError(answer = '') {
+  return (
+    answer.includes('PluginInvokeError') ||
+    answer.includes('RESOURCE_EXHAUSTED') ||
+    answer.includes('quota exceeded') ||
+    answer.includes('Run failed')
+  );
+}
+
 // ── POST /api/ai/chat ─────────────────────────────────────────────────────────
 router.post('/chat', requireUser, async (req, res) => {
   try {
@@ -403,12 +443,27 @@ ${message.trim()}`;
       }
     );
 
-    const answer          = normalizeNumerals(difyResponse.data.answer?.trim() || '');
+    const rawAnswer         = difyResponse.data.answer?.trim() || '';
     const newConversationId = difyResponse.data.conversation_id || '';
+
+    // Dify quota exhausted → fall back to Groq
+    if (isDifyQuotaError(rawAnswer)) {
+      if (!GROQ_API_KEY) {
+        return res.status(503).json({ success: false, error: 'service_overloaded' });
+      }
+      console.warn('⚠️ Dify quota exhausted — falling back to Groq');
+      const groqAnswer = await callGroq(message.trim(), context, langHint);
+      return res.json({
+        success:        true,
+        answer:         normalizeNumerals(groqAnswer),
+        conversationId: '',
+        context:        { cropCount: context.cropCount, city: context.city },
+      });
+    }
 
     return res.json({
       success:        true,
-      answer,
+      answer:         normalizeNumerals(rawAnswer),
       conversationId: newConversationId,
       context:        { cropCount: context.cropCount, city: context.city },
     });
@@ -419,6 +474,23 @@ ${message.trim()}`;
     if (status === 401) return res.status(500).json({ success: false, error: 'Clé API Dify invalide.' });
     if (status === 404) return res.status(500).json({ success: false, error: 'App Dify introuvable. Vérifiez la clé API.' });
     if (status === 400) return res.status(400).json({ success: false, error: error.response?.data?.message || 'Requête invalide.' });
+
+    // Network/timeout error → try Groq directly
+    if (GROQ_API_KEY) {
+      try {
+        console.warn('⚠️ Dify unavailable — falling back to Groq');
+        const groqAnswer = await callGroq(message.trim(), context, langHint);
+        return res.json({
+          success:        true,
+          answer:         normalizeNumerals(groqAnswer),
+          conversationId: '',
+          context:        { cropCount: context.cropCount, city: context.city },
+        });
+      } catch (groqErr) {
+        console.error('❌ Groq fallback also failed:', groqErr.message);
+      }
+    }
+
     return res.status(500).json({ success: false, error: 'Service IA temporairement indisponible.' });
   }
 });
