@@ -621,35 +621,43 @@ function AIChatSheet({ onClose }) {
     `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, "0")}`;
 
   const onMicToggle = async () => {
-    if (!speechRecognitionAvailable || loading) return;
-    if (isListening) {
-      // Second tap — stop recording and send
-      try {
-        await ExpoSpeechRecognitionModule.stop();
-      } catch {
-        try { await ExpoSpeechRecognitionModule.abort(); } catch {}
-        stopRecordTimer(); setIsListening(false);
-        const t = pendingTranscriptRef.current;
-        if (t?.trim()) { pendingTranscriptRef.current = ""; setInput(""); sendMessage(t.trim()); }
-      }
-    } else {
-      // First tap — start recording
-      try {
-        if (isSpeaking) await stopSpeaking();
-        pendingTranscriptRef.current = "";
-        setInput(""); setIsListening(true); startRecordTimer();
-        await ExpoSpeechRecognitionModule.start({
-          lang: speechInputLangs[0],
-          extraLanguages: speechInputLangs.slice(1),
-          interimResults: true,
-          continuous: false,
-        });
-      } catch (e) {
-        console.error("❌ [Voice]", e);
-        stopRecordTimer(); setIsListening(false);
-      }
+  if (!speechRecognitionAvailable || loading) return;
+
+  if (isListening) {
+    try {
+      await ExpoSpeechRecognitionModule.stop();
+    } catch {
+      try { await ExpoSpeechRecognitionModule.abort(); } catch {}
+      stopRecordTimer(); setIsListening(false);
+      const t = pendingTranscriptRef.current;
+      if (t?.trim()) { pendingTranscriptRef.current = ""; setInput(""); sendMessage(t.trim()); }
     }
-  };
+  } else {
+    try {
+      // ✅ FIX: demander la permission micro avant de démarrer
+      if (Platform.OS === "android") {
+        const granted = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        if (!granted?.granted) {
+          console.warn("[Voice] Permission micro refusée");
+          return;
+        }
+      }
+
+      if (isSpeaking) await stopSpeaking();
+      pendingTranscriptRef.current = "";
+      setInput(""); setIsListening(true); startRecordTimer();
+      await ExpoSpeechRecognitionModule.start({
+        lang: speechInputLangs[0],
+        extraLanguages: speechInputLangs.slice(1),
+        interimResults: true,
+        continuous: false,
+      });
+    } catch (e) {
+      console.error("❌ [Voice]", e);
+      stopRecordTimer(); setIsListening(false);
+    }
+  }
+};
 
   const cancelRecording = async () => {
     pendingTranscriptRef.current = ""; setInput(""); stopRecordTimer(); setIsListening(false);
