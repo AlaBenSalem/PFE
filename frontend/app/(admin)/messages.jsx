@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
+  ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -60,6 +63,8 @@ export default function AdminMessages() {
   const [selected, setSelected] = useState(null);
   const [detailVisible, setDetailVisible] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
   const loadMessages = async ({ showSpinner } = { showSpinner: true }) => {
     if (showSpinner) setLoading(true);
@@ -84,8 +89,39 @@ export default function AdminMessages() {
     loadMessages({ showSpinner: true });
   }, [unreadOnly]);
 
+  const sendReply = async () => {
+    if (!replyText.trim() || !selected) return;
+    setSendingReply(true);
+    try {
+      const res = await apiFetch(API_ENDPOINTS.admin.messageReply(selected._id), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ replyBody: replyText.trim() }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.success) {
+        const now = new Date().toISOString();
+        setSelected((prev) => prev ? { ...prev, repliedAt: now, replyBody: replyText.trim() } : prev);
+        setItems((prev) =>
+          prev.map((item) =>
+            item._id === selected._id ? { ...item, repliedAt: now } : item,
+          ),
+        );
+        setReplyText("");
+        Alert.alert(t("common.success"), t("admin.replySuccess"));
+      } else {
+        Alert.alert(t("common.error"), json?.message || t("admin.replyError"));
+      }
+    } catch {
+      Alert.alert(t("common.error"), t("admin.replyError"));
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
   const openMessage = async (message) => {
     setSelected(message);
+    setReplyText("");
     setDetailVisible(true);
 
     if (message?.readAt) return;
@@ -218,7 +254,8 @@ export default function AdminMessages() {
 
       {/* Messages List */}
       {items.map((m) => {
-        const unread = !m.readAt;
+        const unread   = !m.readAt;
+        const replied  = !!m.repliedAt;
         return (
           <TouchableOpacity
             key={m._id}
@@ -249,12 +286,18 @@ export default function AdminMessages() {
                   {m.senderName || m.senderEmail || t("messages.unknownUser")}
                 </Text>
               </View>
-              <Text
-                className="text-gray-500 text-[11px] flex-shrink-0"
-                numberOfLines={1}
-              >
-                {formatDateTime(m.createdAt, language)}
-              </Text>
+              <View className="flex-row items-center gap-1.5 flex-shrink-0">
+                {replied && (
+                  <View className="bg-blue-100 rounded-full px-2 py-0.5">
+                    <Text className="text-[10px] font-bold text-blue-600">
+                      ↩ {t("admin.repliedBadge")}
+                    </Text>
+                  </View>
+                )}
+                <Text className="text-gray-500 text-[11px]" numberOfLines={1}>
+                  {formatDateTime(m.createdAt, language)}
+                </Text>
+              </View>
             </View>
 
             {m.subject ? (
@@ -288,86 +331,145 @@ export default function AdminMessages() {
           onPress={() => setDetailVisible(false)}
         />
         <View className="flex-1 justify-center p-[18px]">
-          <View className="bg-white rounded-2xl p-4 border border-gray-100">
-            <View className="flex-row items-center justify-between mb-2.5">
-              <Text className="text-base font-black text-gray-900">
-                {t("admin.messageDetails")}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setDetailVisible(false)}
-                className="w-9 h-9 rounded-xl items-center justify-center bg-gray-100"
-                activeOpacity={0.85}
-              >
-                <Ionicons name="close" size={20} color={COLORS.muted} />
-              </TouchableOpacity>
-            </View>
+          <View className="bg-white rounded-2xl border border-gray-100" style={{ maxHeight: "90%" }}>
+            <ScrollView
+              contentContainerStyle={{ padding: 16 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Header */}
+              <View className="flex-row items-center justify-between mb-2.5">
+                <Text className="text-base font-black text-gray-900">
+                  {t("admin.messageDetails")}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setDetailVisible(false)}
+                  className="w-9 h-9 rounded-xl items-center justify-center bg-gray-100"
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="close" size={20} color={COLORS.muted} />
+                </TouchableOpacity>
+              </View>
 
-            <View className="flex-row items-center justify-between gap-2.5 py-1.5">
-              <Text className="text-gray-500 text-xs font-bold flex-shrink-0">
-                {t("admin.messageFrom")}
-              </Text>
-              <Text
-                className="flex-1 min-w-0 text-gray-900 text-xs font-bold text-right"
-                numberOfLines={1}
-              >
-                {selected?.senderName || t("messages.unknownUser")}
-              </Text>
-            </View>
-
-            {selected?.senderEmail ? (
+              {/* Meta */}
               <View className="flex-row items-center justify-between gap-2.5 py-1.5">
                 <Text className="text-gray-500 text-xs font-bold flex-shrink-0">
-                  {t("admin.messageEmail")}
+                  {t("admin.messageFrom")}
                 </Text>
                 <Text
                   className="flex-1 min-w-0 text-gray-900 text-xs font-bold text-right"
                   numberOfLines={1}
                 >
-                  {selected.senderEmail}
+                  {selected?.senderName || t("messages.unknownUser")}
                 </Text>
               </View>
-            ) : null}
 
-            <View className="flex-row items-center justify-between gap-2.5 py-1.5">
-              <Text className="text-gray-500 text-xs font-bold flex-shrink-0">
-                {t("admin.messageWhen")}
-              </Text>
-              <Text
-                className="flex-1 min-w-0 text-gray-900 text-xs font-bold text-right"
-                numberOfLines={1}
-              >
-                {formatDateTime(selected?.createdAt, language)}
-              </Text>
-            </View>
+              {selected?.senderEmail ? (
+                <View className="flex-row items-center justify-between gap-2.5 py-1.5">
+                  <Text className="text-gray-500 text-xs font-bold flex-shrink-0">
+                    {t("admin.messageEmail")}
+                  </Text>
+                  <Text
+                    className="flex-1 min-w-0 text-gray-900 text-xs font-bold text-right"
+                    numberOfLines={1}
+                  >
+                    {selected.senderEmail}
+                  </Text>
+                </View>
+              ) : null}
 
-            {selected?.subject ? (
-              <View className="mt-2 p-3 rounded-xl border border-gray-100 bg-gray-50">
-                <Text className="text-gray-500 text-xs font-extrabold mb-1">
-                  {t("admin.messageSubject")}
+              <View className="flex-row items-center justify-between gap-2.5 py-1.5">
+                <Text className="text-gray-500 text-xs font-bold flex-shrink-0">
+                  {t("admin.messageWhen")}
                 </Text>
-                <Text className="text-gray-900 text-xs font-extrabold">
-                  {selected.subject}
-                </Text>
-              </View>
-            ) : null}
-
-            <View className="mt-2.5 p-3 rounded-xl border border-gray-100 bg-white">
-              <Text className="text-gray-500 text-xs font-extrabold mb-1.5">
-                {t("admin.messageBody")}
-              </Text>
-              <Text className="text-gray-900 text-xs leading-5">
-                {selected?.body || ""}
-              </Text>
-            </View>
-
-            {markingRead ? (
-              <View className="mt-3 flex-row items-center gap-2.5">
-                <ActivityIndicator size="small" color={COLORS.muted} />
-                <Text className="text-gray-500 text-xs">
-                  {t("admin.markingRead")}
+                <Text
+                  className="flex-1 min-w-0 text-gray-900 text-xs font-bold text-right"
+                  numberOfLines={1}
+                >
+                  {formatDateTime(selected?.createdAt, language)}
                 </Text>
               </View>
-            ) : null}
+
+              {selected?.subject ? (
+                <View className="mt-2 p-3 rounded-xl border border-gray-100 bg-gray-50">
+                  <Text className="text-gray-500 text-xs font-extrabold mb-1">
+                    {t("admin.messageSubject")}
+                  </Text>
+                  <Text className="text-gray-900 text-xs font-extrabold">
+                    {selected.subject}
+                  </Text>
+                </View>
+              ) : null}
+
+              <View className="mt-2.5 p-3 rounded-xl border border-gray-100 bg-white">
+                <Text className="text-gray-500 text-xs font-extrabold mb-1.5">
+                  {t("admin.messageBody")}
+                </Text>
+                <Text className="text-gray-900 text-xs leading-5">
+                  {selected?.body || ""}
+                </Text>
+              </View>
+
+              {markingRead ? (
+                <View className="mt-3 flex-row items-center gap-2.5">
+                  <ActivityIndicator size="small" color={COLORS.muted} />
+                  <Text className="text-gray-500 text-xs">
+                    {t("admin.markingRead")}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* ── PREVIOUS REPLY ── */}
+              {selected?.repliedAt ? (
+                <View className="mt-3 p-3 rounded-xl border border-blue-200 bg-blue-50">
+                  <View className="flex-row items-center gap-1.5 mb-1.5">
+                    <Ionicons name="arrow-undo-outline" size={14} color={COLORS.blue} />
+                    <Text className="text-blue-700 text-xs font-extrabold">
+                      {t("admin.repliedBadge")} · {formatDateTime(selected.repliedAt, language)}
+                    </Text>
+                  </View>
+                  <Text className="text-blue-900 text-xs leading-5">
+                    {selected.replyBody || ""}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* ── REPLY BOX ── */}
+              <View className="mt-4 pt-3 border-t border-gray-100">
+                <View className="flex-row items-center gap-1.5 mb-2">
+                  <Ionicons name="send-outline" size={14} color={COLORS.greenDark} />
+                  <Text className="text-gray-800 text-xs font-extrabold">
+                    {t("admin.replyLabel")}
+                  </Text>
+                </View>
+                <TextInput
+                  value={replyText}
+                  onChangeText={setReplyText}
+                  placeholder={t("admin.replyPlaceholder")}
+                  placeholderTextColor="#94a3b8"
+                  multiline
+                  textAlignVertical="top"
+                  maxLength={5000}
+                  className="min-h-[90px] rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-900"
+                />
+                <TouchableOpacity
+                  onPress={sendReply}
+                  disabled={!replyText.trim() || sendingReply}
+                  activeOpacity={0.85}
+                  className="mt-2.5 h-11 rounded-xl bg-green-600 items-center justify-center flex-row gap-2"
+                  style={{ opacity: !replyText.trim() || sendingReply ? 0.5 : 1 }}
+                >
+                  {sendingReply ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="send" size={15} color="#fff" />
+                  )}
+                  <Text className="text-white text-xs font-extrabold">
+                    {sendingReply ? t("admin.replySending") : t("admin.replySend")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>

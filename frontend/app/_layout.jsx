@@ -2,13 +2,27 @@ import "react-native-gesture-handler";
 import { useEffect } from "react";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
+import * as Notifications from "expo-notifications";
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
 import { Stack } from "expo-router";
-import { StatusBar, View } from "react-native";
+import { StatusBar, View, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
 import { LanguageProvider } from "@context/LanguageContext";
+
+// Silent wakeup — keeps Render.com free-tier server warm during app load
+function wakeupBackend() {
+  fetch("https://pfe-backend-e7kf.onrender.com/api/health").catch(() => {});
+}
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -23,6 +37,15 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {});
   }, [fontError, fontsLoaded]);
+
+  useEffect(() => { wakeupBackend(); }, []);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    Notifications.requestPermissionsAsync().then(({ status }) => {
+      if (status !== "granted") console.warn("Notifications: permission refusée");
+    });
+  }, []);
 
   if (!fontsLoaded && !fontError) return null;
 

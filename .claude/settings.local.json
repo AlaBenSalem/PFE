@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx expo *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); const keys=Object.keys\\({...p.dependencies,...p.devDependencies}\\); const audio=keys.filter\\(k=>k.includes\\('audio'\\)||k.includes\\('sound'\\)||k.includes\\('av'\\)||k.includes\\('tts'\\)||k.includes\\('speech'\\)\\); console.log\\(audio.join\\('\\\\n'\\)\\);\")",
+      "Bash(git add *)",
+      "Bash(git commit -m 'feat: ElevenLabs Arabic TTS + fix forgot-password nav + calendar i18n + PDF m3 + AI context enriched *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(eas whoami *)",
+      "Bash(eas build *)",
+      "Bash(node -e \"try{require\\('sharp'\\);console.log\\('sharp OK'\\)}catch{console.log\\('no sharp'\\)}\")",
+      "Bash(node -e \"try{require\\('canvas'\\);console.log\\('canvas OK'\\)}catch{console.log\\('no canvas'\\)}\")",
+      "Bash(where inkscape *)",
+      "Bash(where magick *)",
+      "Bash(where convert *)",
+      "Bash(where rsvg-convert *)",
+      "Bash(node -e \"console.log\\(process.version\\)\")",
+      "Bash(npm list *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('@resvg/resvg-js'\\); console.log\\('resvg OK'\\)\")",
+      "Bash(npm uninstall *)",
+      "Bash(del \"c:\\\\Users\\\\HAMA\\\\OneDrive\\\\Desktop\\\\PFE-main\\\\frontend\\\\assets\\\\smartirrig_icon.svg\")",
+      "Bash(node --input-type=module)",
+      "Bash(curl -s --max-time 30 \"https://pfe-backend-e7kf.onrender.com/api/health\")",
+      "Bash(curl -s --max-time 90 \"https://pfe-backend-e7kf.onrender.com/api/health\")",
+      "Bash(git checkout *)",
+      "Bash(ngrok version *)",
+      "Bash(ipconfig)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://api.groq.com/openai/v1/chat/completions -H 'Authorization: Bearer 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' -H 'Content-Type: application/json' -d '{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":10}')",
+      "Bash(curl -s https://api.groq.com/openai/v1/chat/completions -H 'Authorization: Bearer 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' -H 'Content-Type: application/json' -d '{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":10}')",
+      "Bash(curl -s https://api.groq.com/openai/v1/chat/completions -H 'Authorization: Bearer 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' -H 'Content-Type: application/json' -d '{\"model\":\"llama-3.1-8b-instant\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":10}')"
+    ]
+  }
+}

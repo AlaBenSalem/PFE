@@ -8,15 +8,15 @@ import { API_BASE_URL, apiFetch } from "@api/client";
  * Récupère les données météo complètes (current + forecast + ET₀)
  * ✅ Passe par le backend pour TOUS les appels OpenWeather
  */
-export async function getOpenWeatherBundle(cityName, language = "fr") {
-  const encodedCity = encodeURIComponent(String(cityName || "").trim());
-  
+export async function getOpenWeatherBundle(cityName, language = "fr", lat = null, lon = null) {
+  const hasCoords  = lat != null && lon != null;
+  const coordQuery = hasCoords ? `lat=${lat}&lon=${lon}` : `city=${encodeURIComponent(String(cityName || "").trim())}`;
+
   try {
-    // ✅ Appels PARALLÈLES aux proxies backend
     const [currentResponse, forecastResponse, backendWeatherResponse] = await Promise.all([
-      apiFetch(`${API_BASE_URL}/weather/openweather/current?city=${encodedCity}`),
-      apiFetch(`${API_BASE_URL}/weather/openweather/forecast?city=${encodedCity}`),
-      apiFetch(`${API_BASE_URL}/weather/current?city=${encodedCity}`)
+      apiFetch(`${API_BASE_URL}/weather/openweather/current?${coordQuery}`, { timeoutMs: 25000 }),
+      apiFetch(`${API_BASE_URL}/weather/openweather/forecast?${coordQuery}`, { timeoutMs: 25000 }),
+      apiFetch(`${API_BASE_URL}/weather/current?${coordQuery}`, { timeoutMs: 25000 }),
     ]);
 
     const currentData = await currentResponse.json();
@@ -59,13 +59,13 @@ export async function getOpenWeatherBundle(cityName, language = "fr") {
 /**
  * Récupère les prévisions avec ET₀ calculé
  */
-export async function getWeatherForecastWithET0(cityName, days = 7) {
-  const encodedCity = encodeURIComponent(String(cityName || "").trim());
-  
+export async function getWeatherForecastWithET0(cityName, days = 7, lat = null, lon = null) {
+  const hasCoords  = lat != null && lon != null;
+  const coordQuery = hasCoords ? `lat=${lat}&lon=${lon}` : `city=${encodeURIComponent(String(cityName || "").trim())}`;
+
   try {
-    // Récupérer les prévisions via le proxy
     const forecastResponse = await apiFetch(
-      `${API_BASE_URL}/weather/openweather/forecast?city=${encodedCity}`
+      `${API_BASE_URL}/weather/openweather/forecast?${coordQuery}`
     );
     const forecastData = await forecastResponse.json();
     

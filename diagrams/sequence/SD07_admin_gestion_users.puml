@@ -1,0 +1,90 @@
+@startuml SD07 — Admin Gestion Utilisateurs
+
+skinparam monochrome true
+skinparam shadowing false
+title SD07 — Admin : Gestion des Utilisateurs\n(Création / Modification / Activation / Suppression / Stats)
+
+actor "Administrateur" as A
+participant "App\n(utilisateurs.jsx)" as App
+participant "adminRoutes\n(Express)" as API
+database "MongoDB" as DB
+participant "EmailService\n(Nodemailer)" as Mail
+
+== Chargement de la liste ==
+
+A -> App : Accède à "المستخدمون" (Utilisateurs)
+App -> API : GET /api/admin/users\nAuthorization: Bearer {adminToken}
+API -> API : requireAdmin() — vérifie role
+API -> DB : User.find().select('-password')\n.sort({ createdAt: -1 })
+DB --> API : tous les utilisateurs
+API --> App : { data: [...users] }
+App --> A : Tableau avec nom, email,\nstatut (Actif/Inactif), date inscription
+
+== Créer un utilisateur ==
+
+A -> App : Clique "Nouvel utilisateur"
+App --> A : Formulaire de création
+A -> App : Saisit prénom, nom, email,\nadresse, mot de passe, statut
+App -> API : POST /api/admin/users\n{ firstName, lastName, email,\n  address, password, isActive }
+API -> DB : User.findOne({ email })
+DB --> API : null (email libre)
+API -> API : bcrypt.hash(password)
+API -> DB : User.create({ ...data })
+DB --> API : user créé
+API -> Mail : Envoyer email de bienvenue\n(optionnel)
+API --> App : 201 { success, user }
+App --> A : ✅ Utilisateur créé
+
+== Modifier les infos d'un utilisateur ==
+
+A -> App : Clique sur un utilisateur\npuis "Modifier"
+App --> A : Formulaire pré-rempli
+A -> App : Modifie nom, adresse, statut...
+App -> API : PATCH /api/admin/users/:id\n{ firstName, lastName,\n  address, isActive, password? }
+API -> DB : User.findByIdAndUpdate(:id,\n{ ...changes }, { new: true })
+DB --> API : user mis à jour
+API --> App : 200 { success, user }
+App --> A : ✅ Modifications sauvegardées
+
+note right of App
+  Quand l'admin modifie le nom de l'user,
+  le user le voit immédiatement :
+  useSession.js recharge /api/auth/profile
+  à chaque montage → AsyncStorage mis à jour
+end note
+
+== Activer / Désactiver un compte ==
+
+A -> App : Toggle Actif/Inactif sur un user
+App -> API : PATCH /api/admin/users/:id/status\n{ isActive: false }
+API -> DB : User.findByIdAndUpdate(:id,\n{ isActive })
+DB --> API : statut mis à jour
+API --> App : 200 { success }
+App --> A : Badge statut mis à jour ✅\n(Actif 🟢 / Inactif 🔴)
+
+== Voir les stats d'un utilisateur ==
+
+A -> App : Clique sur un user → onglet "Irrigations"
+App -> API : GET /api/admin/users/:id/stats\nAuthorization: Bearer {adminToken}
+API -> DB : Irrigation.countDocuments({ userId })
+DB --> API : irrigationCount
+API -> DB : Irrigation.aggregate([\n  { $match: { userId } },\n  { $group: { total: { $sum: "$volume" } } }\n])
+DB --> API : totalVolume (m³)
+API --> App : { irrigationCount, totalVolume }
+App --> A : Carte bleue : "N irrigations"\nCarte verte : "X m³ total"
+
+== Supprimer un utilisateur ==
+
+A -> App : Clique "Supprimer" sur un user
+App --> A : Modal de confirmation
+A -> App : Confirme la suppression
+App -> API : DELETE /api/admin/users/:id
+API -> DB : User.findByIdAndDelete(:id)
+API -> DB : Culture.deleteMany({ userId: id })
+API -> DB : Irrigation.deleteMany({ userId: id })
+API -> DB : Fertilisation.deleteMany\n({ cultureId: $in cultureIds })
+DB --> API : tout supprimé
+API --> App : 200 { success }
+App --> A : ✅ Utilisateur et données supprimés
+
+@enduml

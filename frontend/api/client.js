@@ -45,14 +45,14 @@ function getDevDefaultApiBaseUrl() {
   if (Platform.OS === 'web') return 'http://localhost:5000';
   const inferredHost = inferDevApiBaseUrl();
   if (isLikelyIpAddress(inferredHost)) return `http://${inferredHost}:5000`;
-  return 'https://smartirrigation-2.onrender.com';
+  return 'https://pfe-backend-e7kf.onrender.com';
 }
 
 export const API_BASE_URL =
   normalizeApiBaseUrl(ENV_API_BASE) ||
   (IS_DEV
     ? normalizeApiBaseUrl(getDevDefaultApiBaseUrl())
-    : 'https://smartirrigation-2.onrender.com/api');
+    : 'https://pfe-backend-e7kf.onrender.com/api');
 
 export const API_ENDPOINTS = {
   auth: {
@@ -110,6 +110,7 @@ export const API_ENDPOINTS = {
     messagesList: ({ limit = 30, skip = 0, unreadOnly = false } = {}) =>
       `${API_BASE_URL}/admin/messages?limit=${limit}&skip=${skip}&unreadOnly=${unreadOnly}`,
     messageMarkRead: (id) => `${API_BASE_URL}/admin/messages/${id}/read`,
+    messageReply:    (id) => `${API_BASE_URL}/admin/messages/${id}/reply`,
   },
   messages: {
     create: `${API_BASE_URL}/messages`,
@@ -125,7 +126,7 @@ export const API_ENDPOINTS = {
   },
 };
 
-const TIMEOUT_MS = 30000;
+const TIMEOUT_MS = 60000;
 
 // ✅ FIX : callback de déconnexion injectable (évite import circulaire)
 // Appelé depuis useSession ou authAPI quand un 401 est intercepté

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, ActivityIndicator,
-  RefreshControl, TouchableOpacity, Alert, TextInput,
+  RefreshControl, TouchableOpacity, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -10,31 +10,36 @@ import { API_ENDPOINTS, apiFetch } from '@api/client';
 import { BrandHeader } from '@components/BrandHeader';
 import { useLanguage } from '@context/LanguageContext';
 import { useSession } from '@hooks/useSession';
+import { translateCropName } from '@utils/cropNames';
+import CitySearchInput from '@components/CitySearchInput';
 
 export default function HomeScreen() {
   const router         = useRouter();
-  const { t }          = useLanguage();
+  const { t, language } = useLanguage();
   const { user, role } = useSession();
 
   const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
   const [cultures, setCultures]       = useState([]);
-  const [searchCity, setSearchCity]   = useState('');
   const [currentCity, setCurrentCity] = useState('Tunis');
 
   // ─── Météo ─────────────────────────────────────────────────────────────
-  const fetchWeatherForCity = async (cityName) => {
+  const fetchWeatherForCity = async (cityName, lat, lon) => {
     if (!cityName || cityName.trim() === '') return;
     try {
       setLoading(true);
-      const encodedCity = encodeURIComponent(cityName.trim());
-      const response    = await apiFetch(`${API_ENDPOINTS.weather.current}?city=${encodedCity}`);
-      const result      = await response.json();
+      let url;
+      if (lat && lon) {
+        url = `${API_ENDPOINTS.weather.current}?lat=${lat}&lon=${lon}`;
+      } else {
+        url = `${API_ENDPOINTS.weather.current}?city=${encodeURIComponent(cityName.trim())}`;
+      }
+      const response = await apiFetch(url);
+      const result   = await response.json();
       if (result.success) {
         setWeatherData(result.data);
         setCurrentCity(result.data.location?.city || cityName);
-        setSearchCity('');
       } else {
         Alert.alert(t('common.error'), result.error || t('common.error'));
       }
@@ -124,30 +129,10 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Recherche */}
-        <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginTop: 12 }}>
-          <TextInput
-            style={{
-              flex: 1, backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 8,
-              borderTopLeftRadius: 8, borderBottomLeftRadius: 8,
-              borderWidth: 1, borderColor: '#e5e7eb', fontSize: 13,
-            }}
-            placeholder={t('common.search')}
-            value={searchCity}
-            onChangeText={setSearchCity}
-            onSubmitEditing={() => fetchWeatherForCity(searchCity)}
-            returnKeyType="search"
-            autoCapitalize="words"
-          />
-          <TouchableOpacity
-            style={{
-              backgroundColor: '#22c55e', paddingHorizontal: 12, paddingVertical: 8,
-              borderTopRightRadius: 8, borderBottomRightRadius: 8,
-            }}
-            onPress={() => fetchWeatherForCity(searchCity)}
-          >
-            <Ionicons name="search" size={16} color="white" />
-          </TouchableOpacity>
-        </View>
+        <CitySearchInput
+          placeholder={t('common.search')}
+          onSelectCity={fetchWeatherForCity}
+        />
 
         {/* Météo */}
         <View style={{ backgroundColor: '#EDEFF1', marginHorizontal: 16, padding: 16, borderRadius: 16, marginTop: 12 }}>
@@ -247,7 +232,7 @@ export default function HomeScreen() {
                     }}
                   >
                     <Text style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
-                      {culture.nom}
+                      {translateCropName(culture.nom, language)}
                     </Text>
                     {/* Volume en m³ */}
                     <Text style={{ fontSize: 26, fontWeight: '700', color: '#16a34a', marginBottom: 4 }}>

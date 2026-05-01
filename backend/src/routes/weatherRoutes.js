@@ -17,5 +17,6 @@ router.delete('/cleanup',    weatherController.cleanupOldData);
 router.get('/openweather/current',  weatherController.getOpenWeatherCurrent);
 router.get('/openweather/forecast', weatherController.getOpenWeatherForecast);
 router.get('/openweather/combined', weatherController.getOpenWeatherCombined);
+router.get('/geocode',              weatherController.geocodeSearch);
 
 module.exports = router;

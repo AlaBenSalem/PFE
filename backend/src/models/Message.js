@@ -7,7 +7,9 @@ const messageSchema = new mongoose.Schema(
     senderEmail: { type: String, required: true, trim: true, lowercase: true, maxlength: 180 },
     subject: { type: String, default: "", trim: true, maxlength: 140 },
     body: { type: String, required: true, trim: true, maxlength: 5000 },
-    readAt: { type: Date, default: null },
+    readAt:     { type: Date, default: null },
+    repliedAt:  { type: Date, default: null },
+    replyBody:  { type: String, default: null, maxlength: 5000 },
   },
   { timestamps: true },
 );

@@ -1,0 +1,96 @@
+@startuml SD01 — Inscription et Connexion
+
+skinparam monochrome true
+skinparam shadowing false
+title SD01 — Inscription & Connexion (Email + Google OAuth)
+
+actor "Utilisateur" as U
+participant "App Mobile\n(Expo Router)" as App
+participant "authRoutes\n(Express)" as API
+participant "Google\nOAuth 2.0" as Google
+database "MongoDB\nAtlas" as DB
+participant "Nodemailer\n(Email)" as Mail
+
+== Inscription ==
+
+U -> App : Saisit prénom, nom, email,\nadresse, mot de passe
+App -> App : Validation locale\n(longueur, format email)
+App -> API : POST /api/auth/register\n{ firstName, lastName, email,\n  address, password }
+API -> DB : User.findOne({ email })
+DB --> API : null (email libre)
+API -> API : bcrypt.hash(password, 10)
+API -> DB : User.create({ ...data, isActive: true })
+DB --> API : user créé
+API -> API : jwt.sign({ id, role:"user" })\nexpires: 7j
+API --> App : 201 { token, user }
+App -> App : AsyncStorage.setItem("userToken")\nAsyncStorage.setItem("userData")
+App --> U : Redirection vers l'accueil ✅
+
+== Connexion Email ==
+
+U -> App : Saisit email + mot de passe
+App -> API : POST /api/auth/login\n{ email, password }
+API -> DB : User.findOne({ email })
+DB --> API : document User
+
+alt Compte inactif
+  API --> App : 403 "Compte désactivé"
+  App --> U : ⚠️ Compte bloqué par l'admin
+else Mot de passe incorrect
+  API -> API : bcrypt.compare() → false
+  API --> App : 401 "Email ou mot de passe incorrect"
+  App --> U : Message d'erreur rouge
+else Connexion réussie
+  API -> API : bcrypt.compare() → true
+  API -> API : jwt.sign({ id, role:"user" })
+  API --> App : 200 { token, user }
+  App -> App : AsyncStorage.setItem("userToken")
+  App --> U : Redirection accueil ✅
+end
+
+== Connexion Google OAuth ==
+
+U -> App : Appuie sur "Connexion avec Google"
+App -> Google : Demande d'autorisation OAuth
+Google --> U : Fenêtre consentement Google
+U -> Google : Accepte
+Google --> App : idToken Google
+App -> API : POST /api/auth/google\n{ idToken }
+API -> Google : Vérifie idToken (google-auth-library)
+Google --> API : { email, name, sub (googleId) }
+API -> DB : User.findOne({ email })
+alt Nouvel utilisateur
+  DB --> API : null
+  API -> DB : User.create({ email, googleId, isActive:true })
+else Utilisateur existant
+  DB --> API : user existant
+  API -> DB : User.updateOne({ googleId })
+end
+API -> API : jwt.sign({ id, role:"user" })
+API --> App : 200 { token, user }
+App -> App : AsyncStorage.setItem("userToken")
+App --> U : Connexion réussie ✅
+
+== Réinitialisation Mot de Passe ==
+
+U -> App : Clique "Mot de passe oublié"
+App --> U : Saisir email
+U -> App : Email saisi
+App -> API : POST /api/auth/forgot-password\n{ email }
+API -> DB : User.findOne({ email })
+API -> API : Génère code 6 chiffres\n+ expiration 15 min
+API -> DB : Sauvegarde code + expiry
+API -> Mail : Envoie email avec code\n(Nodemailer / Resend)
+Mail --> U : Email reçu 📧
+U -> App : Saisit code 6 chiffres
+App -> API : POST /api/auth/verify-code\n{ email, code }
+API -> DB : Vérifie code + expiry
+API --> App : 200 { valid: true }
+U -> App : Saisit nouveau mot de passe
+App -> API : POST /api/auth/reset-password\n{ email, code, newPassword }
+API -> API : bcrypt.hash(newPassword)
+API -> DB : User.updateOne({ password: hash })
+API --> App : 200 { success }
+App --> U : ✅ Mot de passe modifié → Connexion
+
+@enduml

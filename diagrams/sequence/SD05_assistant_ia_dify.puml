@@ -1,0 +1,109 @@
+@startuml SD05 — Assistant IA (Dify + ElevenLabs)
+
+skinparam monochrome true
+skinparam shadowing false
+title SD05 — Assistant IA SmartIrrig\n(Dify Chatflow + ElevenLabs TTS + Reconnaissance Vocale)
+
+actor "Utilisateur" as U
+participant "AIChatScreen\n(React Native)" as App
+participant "aiRoutes\n(Express)" as API
+participant "weatherService" as WS
+database "MongoDB" as DB
+participant "Dify API\n(Chatflow)" as Dify
+participant "ElevenLabs\nTTS" as EL
+
+== Ouverture du chat ==
+
+U -> App : Appuie sur FAB 🤖
+App --> U : Panneau de chat s'ouvre (slide)
+App -> API : GET /api/ai/status
+API --> App : { provider: "Dify", configured: true }
+App --> U : Serveur prêt ✅
+
+== Envoi d'un message (texte ou vocal) ==
+
+alt Message texte
+  U -> App : Tape son message
+else Message vocal
+  U -> App : Appuie sur micro 🎤
+  App -> App : ExpoSpeechRecognitionModule.start()\nlang: arabe/français/anglais/turc
+  U -> App : Parle
+  App -> App : Transcript en temps réel (interimResults)
+  U -> App : Appuie à nouveau → stop
+  App -> App : sendMessage(transcript)
+end
+
+App -> API : POST /api/ai/chat\n{ message, conversationId, city }
+note right of App
+  conversationIdRef.current :
+  • "" pour 1ère question
+  • id Dify pour la suite
+  (useRef → pas de re-render)
+end note
+
+API -> API : requireUser() — vérifie JWT
+
+' ── Construction du contexte ──
+API -> DB : Culture.find({ userId })\n.sort({ createdAt: -1 })
+DB --> API : cultures utilisateur
+API -> DB : Irrigation.find({ cultureId: $in })\n.limit(20).populate('cultureId')
+DB --> API : irrigations récentes
+API -> DB : Fertilisation.find({ cultureId: $in })\n.limit(20)
+DB --> API : fertilisations récentes
+API -> WS : getLiveWeather(city)
+WS --> API : { et0, temperature, humidity,\n  wind, description }
+
+API -> API : buildUserContext() :\n• Résumé cultures (nom, variete,\n  surface, Kc, nb arbres)\n• Irrigations récentes (volume, date)\n• Besoins ETc = ET₀ × Kc par culture\n• Prochaines irrigations\n• Prochaines fertilisations\n• Météo du jour
+API -> API : detectMessageLanguage(message)\n→ TUNISIAN_ARABIC | MODERN_ARABIC\n  | FRENCH | ENGLISH | TURKISH
+
+' ── Appel Dify ──
+alt 1ère question (conversationId vide)
+  API -> Dify : POST /v1/chat-messages\n{\n  inputs: {},\n  query: "[CONTEXTE]\n    Cultures(N): ...\n    ETc: ...\n    Météo: ...\n    [LANGUE DÉTECTÉE]\n    TUNISIAN_ARABIC\n    [MESSAGE]\n    {message}",\n  response_mode: "blocking",\n  conversation_id: "",\n  user: userId\n}
+  note right of Dify
+    Dify crée une nouvelle conversation
+    et retourne un conversation_id unique
+  end note
+else Suite de conversation
+  API -> Dify : POST /v1/chat-messages\n{\n  query: "[LANGUE DÉTECTÉE]\n    ...\n    [MESSAGE]\n    {message}",\n  conversation_id: "abc-xyz-123",\n  user: userId\n}
+  note right of Dify
+    Dify retrouve l'historique
+    via conversation_id
+    → contexte conservé
+  end note
+end
+
+Dify --> API : { answer: "...", conversation_id: "abc-xyz-123" }
+API -> API : normalizeNumerals(answer)\n(١٢٣ → 123)
+API --> App : { success, answer, conversationId }
+App -> App : conversationIdRef.current = conversationId
+App --> U : Réponse affichée dans le chat 💬
+
+== Synthèse Vocale (TTS) ==
+
+App -> App : detectSpeechLang(answer)\n→ "ar-SA"
+
+alt Langue arabe + mobile
+  App -> API : POST /api/ai/tts\n{ text: answer }\nAuthorization: Bearer {token}
+  API -> EL : POST /text-to-speech/{voiceId}\n{\n  text: answer,\n  model_id: "eleven_multilingual_v2",\n  voice_settings: { stability:0.55,\n    similarity_boost:0.8 }\n}
+  note right of EL
+    Voice ID: pCKbQ4EPGE06zpEPGNvS
+    (voix arabe naturelle)
+  end note
+  EL --> API : audio/mpeg (buffer)
+  API --> App : Buffer MP3
+  App -> App : FileSystem.writeAsStringAsync()\n(cache local)
+  App -> App : Audio.Sound.createAsync()\n+ shouldPlay: true
+  App --> U : 🔊 Réponse lue en arabe\n(voix ElevenLabs)
+else Autres langues / Web
+  App -> App : webSpeak() → SpeechSynthesis\nou expo-speech (natif)
+  App --> U : 🔊 Réponse lue\n(voix système)
+end
+
+== Changement de langue ==
+
+U -> App : Change la langue de l'app\n(AR → FR → EN → TR)
+App -> App : conversationIdRef.current = ""\n(réinitialise la conversation Dify)
+App -> App : messages = [message d'accueil\ndans la nouvelle langue]
+App --> U : Nouveau fil de conversation\ndans la langue choisie
+
+@enduml

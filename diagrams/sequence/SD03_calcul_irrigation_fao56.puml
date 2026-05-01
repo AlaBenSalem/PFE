@@ -1,0 +1,82 @@
+@startuml SD03 — Calcul Irrigation FAO-56
+
+skinparam monochrome true
+skinparam shadowing false
+title SD03 — Calcul des Besoins en Eau (FAO-56) et Enregistrement Irrigation
+
+actor "Utilisateur" as U
+participant "App Mobile\n(irrigation.jsx)" as App
+participant "irrigationRoutes\n(Express)" as API
+participant "weatherService\n(Express)" as WS
+participant "OpenWeather\nAPI" as OW
+database "MongoDB" as DB
+
+== Chargement de la page Irrigation ==
+
+U -> App : Ouvre onglet "الري"
+App -> API : GET /api/irrigation/needs\nAuthorization: Bearer {token}
+API -> API : requireUser()
+API -> DB : Culture.find({ userId })\n.populate('kc')
+DB --> API : cultures avec Kc
+
+' ── Météo avec cache 30 min ──
+API -> WS : getLatestWeather(city)
+WS -> DB : Weather.findOne({ city })\n.sort({ date: -1 })
+DB --> WS : dernière météo en base
+
+alt Cache valide (< 30 min ET ET₀ > 0.1)
+  WS --> API : météo en cache
+else Cache expiré ou manquant
+  WS -> OW : GET /data/2.5/weather\n?q={city}&appid={key}
+  OW --> WS : { temp, humidity,\n  wind, pressure, ... }
+  WS -> WS : Calcul ET₀\n(Penman-Monteith FAO-56)\nET₀ = f(Rn, T, U2, ea-ed)
+  WS -> DB : Weather.create({ et0, ...data })
+  DB --> WS : météo sauvegardée
+  WS --> API : météo fraîche + ET₀
+end
+
+note right of API
+  ET₀ valide si 0.1 < ET₀ < 30 mm/j
+  selon seuils FAO-56
+end note
+
+' ── Calcul ETc par culture ──
+loop Pour chaque culture de l'utilisateur
+  API -> API : ETc = ET₀ × Kc_actuel\n(FAO-56 §5)
+  API -> API : Volume_théorique = ETc × surface (m²) / 1000 (m³)
+  API -> API : Efficacité η :\n• goutte-à-goutte : 0.90 (90%)\n• aspersion : 0.70 (70%)\n• gravitaire : 0.60 (60%)
+  API -> API : Volume_réel = Volume_théorique / η
+  API -> API : Débit_total = debitGoutteur\n  × nbGoutteurs × nbArbres (L/h)
+  API -> API : Durée = Volume_réel × 1000 / Débit_total (min)
+  API -> DB : Irrigation.findOne({ cultureId })\n(prochaine date + fréquence)
+  DB --> API : dernière irrigation
+  API -> API : Calcul prochaine date\n= lastDate + frequenceJours
+  API -> DB : Fertilisation.findOne({ cultureId })\n(prochaine fertilisation)
+  DB --> API : calendrier fertilisation
+end
+
+API --> App : { cultures, et0, etcValues,\n  volumes, durations,\n  nextIrrigDates, nextFertDates }
+App --> U : Affichage recommandations :\n• ETc par culture (mm/j)\n• Volume à apporter (m³)\n• Durée d'irrigation (min)\n• Prochaine date
+
+== Enregistrement d'une Irrigation ==
+
+U -> App : Sélectionne culture + mode\npuis valide "Irriguer"
+App -> API : POST /api/irrigation\n{ cultureId, volume, duration,\n  mode, date, frequenceJours,\n  etc, notes? }
+API -> API : requireUser()
+API -> DB : Irrigation.create({ userId,\n  cultureId, volume, duration,\n  mode, date, frequenceJours,\n  prochaineDate })
+DB --> API : irrigation créée (_id)
+API -> DB : Culture.findByIdAndUpdate\n({ kcActuel, stadeActuel })\n(mise à jour stade FAO-56)
+DB --> API : culture mise à jour
+API --> App : 201 { success, data: irrigation }
+App --> U : ✅ Irrigation enregistrée\nHistorique mis à jour
+
+== Consultation de l'historique ==
+
+U -> App : Onglet "السجل" (Historique)
+App -> API : GET /api/irrigation/history\n?limit=50
+API -> DB : Irrigation.find({ userId })\n.populate('cultureId', 'nom variete')\n.sort({ date: -1 })
+DB --> API : liste irrigations
+API --> App : { data: [...irrigations] }
+App --> U : Liste chronologique avec\nvolume, mode, culture, date
+
+@enduml

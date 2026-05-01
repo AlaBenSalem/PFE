@@ -19,6 +19,7 @@ import NotificationBell from "@components/NotificationBell";
 import { useFertilisationNotifications } from "@hooks/useNotifications";
 import { API_ENDPOINTS, apiFetch } from "@api/client";
 import { useLanguage } from "@context/LanguageContext";
+import { translateCropName } from "@utils/cropNames";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 
@@ -338,6 +339,8 @@ export default function FertilisationPage() {
   const [activeTab, setActiveTab] = useState("calendar");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [confirmedEvents, setConfirmedEvents] = useState(new Set());
+  const [confirmingKey, setConfirmingKey] = useState(null);
 
   const year = new Date().getFullYear();
   const moisCourts = MOIS_COURTS[lang] || MOIS_COURTS.fr;
@@ -393,6 +396,38 @@ export default function FertilisationPage() {
   const eventsThisMonth = allEvents
     .filter((ev) => ev.mois === selectedMonth)
     .sort((a, b) => a.jour - b.jour);
+
+  const handleConfirmFert = async (ev) => {
+    const key = `${ev.culture?._id}_${ev.mois}_${ev.jour}`;
+    if (confirmedEvents.has(key)) return;
+    setConfirmingKey(key);
+    try {
+      const res = await apiFetch(API_ENDPOINTS.fertilisations.base, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cultureId: ev.culture?._id,
+          date: new Date(new Date().getFullYear(), ev.mois - 1, ev.jour).toISOString(),
+          typeProduit: "engrais",
+          produit: ev.produit,
+          dose: parseFloat(ev.doseParHa) || parseFloat(ev.doseParArbre) || 0,
+          uniteDose: ev.doseParHa ? "kg/ha" : "g/arbre",
+          surface: ev.culture?.surface,
+          nombreArbres: ev.culture?.nombreArbres,
+        }),
+      });
+      if (res.ok) {
+        setConfirmedEvents((prev) => new Set([...prev, key]));
+      } else {
+        Alert.alert(t("common.error") || "Erreur", "Impossible d'enregistrer la fertilisation.");
+      }
+    } catch (e) {
+      console.error("handleConfirmFert:", e.message);
+      Alert.alert(t("common.error") || "Erreur", "Erreur réseau.");
+    } finally {
+      setConfirmingKey(null);
+    }
+  };
 
   const exportFertilisation = async () => {
     try {
@@ -461,7 +496,9 @@ export default function FertilisationPage() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       } else {
-        const fileUri = FileSystem.documentDirectory + filename;
+        const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+        if (!baseDir) { Alert.alert(t("common.error") || "Erreur", "Stockage indisponible sur cet appareil"); return; }
+        const fileUri = baseDir + filename;
         await FileSystem.writeAsStringAsync(fileUri, csv, {
           encoding: FileSystem.EncodingType.UTF8,
         });
@@ -470,16 +507,11 @@ export default function FertilisationPage() {
         if (isSharingAvailable) {
           await Sharing.shareAsync(fileUri, {
             mimeType: "text/csv",
-            dialogTitle:
-              t("fertilisation.exporter") || "Exporter la fertilisation",
+            dialogTitle: t("fertilisation.exporter") || "Exporter la fertilisation",
             UTI: "public.comma-separated-values-text",
           });
         } else {
-          Alert.alert(
-            t("common.error") || "Erreur",
-            t("fertilisation.sharingNotAvailable") ||
-              "Le partage n'est pas disponible sur cet appareil",
-          );
+          Alert.alert("Information", `Fichier sauvegardé : ${filename}`);
         }
       }
     } catch (e) {
@@ -567,7 +599,7 @@ export default function FertilisationPage() {
               {t("common.culture").toUpperCase()}
             </Text>
             <Text className="text-lg font-bold text-gray-800">
-              {selected ? selected.nom : t("fertilisation.allCrops")}
+              {selected ? translateCropName(selected.nom, language) : t("fertilisation.allCrops")}
             </Text>
             {selected?.parcelle && (
               <Text className="mt-0.5 text-xs text-gray-500">
@@ -642,7 +674,7 @@ export default function FertilisationPage() {
                 </Text>
               </View>
             ) : (
-              eventsThisMonth.map((ev, i) => {
+              eventsThisMonth.map((ev) => {
                 const evDate = new Date(year, ev.mois - 1, ev.jour);
                 const todayDate = new Date();
                 todayDate.setHours(0, 0, 0, 0);
@@ -654,7 +686,7 @@ export default function FertilisationPage() {
 
                 return (
                   <View
-                    key={i}
+                    key={`${ev.culture?._id ?? "x"}_${ev.mois}_${ev.jour}_${ev.produit ?? ""}`}
                     className={`mb-2.5 flex-row items-start rounded-2xl border p-3.5 shadow-sm ${
                       isToday
                         ? "border-red-200 bg-red-50"
@@ -695,7 +727,7 @@ export default function FertilisationPage() {
                         <Text
                           className={`text-sm font-bold ${isToday ? "text-red-600" : "text-gray-800"}`}
                         >
-                          {ev.cultureName}
+                          {translateCropName(ev.cultureName, language)}
                         </Text>
                         {ev.parcelle && (
                           <Text className="text-xs text-gray-400">
@@ -773,7 +805,7 @@ export default function FertilisationPage() {
                 a.mois !== b.mois ? a.mois - b.mois : a.jour - b.jour,
               );
               let lastMonth = null;
-              return sorted.map((ev, i) => {
+              return sorted.map((ev) => {
                 const showHeader = ev.mois !== lastMonth;
                 lastMonth = ev.mois;
                 const evDate = new Date(year, ev.mois - 1, ev.jour);
@@ -781,7 +813,7 @@ export default function FertilisationPage() {
                 const isPast = diff < 0;
                 const doseLines = getDoseLabel(ev, ev.culture, t);
                 return (
-                  <View key={i}>
+                  <View key={`list_${ev.culture?._id ?? "x"}_${ev.mois}_${ev.jour}_${ev.produit ?? ""}`}>
                     {showHeader && (
                       <Text className="mb-2 mt-4 text-xs font-bold tracking-wider text-gray-400">
                         {moisCourts[ev.mois - 1].toUpperCase()} {year}
@@ -792,7 +824,7 @@ export default function FertilisationPage() {
                     >
                       <View className="flex-1">
                         <Text className="mb-0.5 text-sm font-bold text-gray-800">
-                          {ev.cultureName}
+                          {translateCropName(ev.cultureName, language)}
                         </Text>
                         {doseLines.map((line, li) => (
                           <Text
@@ -807,7 +839,7 @@ export default function FertilisationPage() {
                           </Text>
                         ))}
                       </View>
-                      <View className="items-end">
+                      <View className="items-end gap-1">
                         <Text className="mb-0.5 text-[13px] font-semibold text-gray-700">
                           {String(ev.jour).padStart(2, "0")}{" "}
                           {moisCourts[ev.mois - 1]}
@@ -822,12 +854,44 @@ export default function FertilisationPage() {
                           </Text>
                         ) : (
                           <Text className="text-[11px] font-bold text-green-600">
-                            {t("fertilisation.inDays").replace(
-                              "{{count}}",
-                              String(diff),
-                            )}
+                            {t("fertilisation.inDays").replace("{{count}}", String(diff))}
                           </Text>
                         )}
+                        {!isPast && (() => {
+                          const key = `${ev.culture?._id}_${ev.mois}_${ev.jour}`;
+                          const done = confirmedEvents.has(key);
+                          const loading2 = confirmingKey === key;
+                          return (
+                            <TouchableOpacity
+                              onPress={() => handleConfirmFert(ev)}
+                              disabled={done || loading2}
+                              style={{
+                                flexDirection: "row", alignItems: "center", gap: 3,
+                                backgroundColor: done ? "#f0fdf4" : "#16a34a",
+                                borderRadius: 20,
+                                paddingHorizontal: 10, paddingVertical: 4,
+                                marginTop: 2,
+                                opacity: done ? 0.8 : 1,
+                              }}
+                            >
+                              {loading2 ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                              ) : (
+                                <Ionicons
+                                  name={done ? "checkmark-circle" : "checkmark"}
+                                  size={12}
+                                  color={done ? "#16a34a" : "#fff"}
+                                />
+                              )}
+                              <Text style={{
+                                fontSize: 11, fontWeight: "700",
+                                color: done ? "#16a34a" : "#fff",
+                              }}>
+                                {done ? "Fait ✓" : "Confirmer"}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })()}
                       </View>
                     </View>
                   </View>
@@ -892,7 +956,7 @@ export default function FertilisationPage() {
                       <Text
                         className={`text-[15px] font-bold ${isActive ? "text-green-700" : "text-gray-800"}`}
                       >
-                        {item.nom}
+                        {translateCropName(item.nom, language)}
                       </Text>
                       {item.parcelle && (
                         <Text className="mt-0.5 text-xs text-gray-400">

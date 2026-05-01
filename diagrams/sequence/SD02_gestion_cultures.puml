@@ -1,0 +1,73 @@
+@startuml SD02 — Gestion des Cultures
+
+skinparam monochrome true
+skinparam shadowing false
+title SD02 — Gestion des Cultures (Ajout / Consultation / Suppression)
+
+actor "Utilisateur" as U
+participant "App Mobile\n(cultures.jsx)" as App
+participant "cultureRoutes\n(Express)" as API
+participant "kcRoutes\n(Express)" as KCAPI
+database "MongoDB" as DB
+
+== Chargement des cultures ==
+
+U -> App : Ouvre onglet "محاصيلي"
+App -> API : GET /api/cultures\nAuthorization: Bearer {token}
+API -> API : requireUser() — vérifie JWT
+API -> DB : Culture.find({ userId })\n.sort({ createdAt: -1 })
+DB --> API : liste des cultures
+API --> App : 200 { success, data: [...cultures] }
+App -> KCAPI : GET /api/kc/search\n(liste cultures disponibles)
+KCAPI -> DB : KC.find().sort({ culture: 1 })
+DB --> KCAPI : toutes les références Kc FAO-56
+KCAPI --> App : 200 { data: [...kcCultures] }
+App --> U : Affiche les cultures avec\nbadge Kc + type de sol
+
+== Ajout d'une culture ==
+
+U -> App : Appuie sur "+ إضافة"
+App --> U : Ouvre formulaire modal
+U -> App : Remplit : parcelle, région, nom,\nvariété, sol, date, surface,\nnombre arbres, débit goutteur,\nnb goutteurs/arbre, densité
+note right of App
+  Traduction dynamique des noms
+  (arabe/anglais/turc) via
+  CROP_NAME_MAP + VARIETY_MAP
+  La valeur stockée reste en français
+end note
+App -> App : Validation locale\n(champs obligatoires + plages FAO-56)
+
+alt Validation échouée
+  App --> U : Erreurs en rouge sous les champs
+else Validation OK
+  App -> App : Calcul débit total =\ndebit × nbGoutteurs × nbArbres
+  App -> API : POST /api/cultures\n{ parcelle, nom, variete, typeSol,\n  surface, nombreArbres,\n  debitGoutteur, nbGoutteursParArbre,\n  densitePlantation, region,\n  thetaCc?, thetaPf? }
+  API -> API : requireUser()
+  API -> DB : KC.findOne({ culture: nom })\n(récupérer Kc FAO-56)
+  DB --> API : référence Kc
+  API -> API : Calcul Kc actuel selon mois\n(stade phénologique FAO-56)
+  API -> DB : Culture.create({ userId, ...data,\n  kcActuel, stadeActuel })
+  DB --> API : culture créée
+  API --> App : 201 { success, data: culture }
+  App --> U : ✅ "Culture ajoutée avec succès"
+  App -> API : GET /api/cultures (rechargement)
+  API --> App : liste mise à jour
+end
+
+== Suppression d'une culture ==
+
+U -> App : Appuie sur 🗑️ sur une culture
+App --> U : Modal de confirmation
+U -> App : Confirme la suppression
+App -> API : DELETE /api/cultures/:id\nAuthorization: Bearer {token}
+API -> API : requireUser()
+API -> DB : Culture.findOneAndDelete\n({ _id: id, userId })
+DB --> API : culture supprimée
+API -> DB : Irrigation.deleteMany({ cultureId: id })
+API -> DB : Fertilisation.deleteMany({ cultureId: id })
+DB --> API : données liées supprimées
+API --> App : 200 { success }
+App -> App : Filtre la liste locale (optimistic)
+App --> U : ✅ Culture retirée de la liste
+
+@enduml

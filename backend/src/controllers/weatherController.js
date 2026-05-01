@@ -558,6 +558,41 @@ exports.getOpenWeatherCombined = async (req, res) => {
   }
 };
 
+exports.geocodeSearch = async (req, res) => {
+  try {
+    const { q, limit = 6 } = req.query;
+    if (!q || String(q).trim().length < 2) {
+      return res.status(400).json({ success: false, error: "Requête trop courte" });
+    }
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q.trim())}&format=json&limit=${limit}&addressdetails=1&accept-language=fr`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'SmartIrrig/1.0 (neffatimohamed3@gmail.com)' }
+    });
+    if (!response.ok) {
+      return res.status(response.status).json({ success: false, error: "Erreur geocoding" });
+    }
+    const data = await response.json();
+    const seen = new Set();
+    const results = data
+      .filter(item => item.lat && item.lon)
+      .map(item => {
+        const addr    = item.address || {};
+        const name    = addr.village || addr.town || addr.city || addr.municipality || addr.county || item.display_name.split(',')[0];
+        const state   = addr.state || addr.county || null;
+        const country = addr.country_code?.toUpperCase() || '';
+        const label   = [name, state, country].filter(Boolean).join(', ');
+        return { name, state, country, lat: parseFloat(item.lat), lon: parseFloat(item.lon), label };
+      })
+      .filter(item => { const k = item.label; if (seen.has(k)) return false; seen.add(k); return true; });
+
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.json({ success: true, data: results });
+  } catch (error) {
+    console.error("❌ [GEOCODE] Erreur:", error.message);
+    res.status(500).json({ success: false, error: "Erreur serveur geocoding" });
+  }
+};
+
 // Export des constantes pour utilisation éventuelle dans d'autres fichiers
 module.exports.ET0_MIN_VALID = ET0_MIN_VALID;
 module.exports.ET0_MAX_VALID = ET0_MAX_VALID;

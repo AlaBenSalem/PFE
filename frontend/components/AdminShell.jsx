@@ -339,30 +339,30 @@ export function AdminShell({
     () => [
       {
         key: "dashboard",
-        label: "Tableau de bord",
+        label: t("admin.navDashboard"),
         icon: "view-dashboard-outline",
         route: APP_ROUTES.adminDashboard,
       },
       {
         key: "addculture",
-        label: "Ajouter une culture",
+        label: t("admin.navAddCulture"),
         icon: "plus-box-outline",
         route: APP_ROUTES.adminAddCulture,
       },
       {
         key: "utilisateurs",
-        label: "Utilisateurs",
+        label: t("admin.navUsers"),
         icon: "account-group-outline",
         route: APP_ROUTES.adminUsers,
       },
       {
         key: "messages",
-        label: "Messages",
+        label: t("admin.navMessages"),
         icon: "email-outline",
         route: APP_ROUTES.adminMessages,
       },
     ],
-    [],
+    [t],
   );
 
   const currentLanguage = useMemo(

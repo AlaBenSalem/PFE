@@ -27,7 +27,7 @@ export function BackButton({
       accessibilityRole="button"
       accessibilityLabel="Back"
       hitSlop={10}
-      className="mb-[18px] items-center justify-center border shadow-sm"
+      className="mb-[18px] items-center justify-center self-start"
       style={({ pressed }) => [
         {
           width: size,

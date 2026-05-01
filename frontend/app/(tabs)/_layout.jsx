@@ -4,7 +4,7 @@ import { AppDrawer } from "@components/AppDrawer";
 import { APP_ROUTES, AUTH_ROUTES } from "@constants/routes";
 import { useSession } from "@hooks/useSession";
 import { Ionicons } from "@expo/vector-icons";
-import AIChatFAB from "@components/AIChatScreen"; // ✅ NEW
+import AIChatFAB from "@components/AIChatScreen";
 import homeIcon from "@assets/images/greenhouse.png";
 import culturesIcon from "@assets/images/agri.png";
 import calendarIcon from "@assets/images/calendar.png";
@@ -128,6 +128,13 @@ export default function TabsLayout() {
               tabBarIcon: ({ focused }) => (
                 <TabIcon iconName="mail-outline" focused={focused} />
               ),
+            }}
+          />
+          <Tabs.Screen
+            name="carte"
+            options={{
+              href: null,
+              title: "Carte",
             }}
           />
           <Tabs.Screen

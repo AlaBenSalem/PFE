@@ -1,0 +1,166 @@
+@startuml SmartIrrig - Diagramme de Classes
+
+skinparam classAttributeIconSize 0
+skinparam monochrome true
+skinparam shadowing false
+
+' ══════════════════════════════════════
+' ENTITÉS PRINCIPALES
+' ══════════════════════════════════════
+
+class User {
+  - _id : ObjectId
+  - firstName : String
+  - lastName : String
+  - email : String
+  - password : String (hashed)
+  - address : String
+  - isActive : Boolean
+  - googleId : String
+  - createdAt : Date
+  + getFullName() : String
+  + comparePassword(pwd) : Boolean
+}
+
+class Admin {
+  - _id : ObjectId
+  - email : String
+  - password : String (hashed)
+  - fullName : String
+  - createdAt : Date
+  + comparePassword(pwd) : Boolean
+}
+
+class Culture {
+  - _id : ObjectId
+  - userId : ObjectId
+  - nom : String
+  - variete : String
+  - parcelle : String
+  - region : String
+  - surface : Number (m²)
+  - nombreArbres : Number
+  - typeSol : String
+  - datePlantation : Date
+  - kcActuel : Number
+  - stadeActuel : String
+  - debitGoutteur : Number (L/h)
+  - nbGoutteursParArbre : Number
+  - densitePlantation : Number (arb/ha)
+  - thetaCc : Number (m³/m³)
+  - thetaPf : Number (m³/m³)
+  - createdAt : Date
+}
+
+class Irrigation {
+  - _id : ObjectId
+  - userId : ObjectId
+  - cultureId : ObjectId
+  - volume : Number (L)
+  - duration : Number (min)
+  - date : Date
+  - mode : String
+  - etc : Number (mm/j)
+  - frequenceJours : Number
+  - prochaineDate : Date
+  - notes : String
+}
+
+class Fertilisation {
+  - _id : ObjectId
+  - cultureId : ObjectId
+  - produit : String
+  - typeProduit : String
+  - quantite : Number
+  - date : Date
+  - frequenceJours : Number
+  - prochaineDate : Date
+  - notes : String
+}
+
+class KC {
+  - _id : ObjectId
+  - culture : String
+  - variete : String
+  - kcIni : Number
+  - kcMid : Number
+  - kcEnd : Number
+  - stades : Object
+  - source : String
+  - createdAt : Date
+}
+
+class Weather {
+  - _id : ObjectId
+  - location : Object
+  - temperature : Object
+  - humidity : Object
+  - wind : Object
+  - et0 : Number (mm/j)
+  - description : String
+  - date : Date
+}
+
+' ══════════════════════════════════════
+' SERVICES
+' ══════════════════════════════════════
+
+class WeatherService {
+  + getLatestWeather(city) : Weather
+  + saveWeatherData(city) : Weather
+  + calculateET0(data) : Number
+}
+
+class AIService {
+  - DIFY_API_KEY : String
+  - DIFY_BASE : String
+  + buildUserContext(userId, city) : Object
+  + detectMessageLanguage(text) : String
+  + chat(message, conversationId) : Object
+}
+
+class TTSService {
+  - ELEVENLABS_API_KEY : String
+  - ELEVENLABS_VOICE_ID : String
+  + synthesize(text) : Buffer
+}
+
+' ══════════════════════════════════════
+' RELATIONS
+' ══════════════════════════════════════
+
+User "1" --o{ "0..*" Culture : possède
+User "1" --o{ "0..*" Irrigation : effectue
+Culture "1" --o{ "0..*" Irrigation : reçoit
+Culture "1" --o{ "0..*" Fertilisation : reçoit
+Culture }o..o| "1" KC : référence
+
+WeatherService ..> Weather : gère
+AIService ..> WeatherService : utilise
+AIService ..> Culture : consulte
+AIService ..> Irrigation : consulte
+AIService ..> TTSService : déclenche
+
+Admin ..> User : administre
+Admin ..> KC : gère
+Admin ..> Irrigation : consulte
+
+note bottom of Culture
+  typeSol : sableux | limono_sableux
+           | limoneux | argilo_limoneux
+           | argileux
+end note
+
+note bottom of Irrigation
+  mode : goutte-à-goutte
+        | aspersion | gravitaire
+  ETc = ET₀ × Kc  (FAO-56)
+end note
+
+note right of KC
+  FAO-56 base officielle
+  Kc varie selon le stade
+  phénologique de la culture
+end note
+
+@enduml

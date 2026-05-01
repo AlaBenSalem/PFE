@@ -96,6 +96,7 @@ async function saveLog(action, details) {
 async function googleSignInNative() {
   if (!GoogleSignin) throw new Error("GoogleSignin non disponible");
   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  try { await GoogleSignin.signOut(); } catch {}
   const result = await GoogleSignin.signIn();
   const idToken =
     result?.data?.idToken ||

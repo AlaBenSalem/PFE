@@ -1,0 +1,72 @@
+@startuml SD06 — Admin Dashboard
+
+skinparam monochrome true
+skinparam shadowing false
+title SD06 — Connexion Admin & Dashboard (Statistiques + Graphiques)
+
+actor "Administrateur" as A
+participant "App Web/Mobile\n(AdminShell)" as App
+participant "adminRoutes\n(Express)" as API
+database "MongoDB" as DB
+
+== Connexion Admin ==
+
+A -> App : Saisit email + mot de passe admin
+App -> API : POST /api/admin/login\n{ email, password }
+API -> DB : Admin.findOne({ email })
+DB --> API : document Admin
+API -> API : bcrypt.compare(password)
+alt Identifiants corrects
+  API -> API : jwt.sign({ id, role:"admin" })
+  API --> App : 200 { token, admin }
+  App -> App : AsyncStorage.setItem("adminToken")\nAsyncStorage.setItem("adminData")
+  App --> A : Redirection Dashboard ✅
+else Mauvais identifiants
+  API --> App : 401 "Identifiants incorrects"
+  App --> A : Message d'erreur
+end
+
+== Chargement Dashboard ==
+
+A -> App : Accède au Dashboard
+App -> API : GET /api/kc\nAuthorization: Bearer {adminToken}
+API -> DB : KC.countDocuments()
+DB --> API : totalKcCount (ex: 28)
+
+App -> API : GET /api/admin/users
+API -> DB : User.find()\n.select('-password')
+DB --> API : liste utilisateurs
+
+App -> API : GET /api/admin/irrigations/volume-by-day\n?days=30
+API -> DB : Irrigation.aggregate([\n  { $match: { date: { $gte: -30j } } },\n  { $group: {\n    _id: { $dateToString: "%Y-%m-%d" },\n    total: { $sum: "$volume" }\n  }}\n])
+DB --> API : volumes par jour
+
+API --> App : { labels: [...dates],\n  datasets: [{ data: [...volumes] }] }
+App --> A : Affiche :\n• Carte "Cultures" = 28 (KC total)\n• Carte "Utilisateurs" = N\n• Graphique courbe 30 jours
+
+== Filtrer le graphique par utilisateur ==
+
+A -> App : Saisit nom dans la barre de recherche
+App -> App : useMemo → filteredUsers\n(filtre par nom ou email)
+App --> A : Liste filtrée en temps réel
+
+A -> App : Clique sur un utilisateur
+App -> API : GET /api/admin/irrigations/volume-by-day\n?days=30&userId={id}
+API -> DB : Irrigation.aggregate([\n  { $match: {\n    userId: ObjectId(id),\n    date: { $gte: -30j }\n  }},\n  { $group: { ... } }\n])
+DB --> API : volumes pour cet utilisateur
+API --> App : données filtrées
+App --> A : Graphique mis à jour\npour l'utilisateur sélectionné ✅
+
+== Modifier son propre nom (Admin) ==
+
+A -> App : Clique sur ✏️ dans la sidebar
+App --> A : Modal "Modifier le nom"
+A -> App : Saisit nouveau nom + valide
+App -> API : PATCH /api/admin/profile\n{ fullName: "Nouveau Nom" }\nAuthorization: Bearer {adminToken}
+API -> DB : Admin.findByIdAndUpdate\n({ fullName })
+DB --> API : admin mis à jour
+API --> App : 200 { success, fullName }
+App -> App : AsyncStorage.setItem("adminData")
+App --> A : ✅ Nom mis à jour dans la sidebar
+
+@enduml

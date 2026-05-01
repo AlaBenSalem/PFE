@@ -78,13 +78,13 @@ export default function ContactAdmin() {
     });
   }, []);
 
-  const canSend = useMemo(() => body.trim().length >= 5 && !sending, [body, sending]);
+  const canSend = useMemo(() => body.trim().length >= 4 && !sending, [body, sending]);
 
   const onSend = async () => {
     const trimmedBody = body.trim();
     const trimmedSubject = subject.trim();
 
-    if (trimmedBody.length < 5) {
+    if (trimmedBody.length < 4) {
       Alert.alert(t("common.error"), t("messages.tooShort"));
       return;
     }
@@ -109,7 +109,13 @@ export default function ContactAdmin() {
       setBody("");
       Alert.alert(t("messages.sentTitle"), t("messages.sentBody"));
     } catch (error) {
-      Alert.alert(t("common.error"), error.message || "Erreur envoi.");
+      const isTimeout = error?.name === "AbortError" || error?.name === "TimeoutError";
+      Alert.alert(
+        t("common.error"),
+        isTimeout
+          ? "Serveur en démarrage. Veuillez réessayer dans quelques instants."
+          : error.message || "Erreur envoi."
+      );
     } finally {
       setSending(false);
     }
