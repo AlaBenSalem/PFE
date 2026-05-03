@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.smartirrig.app",
-      "versionCode": 4,
+      "versionCode": 5,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -63,6 +63,12 @@
       "microphonePermission": "Autoriser SmartIrrig à utiliser le microphone pour la reconnaissance vocale.",
       "speechRecognitionPermission": "Autoriser SmartIrrig à reconnaître votre voix.",
       "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+    }
+  ],
+  [
+    "expo-notifications",
+    {
+      "color": "#16a34a"
     }
   ]
 ]
