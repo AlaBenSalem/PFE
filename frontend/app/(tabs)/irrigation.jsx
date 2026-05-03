@@ -507,16 +507,19 @@ export default function IrrigationPage() {
       const eauMm     = deficitMm / eta;
       const perteMm   = eauMm - deficitMm;
 
-      // Date exacte d'irrigation = dernière irrigation + fréquence
-      const baseDate = lastIrrig ? new Date(lastIrrig.date) : new Date(now);
-      const dateProchaine = new Date(baseDate);
-      dateProchaine.setDate(dateProchaine.getDate() + frequenceJours);
+      // Date planifiée = dernière irrigation + fréquence
       const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
-      dateProchaine.setHours(0, 0, 0, 0);
-      const joursAvantIrrigDate = Math.ceil((dateProchaine - todayMidnight) / 86400000);
-      // Irrigation due si la date est passée OU si le stock a atteint le seuil RFU
-      const isIrrigationDue  = joursAvantIrrigDate <= 0 || W_current <= W_seuil;
-      const joursAvantIrrig  = isIrrigationDue ? 0 : joursAvantIrrigDate;
+      const baseDate = lastIrrig ? new Date(lastIrrig.date) : new Date(now);
+      const scheduledDate = new Date(baseDate);
+      scheduledDate.setDate(scheduledDate.getDate() + frequenceJours);
+      scheduledDate.setHours(0, 0, 0, 0);
+      const joursAvantScheduled = Math.ceil((scheduledDate - todayMidnight) / 86400000);
+
+      // Si le stock est au seuil RFU → irrigation due AUJOURD'HUI (priorité sur la date)
+      const stockDue       = W_current <= W_seuil;
+      const isIrrigationDue = joursAvantScheduled <= 0 || stockDue;
+      const dateProchaine  = isIrrigationDue ? new Date(todayMidnight) : scheduledDate;
+      const joursAvantIrrig = isIrrigationDue ? 0 : joursAvantScheduled;
 
       // Alerte stock : warning si stock ≤ seuil RFU, critical si proche de W_pf
       let stockAlert = null;
@@ -564,7 +567,7 @@ export default function IrrigationPage() {
         deficitMm: deficitMm.toFixed(1),
         W_cc, W_pf_mm, W_seuil, W_current, stockPct,
         peff, rainRaw,
-        dateProchaine, joursAvantIrrig, isIrrigationDue, stockAlert,
+        dateProchaine, joursAvantIrrig, isIrrigationDue, stockDue, stockAlert,
       };
     } catch (err) {
       console.error("Irrigation.calculateNeeds:", err.message);
@@ -1102,13 +1105,15 @@ export default function IrrigationPage() {
                     />
                     {besoins.isIrrigationDue ? (
                       <Text className="flex-1 text-[13px] leading-5 text-blue-800">
-                        {"Ouvrez la vanne pendant "}
+                        {besoins.stockDue
+                          ? "Irriguer aujourd'hui pour revenir à la capacité au champ — "
+                          : "Ouvrez la vanne pendant "}
                         <Text className="font-bold">{fmtTemps(besoins.temps)}</Text>
                         {" à "}
                         <Text className="font-bold">{besoins.debitM3h} m³/h</Text>
-                        {` (${besoins.eta}% eff.) pour irriguer `}
-                        <Text className="font-bold">{translateCropName(selectedCulture.nom, language)}</Text>
-                        {" · "}
+                        {` (${besoins.eta}% eff.) · `}
+                        <Text className="font-bold">{besoins.eauM3} m³</Text>
+                        {" sur "}
                         <Text className="font-bold">{besoins.surface.toLocaleString("fr-FR")} m²</Text>
                       </Text>
                     ) : (
