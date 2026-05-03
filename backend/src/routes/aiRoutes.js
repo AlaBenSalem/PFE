@@ -477,8 +477,15 @@ router.post('/tts', requireUser, async (req, res) => {
     return res.send(Buffer.from(elRes.data));
 
   } catch (err) {
-    console.error('❌ [TTS proxy] ElevenLabs error:', err.response?.status, err.message);
-    return res.status(502).json({ success: false, error: 'TTS indisponible.' });
+    let detail = err.message;
+    if (err.response?.data) {
+      try {
+        const buf = Buffer.from(err.response.data);
+        detail = buf.toString('utf8');
+      } catch {}
+    }
+    console.error('❌ [TTS proxy] ElevenLabs error:', err.response?.status, detail);
+    return res.status(502).json({ success: false, error: 'TTS indisponible.', detail });
   }
 });
 
