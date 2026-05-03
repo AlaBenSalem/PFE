@@ -152,7 +152,7 @@ const SPEECH_PITCH = {
   "en-US": 1.0,
 };
 
-// ── Web TTS via SpeechSynthesis ───────────────────────────────────────────────
+// ── Web TTS fallback via SpeechSynthesis (non-Arabic) ────────────────────────
 let _webVoicesCache = null;
 function loadWebVoices() {
   return new Promise((resolve) => {
@@ -172,9 +172,12 @@ async function webSpeak(text, langCode, { rate = 0.92, pitch = 1.0, onDone, onEr
   window.speechSynthesis.cancel();
   const voices    = await loadWebVoices();
   const utterance = new window.SpeechSynthesisUtterance(text);
+  const langPrefix = langCode.split("-")[0];
   const matched   =
+    voices.find((v) => v.lang === langCode && v.name?.toLowerCase().includes("google")) ||
+    voices.find((v) => v.lang?.startsWith(langPrefix) && v.name?.toLowerCase().includes("google")) ||
     voices.find((v) => v.lang === langCode) ||
-    voices.find((v) => v.lang?.startsWith(langCode.split("-")[0]));
+    voices.find((v) => v.lang?.startsWith(langPrefix));
   if (matched) utterance.voice = matched;
   utterance.lang  = langCode;
   utterance.rate  = rate;
@@ -193,6 +196,27 @@ async function webSpeak(text, langCode, { rate = 0.92, pitch = 1.0, onDone, onEr
 function stopWebSpeech() {
   if (typeof window !== "undefined" && window.speechSynthesis)
     window.speechSynthesis.cancel();
+}
+
+// ── Web : ElevenLabs via Web Audio API (AudioContext) ────────────────────────
+// AudioContext reste déverrouillé après le 1er geste utilisateur,
+// contrairement à HTMLAudioElement qui expire après ~5s sans geste.
+let _audioCtx    = null;
+let _audioSource = null;
+
+function getWebAudioCtx() {
+  if (typeof window === "undefined") return null;
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return null;
+  if (!_audioCtx || _audioCtx.state === "closed") _audioCtx = new Ctor();
+  return _audioCtx;
+}
+
+function stopWebAudio() {
+  if (_audioSource) {
+    try { _audioSource.stop(); } catch {}
+    _audioSource = null;
+  }
 }
 
 async function getVoiceForLanguage(language) {
@@ -432,15 +456,17 @@ function AIChatSheet({ onClose }) {
     return [appLang, ...all.filter((l) => l !== appLang)];
   })();
 
-  const speechRecognitionAvailable = !!(
-    ExpoSpeechRecognitionModule?.start &&
-    ExpoSpeechRecognitionModule?.stop &&
-    ExpoSpeechRecognitionModule?.abort
-  );
+  const speechRecognitionAvailable = !!(ExpoSpeechRecognitionModule?.start);
 
   useEffect(() => {
-    if (Platform.OS === "web")     loadWebVoices();
-    if (Platform.OS === "android") loadNativeVoices();
+    if (Platform.OS === "web") loadWebVoices();
+    if (Platform.OS === "android") {
+      loadNativeVoices();
+      // Demander la permission micro dès le montage (Android)
+      if (ExpoSpeechRecognitionModule?.requestPermissionsAsync) {
+        ExpoSpeechRecognitionModule.requestPermissionsAsync().catch(() => {});
+      }
+    }
     pingServer(0);
     return () => {
       wakingUpRef.current = false;
@@ -481,6 +507,41 @@ function AIChatSheet({ onClose }) {
     }
     setNativeVoices(voicesMap);
   };
+
+  // ── ElevenLabs TTS web (AudioContext — contourne l'autoplay policy) ──────────
+  const speakWithElevenLabsWeb = useCallback(async (text) => {
+    const ctx = getWebAudioCtx();
+    if (!ctx) return false;
+    try {
+      const res = await apiFetch(API_ENDPOINTS.ai.tts, {
+        method:    "POST",
+        body:      JSON.stringify({ text }),
+        timeoutMs: 15000,
+      });
+      if (!res.ok) return false;
+
+      const ab = await res.arrayBuffer();
+      if (!ab || ab.byteLength === 0) return false;
+
+      stopWebAudio();
+      stopWebSpeech();
+
+      await ctx.resume(); // déverrouille le contexte audio
+      const audioBuffer = await ctx.decodeAudioData(ab);
+      const source      = ctx.createBufferSource();
+      source.buffer     = audioBuffer;
+      source.connect(ctx.destination);
+      _audioSource      = source;
+      source.onended    = () => { setIsSpeaking(false); _audioSource = null; };
+      source.start(0);
+      return true;
+    } catch (e) {
+      console.error("❌ [ElevenLabs Web TTS]", e.message);
+      setIsSpeaking(false);
+      _audioSource = null;
+      return false;
+    }
+  }, []);
 
   // ── ElevenLabs TTS (voix arabe pro) ───────────────────────────────────────
   const speakWithElevenLabs = useCallback(async (text) => {
@@ -539,12 +600,12 @@ function AIChatSheet({ onClose }) {
       try { await elevenLabsSoundRef.current.stopAsync(); await elevenLabsSoundRef.current.unloadAsync(); } catch {}
       elevenLabsSoundRef.current = null;
     }
-    if (Platform.OS === "web") stopWebSpeech();
+    if (Platform.OS === "web") { stopWebAudio(); stopWebSpeech(); }
     else { try { await Speech.stop(); } catch {} }
     setIsSpeaking(false);
   }, []);
 
-  // ✅ speakText — ElevenLabs (arabe mobile) · expo-speech (autres) · Web SpeechSynthesis
+  // ✅ speakText — ElevenLabs (arabe mobile + web) · expo-speech / webSpeak (autres)
   const speakText = useCallback(async (text, detectedLang) => {
     if (!ttsEnabled) { setIsSpeaking(false); return; }
 
@@ -555,6 +616,11 @@ function AIChatSheet({ onClose }) {
 
     try {
       if (Platform.OS === "web") {
+        // Arabe web → ElevenLabs (même voix que mobile), fallback webSpeak
+        if (isArabic) {
+          const ok = await speakWithElevenLabsWeb(cleaned);
+          if (ok) return;
+        }
         await webSpeak(cleaned, detectedLang, {
           rate, pitch,
           onDone:  () => setIsSpeaking(false),
@@ -563,7 +629,7 @@ function AIChatSheet({ onClose }) {
         return;
       }
 
-      // ── Mobile arabe → ElevenLabs (voix pro multilingue) ──────────────────
+      // ── Mobile arabe → ElevenLabs ─────────────────────────────────────────
       if (isArabic) {
         const ok = await speakWithElevenLabs(cleaned);
         if (ok) return;
@@ -588,7 +654,7 @@ function AIChatSheet({ onClose }) {
       console.error("❌ [TTS]", e.message);
       setIsSpeaking(false);
     }
-  }, [ttsEnabled, nativeVoices, speakWithElevenLabs]);
+  }, [ttsEnabled, nativeVoices, speakWithElevenLabs, speakWithElevenLabsWeb]);
 
   // ── Speech recognition events ──────────────────────────────────────────────
   useSpeechRecognitionEvent("result", (event) => {
@@ -624,18 +690,16 @@ function AIChatSheet({ onClose }) {
   if (!speechRecognitionAvailable || loading) return;
 
   if (isListening) {
+    stopRecordTimer(); setIsListening(false);
     try {
-      await ExpoSpeechRecognitionModule.stop();
-    } catch {
-      try { await ExpoSpeechRecognitionModule.abort(); } catch {}
-      stopRecordTimer(); setIsListening(false);
-      const t = pendingTranscriptRef.current;
-      if (t?.trim()) { pendingTranscriptRef.current = ""; setInput(""); sendMessage(t.trim()); }
-    }
+      if (ExpoSpeechRecognitionModule.stop) await ExpoSpeechRecognitionModule.stop();
+      else if (ExpoSpeechRecognitionModule.abort) await ExpoSpeechRecognitionModule.abort();
+    } catch {}
+    const t = pendingTranscriptRef.current;
+    if (t?.trim()) { pendingTranscriptRef.current = ""; setInput(""); sendMessage(t.trim()); }
   } else {
     try {
-      // ✅ FIX: demander la permission micro avant de démarrer
-      if (Platform.OS === "android") {
+      if (Platform.OS === "android" && ExpoSpeechRecognitionModule.requestPermissionsAsync) {
         const granted = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
         if (!granted?.granted) {
           console.warn("[Voice] Permission micro refusée");
@@ -662,7 +726,10 @@ function AIChatSheet({ onClose }) {
   const cancelRecording = async () => {
     pendingTranscriptRef.current = ""; setInput(""); stopRecordTimer(); setIsListening(false);
     if (speechRecognitionAvailable) {
-      try { await ExpoSpeechRecognitionModule.abort(); } catch { }
+      try {
+        if (ExpoSpeechRecognitionModule.abort) await ExpoSpeechRecognitionModule.abort();
+        else if (ExpoSpeechRecognitionModule.stop) await ExpoSpeechRecognitionModule.stop();
+      } catch {}
     }
   };
 
@@ -701,6 +768,8 @@ function AIChatSheet({ onClose }) {
   const sendMessage = useCallback(async (text) => {
     if (!text?.trim() || loading) return;
     const trimmed = text.trim();
+    // Déverrouiller l'AudioContext pendant le geste utilisateur (web)
+    if (Platform.OS === "web") { try { getWebAudioCtx()?.resume(); } catch {} }
 
     setMessages((prev) => [...prev, { id: Date.now().toString(), role: "user", text: trimmed }]);
     setInput("");
