@@ -13,103 +13,95 @@ left to right direction
 title SmartIrrig — Diagramme de Cas d'Utilisation
 
 ' ══════════════════════════════════════
-' ACTEUR UTILISATEUR — gauche
+' ACTEUR UTILISATEUR
 ' ══════════════════════════════════════
 
 actor "Utilisateur" as User
 
 ' ══════════════════════════════════════
-' ESPACE UTILISATEUR
+' PACKAGES UTILISATEUR
 ' ══════════════════════════════════════
 
-rectangle "SmartIrrig — Espace Utilisateur" {
+package "Authentification" {
+  usecase "S'inscrire" as UC_Register
+  usecase "Valider le formulaire" as UC_ValidateForm
+  usecase "Se connecter par email" as UC_Login
+  usecase "Vérifier les identifiants" as UC_VerifyCredentials
+  usecase "Se connecter via Google" as UC_GoogleLogin
+  usecase "Réinitialiser le mot de passe" as UC_ForgotPwd
+  usecase "Se déconnecter" as UC_Logout
+}
 
-  package "Authentification" {
-    usecase "S'inscrire" as UC_Register
-    usecase "Valider le formulaire" as UC_ValidateForm
-    usecase "Se connecter par email" as UC_Login
-    usecase "Vérifier les identifiants" as UC_VerifyCredentials
-    usecase "Se connecter via Google" as UC_GoogleLogin
-    usecase "Réinitialiser le mot de passe" as UC_ForgotPwd
-    usecase "Se déconnecter" as UC_Logout
-  }
+package "Gestion des Cultures" {
+  usecase "Consulter ses cultures" as UC_ViewCultures
+  usecase "Ajouter une culture" as UC_AddCulture
+  usecase "Sélectionner le type de sol" as UC_SolType
+  usecase "Rechercher un Kc FAO-56" as UC_SearchKc
+  usecase "Supprimer une culture" as UC_DeleteCulture
+}
 
-  package "Gestion des Cultures" {
-    usecase "Consulter ses cultures" as UC_ViewCultures
-    usecase "Ajouter une culture" as UC_AddCulture
-    usecase "Sélectionner le type de sol" as UC_SolType
-    usecase "Rechercher un Kc FAO-56" as UC_SearchKc
-    usecase "Supprimer une culture" as UC_DeleteCulture
-  }
+package "Irrigation (FAO-56)" {
+  usecase "Consulter les besoins en eau" as UC_WaterNeeds
+  usecase "Récupérer la météo (ET0)" as UC_Weather
+  usecase "Calculer ETc = ET0 × Kc" as UC_CalcETc
+  usecase "Enregistrer une irrigation" as UC_RecordIrr
+  usecase "Consulter l'historique d'irrigation" as UC_History
+  usecase "Afficher la prochaine date" as UC_NextDate
+}
 
-  package "Irrigation (FAO-56)" {
-    usecase "Consulter les besoins en eau" as UC_WaterNeeds
-    usecase "Récupérer la météo (ET0)" as UC_Weather
-    usecase "Calculer ETc = ET0 × Kc" as UC_CalcETc
-    usecase "Enregistrer une irrigation" as UC_RecordIrr
-    usecase "Consulter l'historique d'irrigation" as UC_History
-    usecase "Afficher la prochaine date" as UC_NextDate
-  }
+package "Fertilisation (FAO-56)" {
+  usecase "Consulter le calendrier FAO-56" as UC_FertCalendar
+  usecase "Afficher le programme complet" as UC_FertPlan
+  usecase "Enregistrer une fertilisation" as UC_RecordFert
+  usecase "Exporter le programme" as UC_ExportFert
+}
 
-  package "Fertilisation (FAO-56)" {
-    usecase "Consulter le calendrier FAO-56" as UC_FertCalendar
-    usecase "Afficher le programme complet" as UC_FertPlan
-    usecase "Enregistrer une fertilisation" as UC_RecordFert
-    usecase "Exporter le programme" as UC_ExportFert
-  }
-
-  package "Assistant IA" {
-    usecase "Envoyer un message texte" as UC_AIChat
-    usecase "Dicter un message vocal" as UC_AIVoice
-    usecase "Transcrire la voix en texte" as UC_SpeechToText
-    usecase "Écouter la réponse (TTS)" as UC_AITTS
-    usecase "Changer la langue du chat" as UC_ResetLang
-  }
-
+package "Assistant IA" {
+  usecase "Envoyer un message texte" as UC_AIChat
+  usecase "Dicter un message vocal" as UC_AIVoice
+  usecase "Transcrire la voix en texte" as UC_SpeechToText
+  usecase "Écouter la réponse (TTS)" as UC_AITTS
+  usecase "Changer la langue du chat" as UC_ResetLang
 }
 
 ' ══════════════════════════════════════
-' ACTEUR ADMINISTRATEUR — entre les 2 rectangles
+' ACTEUR ADMINISTRATEUR
 ' ══════════════════════════════════════
 
 actor "Administrateur" as Admin
 
 ' ══════════════════════════════════════
-' ESPACE ADMINISTRATEUR
+' PACKAGES ADMINISTRATEUR
 ' ══════════════════════════════════════
 
-rectangle "SmartIrrig — Espace Administrateur" {
+package "Tableau de bord" {
+  usecase "Voir les statistiques globales" as UC_Dashboard
+  usecase "Afficher la courbe des volumes" as UC_Chart
+  usecase "Filtrer par utilisateur" as UC_FilterUser
+}
 
-  package "Tableau de bord" {
-    usecase "Voir les statistiques globales" as UC_Dashboard
-    usecase "Afficher la courbe des volumes" as UC_Chart
-    usecase "Filtrer par utilisateur" as UC_FilterUser
-  }
+package "Base de données Kc (FAO-56)" {
+  usecase "Voir toutes les cultures Kc" as UC_ViewKC
+  usecase "Ajouter une culture Kc" as UC_AddKC
+  usecase "Supprimer une culture Kc" as UC_DeleteKC
+}
 
-  package "Base de données Kc (FAO-56)" {
-    usecase "Voir toutes les cultures Kc" as UC_ViewKC
-    usecase "Ajouter une culture Kc" as UC_AddKC
-    usecase "Supprimer une culture Kc" as UC_DeleteKC
-  }
+package "Gestion des Utilisateurs" {
+  usecase "Voir la liste des utilisateurs" as UC_ViewUsers
+  usecase "Créer un utilisateur" as UC_CreateUser
+  usecase "Modifier un utilisateur" as UC_EditUser
+  usecase "Activer / désactiver un compte" as UC_ToggleUser
+  usecase "Supprimer un utilisateur" as UC_DeleteUser
+  usecase "Supprimer les données associées" as UC_DeleteData
+  usecase "Voir les stats d'irrigation" as UC_UserStats
+}
 
-  package "Gestion des Utilisateurs" {
-    usecase "Voir la liste des utilisateurs" as UC_ViewUsers
-    usecase "Créer un utilisateur" as UC_CreateUser
-    usecase "Modifier un utilisateur" as UC_EditUser
-    usecase "Activer / désactiver un compte" as UC_ToggleUser
-    usecase "Supprimer un utilisateur" as UC_DeleteUser
-    usecase "Supprimer les données associées" as UC_DeleteData
-    usecase "Voir les stats d'irrigation" as UC_UserStats
-  }
-
-  package "Profil Administrateur" {
-    usecase "Modifier son nom d'affichage" as UC_AdminName
-  }
-
+package "Profil Administrateur" {
+  usecase "Modifier son nom d'affichage" as UC_AdminName
 }
 
 ' ══════════════════════════════════════
-' ACTEURS EXTERNES — droite
+' ACTEURS EXTERNES
 ' ══════════════════════════════════════
 
 actor "Google OAuth 2.0" as Google
@@ -121,7 +113,6 @@ actor "ElevenLabs TTS" as EL
 ' ASSOCIATIONS — UTILISATEUR
 ' ══════════════════════════════════════
 
-' [Authentification]
 User --> UC_Register
 User --> UC_ValidateForm
 User --> UC_Login
@@ -130,14 +121,12 @@ User --> UC_GoogleLogin
 User --> UC_ForgotPwd
 User --> UC_Logout
 
-' [Gestion des Cultures]
 User --> UC_ViewCultures
 User --> UC_AddCulture
 User --> UC_SolType
 User --> UC_SearchKc
 User --> UC_DeleteCulture
 
-' [Irrigation (FAO-56)]
 User --> UC_WaterNeeds
 User --> UC_Weather
 User --> UC_CalcETc
@@ -145,13 +134,11 @@ User --> UC_RecordIrr
 User --> UC_History
 User --> UC_NextDate
 
-' [Fertilisation (FAO-56)]
 User --> UC_FertCalendar
 User --> UC_FertPlan
 User --> UC_RecordFert
 User --> UC_ExportFert
 
-' [Assistant IA]
 User --> UC_AIChat
 User --> UC_AIVoice
 User --> UC_SpeechToText
@@ -162,17 +149,14 @@ User --> UC_ResetLang
 ' ASSOCIATIONS — ADMINISTRATEUR
 ' ══════════════════════════════════════
 
-' [Tableau de bord]
 Admin --> UC_Dashboard
 Admin --> UC_Chart
 Admin --> UC_FilterUser
 
-' [Base de données Kc]
 Admin --> UC_ViewKC
 Admin --> UC_AddKC
 Admin --> UC_DeleteKC
 
-' [Gestion des Utilisateurs]
 Admin --> UC_ViewUsers
 Admin --> UC_CreateUser
 Admin --> UC_EditUser
@@ -181,7 +165,6 @@ Admin --> UC_DeleteUser
 Admin --> UC_DeleteData
 Admin --> UC_UserStats
 
-' [Profil Administrateur]
 Admin --> UC_AdminName
 
 ' ══════════════════════════════════════
