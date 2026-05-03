@@ -469,7 +469,14 @@ export default function IrrigationPage() {
             ? new Date(selectedCulture.createdAt)
             : new Date(now - 86400000);
 
-      const joursSinceIrrig = Math.max(0, (now - refDate.getTime()) / 86400000);
+      const rawDays = Math.max(0, (now - refDate.getTime()) / 86400000);
+
+      // Sans historique d'irrigation, plafonner à 1 cycle (RFU/ETc) pour éviter
+      // une dépletion irréaliste quand la datePlantation est lointaine.
+      const roughFreq = etc > 0
+        ? Math.max(1, Math.round((pAdj * (thetaCcEff - thetaPfEff) * z * 1000) / etc))
+        : 14;
+      const joursSinceIrrig = lastIrrig ? rawDays : Math.min(rawDays, roughFreq);
 
       // ── 3) RU / RFU / fréquence ────────────────────────────────────────────
       const ru  = parseFloat(((thetaCcEff - thetaPfEff) * z * 1000).toFixed(1));
