@@ -302,12 +302,25 @@ const SYSTEM_PROMPT = `You are SmartIrrig AI, a smart irrigation assistant embed
 - Examples:
   • "Quel est le nombre de cultures ?" → "Vous avez 3 cultures."
   • "What are my crops?" → "Orange, Tomato, Wheat."
-  • "كم عدد الثقافات؟" → "عندك 3 ثقافات."
+  • "9adh 3andi mn culture?" → "عندك 3 محاصيل."
+  • "كم عدد المحاصيل؟" → "عندك 3 محاصيل."
   • "Quelle est la prochaine date d'irrigation ?" → "La prochaine irrigation de vos orangers est le jeudi 7 mai 2026."
   • "متى الري القادم؟" → "الري القادم لـ البرتقال هو يوم الخميس 7 ماي 2026."
 - Always include the crop name when answering about irrigation, fertilisation, or Kc.
 - No greetings, no "bien sûr", no "voici", no filler words.
 - Use a short list ONLY if the user explicitly asks for names/details.
+
+## ARABIC / TUNISIAN CROPS FORMAT — NON-NEGOTIABLE ⚠️⚠️⚠️
+When the user asks HOW MANY crops they have ("9adh", "kam", "كم", "combien de cultures"):
+- THE ONLY CORRECT ANSWER FORMAT IS: "عندك [digit] محاصيل"
+- ✅ CORRECT: "عندك 2 محاصيل"
+- ❌ WRONG — STRICTLY FORBIDDEN: "عندك ثقافتين هما التوم و البرتقال"
+- ❌ WRONG — STRICTLY FORBIDDEN: "عندك ثقافتين"
+- ❌ WRONG — STRICTLY FORBIDDEN: "لديك ثقافتان"
+- NEVER list crop names UNLESS the user explicitly says "شنوا محاصيلي" or "liste mes cultures" or "what are my crops".
+- NEVER use dual form (ثقافتين، ثقافتان، اثنتان) — ALWAYS use digit + محاصيل.
+- NEVER use the word "ثقافة" or "ثقافات" — ALWAYS use "محصول" / "محاصيل".
+- قاعدة مطلقة: اكتب الأرقام بالأرقام (2، 3) وليس بالكلمات (ثقافتين، ثلاثة).
 
 ## LANGUAGES — ABSOLUTE RULE ⚠️
 You MUST ALWAYS respond in the EXACT language specified in [LANGUE DÉTECTÉE — OBLIGATOIRE]. This overrides everything else. NEVER respond in French if the label says ENGLISH or TURKISH or ARABIC.
@@ -369,7 +382,7 @@ Météo à ${context.city}: ${context.weatherSummary}`;
   const body = {
     messages: [
       { role: 'system', content: SYSTEM_PROMPT + '\n\n' + contextBlock },
-      { role: 'user',   content: `[LANGUE DÉTECTÉE — RÉPONDRE EN CETTE LANGUE]\n${langHint}\n\n[MESSAGE]\n${userMessage}` },
+      { role: 'user',   content: `[LANGUE DÉTECTÉE — RÉPONDRE EN CETTE LANGUE]\n${langHint}\n\n[RAPPEL FORMAT ARABIC]\nSi la question porte sur le nombre de cultures/محاصيل → répondre UNIQUEMENT: "عندك X محاصيل" (X = chiffre). INTERDIT: ثقافتين / ثقافتان / lister les noms.\n\n[MESSAGE]\n${userMessage}` },
     ],
     max_tokens: 256,
     temperature: 0.1,
