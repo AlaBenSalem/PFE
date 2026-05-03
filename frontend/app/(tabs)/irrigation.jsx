@@ -513,8 +513,10 @@ export default function IrrigationPage() {
       dateProchaine.setDate(dateProchaine.getDate() + frequenceJours);
       const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
       dateProchaine.setHours(0, 0, 0, 0);
-      const joursAvantIrrig = Math.ceil((dateProchaine - todayMidnight) / 86400000);
-      const isIrrigationDue = joursAvantIrrig <= 0;
+      const joursAvantIrrigDate = Math.ceil((dateProchaine - todayMidnight) / 86400000);
+      // Irrigation due si la date est passée OU si le stock a atteint le seuil RFU
+      const isIrrigationDue  = joursAvantIrrigDate <= 0 || W_current <= W_seuil;
+      const joursAvantIrrig  = isIrrigationDue ? 0 : joursAvantIrrigDate;
 
       // Alerte stock : warning si stock ≤ seuil RFU, critical si proche de W_pf
       let stockAlert = null;
