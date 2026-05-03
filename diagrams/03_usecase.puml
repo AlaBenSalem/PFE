@@ -4,20 +4,19 @@ skinparam monochrome true
 skinparam shadowing false
 skinparam defaultFontName Arial
 skinparam defaultFontSize 11
+skinparam packageStyle rectangle
+skinparam usecaseBorderThickness 1.5
+skinparam actorBorderThickness 1.5
+skinparam ArrowThickness 1.2
 
 left to right direction
 title SmartIrrig — Diagramme de Cas d'Utilisation
 
 ' ══════════════════════════════════════
-' ACTEURS
+' ACTEUR UTILISATEUR (gauche)
 ' ══════════════════════════════════════
 
 actor "Utilisateur" as User
-actor "Administrateur" as Admin
-actor "OpenWeather API" as OW
-actor "Dify AI" as DifyAI
-actor "ElevenLabs TTS" as EL
-actor "Google OAuth 2.0" as Google
 
 ' ══════════════════════════════════════
 ' ESPACE UTILISATEUR
@@ -46,7 +45,7 @@ rectangle "SmartIrrig — Espace Utilisateur" {
   package "Irrigation (FAO-56)" {
     usecase "Consulter les besoins en eau" as UC_WaterNeeds
     usecase "Récupérer la météo (ET0)" as UC_Weather
-    usecase "Calculer ETc = ET0 x Kc" as UC_CalcETc
+    usecase "Calculer ETc = ET0 × Kc" as UC_CalcETc
     usecase "Enregistrer une irrigation" as UC_RecordIrr
     usecase "Consulter l'historique d'irrigation" as UC_History
     usecase "Afficher la prochaine date" as UC_NextDate
@@ -63,11 +62,17 @@ rectangle "SmartIrrig — Espace Utilisateur" {
     usecase "Envoyer un message texte" as UC_AIChat
     usecase "Dicter un message vocal" as UC_AIVoice
     usecase "Transcrire la voix en texte" as UC_SpeechToText
-    usecase "Ecouter la reponse (TTS)" as UC_AITTS
+    usecase "Écouter la réponse (TTS)" as UC_AITTS
     usecase "Changer la langue du chat" as UC_ResetLang
   }
 
 }
+
+' ══════════════════════════════════════
+' ACTEUR ADMINISTRATEUR (entre les 2 rectangles)
+' ══════════════════════════════════════
+
+actor "Administrateur" as Admin
 
 ' ══════════════════════════════════════
 ' ESPACE ADMINISTRATEUR
@@ -81,7 +86,7 @@ rectangle "SmartIrrig — Espace Administrateur" {
     usecase "Filtrer par utilisateur" as UC_FilterUser
   }
 
-  package "Base de donnees Kc (FAO-56)" {
+  package "Base de données Kc (FAO-56)" {
     usecase "Voir toutes les cultures Kc" as UC_ViewKC
     usecase "Ajouter une culture Kc" as UC_AddKC
     usecase "Supprimer une culture Kc" as UC_DeleteKC
@@ -89,11 +94,11 @@ rectangle "SmartIrrig — Espace Administrateur" {
 
   package "Gestion des Utilisateurs" {
     usecase "Voir la liste des utilisateurs" as UC_ViewUsers
-    usecase "Creer un utilisateur" as UC_CreateUser
+    usecase "Créer un utilisateur" as UC_CreateUser
     usecase "Modifier un utilisateur" as UC_EditUser
-    usecase "Activer ou desactiver un compte" as UC_ToggleUser
+    usecase "Activer / désactiver un compte" as UC_ToggleUser
     usecase "Supprimer un utilisateur" as UC_DeleteUser
-    usecase "Supprimer les donnees associees" as UC_DeleteData
+    usecase "Supprimer les données associées" as UC_DeleteData
     usecase "Voir les stats d'irrigation" as UC_UserStats
   }
 
@@ -104,92 +109,119 @@ rectangle "SmartIrrig — Espace Administrateur" {
 }
 
 ' ══════════════════════════════════════
+' ACTEURS EXTERNES (droite)
+' ══════════════════════════════════════
+
+actor "OpenWeather API" as OW
+actor "Groq API\n(Llama 3.3-70B)" as GroqAI
+actor "ElevenLabs TTS" as EL
+actor "Google OAuth 2.0" as Google
+
+' ══════════════════════════════════════
 ' ASSOCIATIONS — UTILISATEUR
 ' ══════════════════════════════════════
 
+' [Authentification]
 User --> UC_Register
 User --> UC_Login
 User --> UC_GoogleLogin
 User --> UC_ForgotPwd
 User --> UC_Logout
 
+' [Gestion des Cultures]
 User --> UC_ViewCultures
 User --> UC_AddCulture
 User --> UC_DeleteCulture
 
+' [Irrigation (FAO-56)]
 User --> UC_WaterNeeds
 User --> UC_RecordIrr
 User --> UC_History
+User --> UC_NextDate
 
+' [Fertilisation (FAO-56)]
 User --> UC_FertCalendar
 User --> UC_RecordFert
+User --> UC_ExportFert
 
+' [Assistant IA]
 User --> UC_AIChat
 User --> UC_AIVoice
+User --> UC_AITTS
+User --> UC_ResetLang
 
 ' ══════════════════════════════════════
-' <<include>> — UTILISATEUR
+' ASSOCIATIONS — ADMINISTRATEUR
 ' ══════════════════════════════════════
 
-UC_Register        ..> UC_ValidateForm        : <<include>>
-UC_Login           ..> UC_VerifyCredentials   : <<include>>
-UC_AddCulture      ..> UC_SolType             : <<include>>
-UC_AddCulture      ..> UC_SearchKc            : <<include>>
-UC_WaterNeeds      ..> UC_Weather             : <<include>>
-UC_WaterNeeds      ..> UC_CalcETc             : <<include>>
-UC_RecordIrr       ..> UC_CalcETc             : <<include>>
-UC_AIVoice         ..> UC_SpeechToText        : <<include>>
-UC_AIVoice         ..> UC_AIChat              : <<include>>
-UC_FertCalendar    ..> UC_FertPlan            : <<include>>
-
-' ══════════════════════════════════════
-' <<extend>> — UTILISATEUR
-' ══════════════════════════════════════
-
-UC_GoogleLogin     ..> UC_Login               : <<extend>>
-UC_ForgotPwd       ..> UC_Login               : <<extend>>
-UC_AITTS           ..> UC_AIChat              : <<extend>>
-UC_ResetLang       ..> UC_AIChat              : <<extend>>
-UC_NextDate        ..> UC_WaterNeeds          : <<extend>>
-UC_ExportFert      ..> UC_FertCalendar        : <<extend>>
-
-' ══════════════════════════════════════
-' ASSOCIATIONS — ADMIN
-' ══════════════════════════════════════
-
+' [Tableau de bord]
 Admin --> UC_Dashboard
+Admin --> UC_FilterUser
+
+' [Base de données Kc]
 Admin --> UC_ViewKC
 Admin --> UC_AddKC
 Admin --> UC_DeleteKC
+
+' [Gestion des Utilisateurs]
 Admin --> UC_ViewUsers
 Admin --> UC_CreateUser
 Admin --> UC_EditUser
 Admin --> UC_ToggleUser
 Admin --> UC_DeleteUser
+Admin --> UC_UserStats
+
+' [Profil Administrateur]
 Admin --> UC_AdminName
 
 ' ══════════════════════════════════════
-' <<include>> — ADMIN
+' <<include>> — UTILISATEUR
 ' ══════════════════════════════════════
 
-UC_Dashboard       ..> UC_Chart               : <<include>>
-UC_DeleteUser      ..> UC_DeleteData          : <<include>>
+UC_Register     ..> UC_ValidateForm     : <<include>>
+UC_Login        ..> UC_VerifyCredentials: <<include>>
+UC_AddCulture   ..> UC_SolType         : <<include>>
+UC_AddCulture   ..> UC_SearchKc        : <<include>>
+UC_WaterNeeds   ..> UC_Weather         : <<include>>
+UC_WaterNeeds   ..> UC_CalcETc         : <<include>>
+UC_RecordIrr    ..> UC_CalcETc         : <<include>>
+UC_AIVoice      ..> UC_SpeechToText    : <<include>>
+UC_AIVoice      ..> UC_AIChat          : <<include>>
+UC_FertCalendar ..> UC_FertPlan        : <<include>>
 
 ' ══════════════════════════════════════
-' <<extend>> — ADMIN
+' <<extend>> — UTILISATEUR
 ' ══════════════════════════════════════
 
-UC_FilterUser      ..> UC_Dashboard           : <<extend>>
-UC_ToggleUser      ..> UC_EditUser            : <<extend>>
-UC_UserStats       ..> UC_ViewUsers           : <<extend>>
+UC_GoogleLogin  ..> UC_Login           : <<extend>>
+UC_ForgotPwd    ..> UC_Login           : <<extend>>
+UC_AITTS        ..> UC_AIChat          : <<extend>>
+UC_ResetLang    ..> UC_AIChat          : <<extend>>
+UC_NextDate     ..> UC_WaterNeeds      : <<extend>>
+UC_ExportFert   ..> UC_FertCalendar    : <<extend>>
 
 ' ══════════════════════════════════════
-' SYSTEMES EXTERNES
+' <<include>> — ADMINISTRATEUR
+' ══════════════════════════════════════
+
+UC_Dashboard    ..> UC_Chart           : <<include>>
+UC_DeleteUser   ..> UC_DeleteData      : <<include>>
+
+' ══════════════════════════════════════
+' <<extend>> — ADMINISTRATEUR
+' ══════════════════════════════════════
+
+UC_FilterUser   ..> UC_Dashboard       : <<extend>>
+UC_ToggleUser   ..> UC_EditUser        : <<extend>>
+UC_UserStats    ..> UC_ViewUsers       : <<extend>>
+
+' ══════════════════════════════════════
+' SYSTÈMES EXTERNES
 ' ══════════════════════════════════════
 
 UC_GoogleLogin  --> Google
 UC_Weather      --> OW
-UC_AIChat       --> DifyAI
+UC_AIChat       --> GroqAI
 UC_AITTS        --> EL
 
 @enduml
