@@ -17,6 +17,8 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Alert,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Speech from "expo-speech";
@@ -459,10 +461,11 @@ function AIChatSheet({ onClose }) {
   const speechRecognitionAvailable = !!(ExpoSpeechRecognitionModule?.start);
 
   useEffect(() => {
-    if (Platform.OS === "web") loadWebVoices();
-    if (Platform.OS === "android") {
+    if (Platform.OS === "web") {
+      loadWebVoices();
+    } else {
       loadNativeVoices();
-      // Demander la permission micro dès le montage (Android)
+      // Demander la permission micro au montage (Android + iOS)
       if (ExpoSpeechRecognitionModule?.requestPermissionsAsync) {
         ExpoSpeechRecognitionModule.requestPermissionsAsync().catch(() => {});
       }
@@ -687,26 +690,51 @@ function AIChatSheet({ onClose }) {
     `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, "0")}`;
 
   const onMicToggle = async () => {
-  if (!speechRecognitionAvailable || loading) return;
+    if (!speechRecognitionAvailable || loading) return;
 
-  if (isListening) {
-    stopRecordTimer(); setIsListening(false);
-    try {
-      if (ExpoSpeechRecognitionModule.stop) await ExpoSpeechRecognitionModule.stop();
-      else if (ExpoSpeechRecognitionModule.abort) await ExpoSpeechRecognitionModule.abort();
-    } catch {}
-    const t = pendingTranscriptRef.current;
-    if (t?.trim()) { pendingTranscriptRef.current = ""; setInput(""); sendMessage(t.trim()); }
-  } else {
-    try {
-      if (Platform.OS === "android" && ExpoSpeechRecognitionModule.requestPermissionsAsync) {
-        const granted = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-        if (!granted?.granted) {
-          console.warn("[Voice] Permission micro refusée");
+    if (isListening) {
+      stopRecordTimer(); setIsListening(false);
+      try {
+        if (ExpoSpeechRecognitionModule.stop) await ExpoSpeechRecognitionModule.stop();
+        else if (ExpoSpeechRecognitionModule.abort) await ExpoSpeechRecognitionModule.abort();
+      } catch {}
+      const t = pendingTranscriptRef.current;
+      if (t?.trim()) { pendingTranscriptRef.current = ""; setInput(""); sendMessage(t.trim()); }
+      return;
+    }
+
+    // ── Vérifier/demander la permission micro ──────────────────────────────
+    if (Platform.OS !== "web" && ExpoSpeechRecognitionModule?.requestPermissionsAsync) {
+      try {
+        const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        if (!result?.granted) {
+          if (result?.canAskAgain === false) {
+            // Permission définitivement refusée → ouvrir les paramètres
+            Alert.alert(
+              "Permission microphone",
+              "L'accès au microphone a été refusé. Activez-le dans les paramètres de l'application.",
+              [
+                { text: "Annuler", style: "cancel" },
+                { text: "Paramètres", onPress: () => Linking.openSettings() },
+              ]
+            );
+          } else {
+            Alert.alert(
+              "Permission microphone",
+              "SmartIrrig a besoin du microphone pour enregistrer votre voix.",
+              [{ text: "OK" }]
+            );
+          }
           return;
         }
+      } catch (e) {
+        console.warn("[Voice] Permission error:", e.message);
+        return;
       }
+    }
 
+    // ── Démarrer la reconnaissance ─────────────────────────────────────────
+    try {
       if (isSpeaking) await stopSpeaking();
       pendingTranscriptRef.current = "";
       setInput(""); setIsListening(true); startRecordTimer();
@@ -717,11 +745,11 @@ function AIChatSheet({ onClose }) {
         continuous: false,
       });
     } catch (e) {
-      console.error("❌ [Voice]", e);
+      console.error("❌ [Voice]", e.message);
       stopRecordTimer(); setIsListening(false);
+      Alert.alert("Microphone", "Impossible de démarrer la reconnaissance vocale. Réessayez.");
     }
-  }
-};
+  };
 
   const cancelRecording = async () => {
     pendingTranscriptRef.current = ""; setInput(""); stopRecordTimer(); setIsListening(false);
