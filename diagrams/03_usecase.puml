@@ -13,11 +13,10 @@ left to right direction
 title SmartIrrig — Diagramme de Cas d'Utilisation
 
 ' ══════════════════════════════════════
-' ACTEURS PRINCIPAUX (gauche)
+' ACTEUR UTILISATEUR — gauche
 ' ══════════════════════════════════════
 
 actor "Utilisateur" as User
-actor "Administrateur" as Admin
 
 ' ══════════════════════════════════════
 ' ESPACE UTILISATEUR
@@ -70,6 +69,12 @@ rectangle "SmartIrrig — Espace Utilisateur" {
 }
 
 ' ══════════════════════════════════════
+' ACTEUR ADMINISTRATEUR — entre les 2 rectangles
+' ══════════════════════════════════════
+
+actor "Administrateur" as Admin
+
+' ══════════════════════════════════════
 ' ESPACE ADMINISTRATEUR
 ' ══════════════════════════════════════
 
@@ -104,7 +109,7 @@ rectangle "SmartIrrig — Espace Administrateur" {
 }
 
 ' ══════════════════════════════════════
-' ACTEURS EXTERNES (droite)
+' ACTEURS EXTERNES — droite
 ' ══════════════════════════════════════
 
 actor "Google OAuth 2.0" as Google
