@@ -13,10 +13,11 @@ left to right direction
 title SmartIrrig — Diagramme de Cas d'Utilisation
 
 ' ══════════════════════════════════════
-' ACTEUR UTILISATEUR (gauche)
+' ACTEURS PRINCIPAUX (gauche)
 ' ══════════════════════════════════════
 
 actor "Utilisateur" as User
+actor "Administrateur" as Admin
 
 ' ══════════════════════════════════════
 ' ESPACE UTILISATEUR
@@ -69,12 +70,6 @@ rectangle "SmartIrrig — Espace Utilisateur" {
 }
 
 ' ══════════════════════════════════════
-' ACTEUR ADMINISTRATEUR (entre les 2 rectangles)
-' ══════════════════════════════════════
-
-actor "Administrateur" as Admin
-
-' ══════════════════════════════════════
 ' ESPACE ADMINISTRATEUR
 ' ══════════════════════════════════════
 
@@ -112,10 +107,10 @@ rectangle "SmartIrrig — Espace Administrateur" {
 ' ACTEURS EXTERNES (droite)
 ' ══════════════════════════════════════
 
+actor "Google OAuth 2.0" as Google
 actor "OpenWeather API" as OW
 actor "Groq API\n(Llama 3.3-70B)" as GroqAI
 actor "ElevenLabs TTS" as EL
-actor "Google OAuth 2.0" as Google
 
 ' ══════════════════════════════════════
 ' ASSOCIATIONS — UTILISATEUR
@@ -156,6 +151,7 @@ User --> UC_ResetLang
 
 ' [Tableau de bord]
 Admin --> UC_Dashboard
+Admin --> UC_Chart
 Admin --> UC_FilterUser
 
 ' [Base de données Kc]
