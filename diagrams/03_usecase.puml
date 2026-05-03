@@ -114,34 +114,26 @@ actor "ElevenLabs TTS" as EL
 ' ══════════════════════════════════════
 
 User --> UC_Register
-User --> UC_ValidateForm
 User --> UC_Login
-User --> UC_VerifyCredentials
 User --> UC_GoogleLogin
 User --> UC_ForgotPwd
 User --> UC_Logout
 
 User --> UC_ViewCultures
 User --> UC_AddCulture
-User --> UC_SolType
-User --> UC_SearchKc
 User --> UC_DeleteCulture
 
 User --> UC_WaterNeeds
-User --> UC_Weather
-User --> UC_CalcETc
 User --> UC_RecordIrr
 User --> UC_History
 User --> UC_NextDate
 
 User --> UC_FertCalendar
-User --> UC_FertPlan
 User --> UC_RecordFert
 User --> UC_ExportFert
 
 User --> UC_AIChat
 User --> UC_AIVoice
-User --> UC_SpeechToText
 User --> UC_AITTS
 User --> UC_ResetLang
 
@@ -150,7 +142,6 @@ User --> UC_ResetLang
 ' ══════════════════════════════════════
 
 Admin --> UC_Dashboard
-Admin --> UC_Chart
 Admin --> UC_FilterUser
 
 Admin --> UC_ViewKC
@@ -162,7 +153,6 @@ Admin --> UC_CreateUser
 Admin --> UC_EditUser
 Admin --> UC_ToggleUser
 Admin --> UC_DeleteUser
-Admin --> UC_DeleteData
 Admin --> UC_UserStats
 
 Admin --> UC_AdminName
