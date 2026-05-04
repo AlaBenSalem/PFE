@@ -1,32 +1,50 @@
-// src/routes/adminRoutes.js — CORRIGÉ
-// Fix : ajout de requireAdmin sur GET /stats et GET /irrigations/volume-by-day
-const express = require('express');
-const router  = express.Router();
-const jwt     = require('jsonwebtoken');
-const bcrypt  = require('bcryptjs');
-const Culture       = require('../models/Culture');
-const Irrigation    = require('../models/Irrigation');
+// src/routes/adminRoutes.js
+const express    = require('express');
+const router     = express.Router();
+const jwt        = require('jsonwebtoken');
+const bcrypt     = require('bcryptjs');
+const rateLimit  = require('express-rate-limit');
+const Admin      = require('../models/Admin');
+const Culture    = require('../models/Culture');
+const Irrigation = require('../models/Irrigation');
 const Fertilisation = require('../models/Fertilisation');
-const Weather       = require('../models/Weather');
-const Message       = require('../models/Message');
-const KC_DATA       = require('../data/kcData');
+const Weather    = require('../models/Weather');
+const Message    = require('../models/Message');
+const KC_DATA    = require('../data/kcData');
+const { requireAdmin } = require('../middleware/auth');
 
-const JWT_SECRET  = process.env.JWT_SECRET || 'default-secret-change-in-production';
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
 
-function requireAdmin(req, res, next) {
+// POST /api/admin/login
+router.post('/login', authLimiter, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Token manquant.' });
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded || decoded.role !== 'admin') {
-      return res.status(403).json({ message: 'Acces admin requis.' });
-    }
-    req.admin = decoded;
-    return next();
-  } catch {
-    return res.status(401).json({ message: 'Token invalide.' });
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ message: 'Email et mot de passe requis.' });
+    const admin = await Admin.findOne({ email: String(email).trim().toLowerCase() });
+    if (!admin || !(await bcrypt.compare(password, admin.password)))
+      return res.status(401).json({ message: 'Identifiants incorrects.' });
+    admin.lastLoginAt = new Date();
+    await admin.save();
+    const token = jwt.sign({ id: admin._id, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ message: 'Connexion admin réussie.', token, role: 'admin',
+      admin: { id: admin._id, fullName: admin.fullName, email: admin.email } });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur connexion admin.' });
   }
-}
+});
+
+// PATCH /api/admin/profile
+router.patch('/profile', requireAdmin, async (req, res) => {
+  try {
+    const { fullName } = req.body;
+    if (!fullName?.trim()) return res.status(400).json({ message: 'Nom requis.' });
+    const admin = await Admin.findByIdAndUpdate(req.userId, { fullName: fullName.trim() }, { new: true });
+    if (!admin) return res.status(404).json({ message: 'Admin non trouvé.' });
+    res.json({ success: true, admin: { id: admin._id, fullName: admin.fullName, email: admin.email } });
+  } catch {
+    res.status(500).json({ message: 'Erreur mise à jour.' });
+  }
+});
 
 // ✅ FIX : requireAdmin ajouté sur /stats (était public avant)
 router.get('/stats', requireAdmin, async (req, res) => {
@@ -110,7 +128,11 @@ router.get('/irrigations/volume-by-day', requireAdmin, async (req, res) => {
     from.setDate(from.getDate() - days);
     const match = { date: { $gte: from } };
     if (req.query.userId) {
-      try { match.userId = new mongoose.Types.ObjectId(req.query.userId); } catch {}
+      try {
+        const uid = new mongoose.Types.ObjectId(req.query.userId);
+        const cultureIds = await Culture.find({ userId: uid }).distinct('_id');
+        match.cultureId = { $in: cultureIds };
+      } catch {}
     }
     const result = await Irrigation.aggregate([
       { $match: match },
@@ -137,9 +159,11 @@ router.get('/users/:id/stats', requireAdmin, async (req, res) => {
     try { userId = new mongoose.Types.ObjectId(req.params.id); } catch {
       return res.status(400).json({ success: false, error: 'Invalid user ID' });
     }
-    const irrigationCount = await Irrigation.countDocuments({ userId });
+    const cultureIds = await Culture.find({ userId }).distinct('_id');
+    const cultureFilter = { cultureId: { $in: cultureIds } };
+    const irrigationCount = await Irrigation.countDocuments(cultureFilter);
     const volResult = await Irrigation.aggregate([
-      { $match: { userId } },
+      { $match: cultureFilter },
       { $group: { _id: null, total: { $sum: '$volume' } } }
     ]);
     res.json({

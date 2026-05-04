@@ -2,6 +2,9 @@
 const Culture = require('../models/Culture');
 const { getKcForCultureAndMonth } = require('./kcController');
 
+// NOTE: Kc lookup is kept for getCultureById and createCulture only.
+// getAllCultures no longer saves Kc back to DB — GET endpoints must be idempotent.
+
 // ─── GET toutes les cultures ──────────────────────────────────────────────────
 exports.getAllCultures = async (req, res) => {
   try {
@@ -19,23 +22,11 @@ exports.getAllCultures = async (req, res) => {
     const cultures = await Culture.find(filter).sort({ createdAt: -1 });
     const currentMonth = new Date().getMonth() + 1;
 
-    const updated = await Promise.all(
-      cultures.map(async (culture) => {
-        const { kc, stade, type: cultureType } = await getKcForCultureAndMonth(culture.nom, currentMonth);
-        let dirty = false;
-        if (Math.abs((culture.kcActuel || 0) - kc) > 0.001 || !culture.kcActuel) {
-          culture.kcActuel = kc;
-          culture.stadeActuel = stade;
-          dirty = true;
-        }
-        if (!culture.type && cultureType) {
-          culture.type = cultureType;
-          dirty = true;
-        }
-        if (dirty) await culture.save();
-        return culture;
-      })
-    );
+    const updated = cultures.map((culture) => {
+      // Return a plain object with kc applied in memory — no DB write on a GET
+      const obj = culture.toObject();
+      return obj;
+    });
 
     res.json({ success: true, data: updated });
   } catch (error) {
@@ -53,10 +44,10 @@ exports.getCultureById = async (req, res) => {
     }
     const currentMonth = new Date().getMonth() + 1;
     const { kc, stade } = await getKcForCultureAndMonth(culture.nom, currentMonth);
-    culture.kcActuel = kc;
-    culture.stadeActuel = stade;
-    await culture.save();
-    res.json({ success: true, data: culture });
+    const data = culture.toObject();
+    data.kcActuel    = kc;
+    data.stadeActuel = stade;
+    res.json({ success: true, data });
   } catch (error) {
     console.error('❌ Erreur GET /cultures/:id:', error);
     res.status(500).json({ success: false, error: error.message });

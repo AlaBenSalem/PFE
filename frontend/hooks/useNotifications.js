@@ -1,5 +1,6 @@
 // C:\Users\HAMA\OneDrive\Desktop\SmartIrrig2\frontend\hooks\useNotifications.js
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const stableId = (...parts) => parts.join('|');
 
@@ -89,8 +90,19 @@ export function useFertilisationNotifications(cultures, getFertData, lang = 'fr'
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. Notifications IRRIGATION
 // ─────────────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'smartirrig_irrig_notif_read';
+
 export function useIrrigationNotifications(cultures, irrigations, weather, lang = 'fr') {
   const [readIds, setReadIds] = useState({});
+
+  // Charger les IDs lus depuis AsyncStorage au montage
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY).then((val) => {
+      if (val) {
+        try { setReadIds(JSON.parse(val)); } catch {}
+      }
+    });
+  }, []);
 
   const todayRef = useMemo(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d;
@@ -169,13 +181,18 @@ export function useIrrigationNotifications(cultures, irrigations, weather, lang 
   }, [cultures, irrigations, lang, todayRef, et0, readIds]);
 
   const markRead = useCallback((id) => {
-    setReadIds((r) => ({ ...r, [id]: true }));
+    setReadIds((r) => {
+      const next = { ...r, [id]: true };
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
   }, []);
 
   const markAllRead = useCallback(() => {
     setReadIds((prev) => {
       const next = { ...prev };
       notifications.forEach((n) => { next[n.id] = true; });
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
     });
   }, [notifications]);

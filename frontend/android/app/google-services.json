@@ -12,7 +12,12 @@
           "package_name": "com.smartirrig.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "300381278861-jjkrf9emts00n0pc6agk9qk9vl631dh9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCLxyF6RWXn4Xe4dttmFWnbJ4--dVi9uz0"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "300381278861-jjkrf9emts00n0pc6agk9qk9vl631dh9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

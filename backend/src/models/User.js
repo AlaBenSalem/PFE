@@ -1,5 +1,4 @@
 // src/models/User.js
-// ⚠️  Ce modèle DOIT correspondre exactement au schéma défini dans server.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({

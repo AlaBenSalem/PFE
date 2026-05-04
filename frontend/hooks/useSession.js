@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authAPI } from "@api/auth";
-import { setUnauthorizedCallback, API_BASE_URL } from "@api/client";
+import { setUnauthorizedCallback, apiFetch, API_ENDPOINTS } from "@api/client";
 import { AUTH_ROUTES } from "@constants/routes";
 
 export function useSession() {
@@ -44,7 +44,7 @@ export function useSession() {
         // Always fetch fresh profile from server so admin edits reflect immediately
         if (userToken) {
           try {
-            const res = await fetch(`${API_BASE_URL}/auth/profile`, {
+            const res = await apiFetch(API_ENDPOINTS.auth.profile, {
               headers: { Authorization: `Bearer ${userToken}` },
             });
             if (res.ok) {

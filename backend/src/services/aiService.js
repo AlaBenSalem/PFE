@@ -1,0 +1,346 @@
+// src/services/aiService.js
+const axios          = require('axios');
+const Culture        = require('../models/Culture');
+const Irrigation     = require('../models/Irrigation');
+const Fertilisation  = require('../models/Fertilisation');
+const weatherService = require('./weatherService');
+
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_BASE    = 'https://api.groq.com/openai/v1';
+const GROQ_MODELS  = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+
+// ── Langue ────────────────────────────────────────────────────────────────────
+function detectMessageLanguage(text = '') {
+  const arabicChars    = (text.match(/[؀-ۿ]/g) || []).length;
+  const hasNumLetters  = /\b\w*[379]\w*\b/.test(text);
+  const tunisianWords  = /\b(chneya|kifesh|barsha|bhi|mrigel|ya3tik|3andek|3andi|3andha|3andhu|lazem|bech|bch|taw|famma|hnaya|sahit|yezzi|mouch|wala|kifek|labas|nheb|ma3lich|haka|9addesh|9adh|9oulha|9abel|ween|mta3|elli|yelzem|tnajem|talbek|ena|inti|brabi|chkoun|chbik|nrou7|nlawej|shniya|fih|3lih|manha|ghadi|rahi|yaani|chahed|mar7ba|ahlen|yser|w9t|b3d|kbir|sghir|zwina|behi|mrigla|nfhem|tfhem|nkhou|baba|mama|khti|khoya|7abs|7aja|7ajet|ki|wach|mich|nit|jit|besh|ma3ndich|t3abt|fehmt|mn|weld|bnet|rjel|mra)\b/gi;
+  const tunisianScore  = (text.match(tunisianWords) || []).length;
+
+  if (arabicChars > 3 && !hasNumLetters && tunisianScore === 0)
+    return 'MODERN_ARABIC — Respond ONLY in Modern Standard Arabic (فصحى) using Arabic script (عربي). Never use Latin transliteration.';
+  if (tunisianScore >= 1 || hasNumLetters)
+    return 'TUNISIAN_ARABIC — Respond ONLY in Tunisian Arabic dialect (دارجة تونسية). Write using ARABIC LETTERS (عربي) — never Latin transliteration like "3andek". Example: write "عندك" not "3andek".';
+  if (arabicChars > 0)
+    return 'MODERN_ARABIC — Respond in Modern Standard Arabic (فصحى) using Arabic script.';
+  if (/[şğüöçıİŞĞÜÖÇ]/i.test(text) || /\b(merhaba|teşekkür|nasıl|tamam|evet|hayır|ne|bu|bir|var|yok|benim|senin|kültür|sulama|gübre|bitki|hava|tarih|sonraki|toplam|kaç|isim|isimler|listesi|kadar|değil)\b/i.test(text))
+    return 'TURKISH — Respond in Turkish.';
+  if (/[àâçéèêëîïôœùûü]/i.test(text) || /\b(le|la|les|de|du|des|pour|avec|bonjour|salut|merci|comment|quand|pourquoi|oui|non|je|tu|nous|vous|est|bien|pas|mais|mon|ton|une|sur|dans|qui|que|si|aussi|très|votre|notre|faire|aller|eau|plante|culture|irrigation|météo|fertilisation|date|suivant)\b/i.test(text))
+    return 'FRENCH — Respond in French.';
+  if (/\b(the|is|are|and|for|with|your|you|this|have|will|hello|hi|how|what|when|why|yes|no|ok|please|thanks|help|need|want|my|can|crop|plant|water|weather|irrigation|farm|soil|harvest|next|date)\b/i.test(text))
+    return 'ENGLISH — Respond in English.';
+  return 'TUNISIAN_ARABIC — Default. Respond in Tunisian Arabic dialect (دارجة) using Arabic script.';
+}
+
+// ── Météo (cache 30 min) ──────────────────────────────────────────────────────
+async function getLiveWeather(city = 'Tunis') {
+  try {
+    const cached = await weatherService.getLatestWeather(city);
+    if (cached) {
+      const mins = (new Date() - new Date(cached.date)) / 60000;
+      if (mins < 30 && cached.et0 > 0.1 && cached.et0 < 20) return cached;
+    }
+    return await weatherService.saveWeatherData(city, null, null);
+  } catch (err) {
+    console.error('❌ [AI] getLiveWeather error:', err.message);
+    return weatherService.getLatestWeather(city).catch(() => null);
+  }
+}
+
+// ── Données FAO-56 fertilisation ──────────────────────────────────────────────
+const FERT_FAO = {
+  Orange:    [
+    { jour:15, mois:1,  produit:'KNO₃',     doseParHa:'800 kg/ha' },
+    { jour:15, mois:3,  produit:'Urée',      doseParHa:'200 kg/ha' },
+    { jour:15, mois:5,  produit:'NPK',       doseParHa:'600 kg/ha' },
+    { jour:15, mois:9,  produit:'K₂SO₄',    doseParHa:'400 kg/ha' },
+  ],
+  Citron:    [
+    { jour:10, mois:2,  produit:'Urée',      doseParHa:'160 kg/ha' },
+    { jour:10, mois:5,  produit:'NPK',       doseParHa:'480 kg/ha' },
+    { jour:10, mois:10, produit:'K₂SO₄',    doseParHa:'320 kg/ha' },
+  ],
+  Mandarine: [
+    { jour:12, mois:2,  produit:'Urée',      doseParHa:'160 kg/ha' },
+    { jour:12, mois:5,  produit:'NPK',       doseParHa:'400 kg/ha' },
+    { jour:12, mois:9,  produit:'K₂SO₄',    doseParHa:'280 kg/ha' },
+  ],
+  Tomate:    [
+    { jour:5,  mois:3,  produit:'DAP',       doseParHa:'150 kg/ha' },
+    { jour:5,  mois:4,  produit:'Urée',      doseParHa:'80 kg/ha'  },
+    { jour:5,  mois:5,  produit:'NPK',       doseParHa:'200 kg/ha' },
+    { jour:5,  mois:6,  produit:'Ca(NO₃)₂', doseParHa:'100 kg/ha' },
+  ],
+  Blé:       [
+    { jour:1,  mois:11, produit:'DAP',       doseParHa:'120 kg/ha' },
+    { jour:1,  mois:2,  produit:'Urée x1',   doseParHa:'100 kg/ha' },
+    { jour:1,  mois:3,  produit:'Urée x2',   doseParHa:'80 kg/ha'  },
+  ],
+  Olivier:   [
+    { jour:20, mois:2,  produit:'Urée',      doseParHa:'60 kg/ha'  },
+    { jour:20, mois:5,  produit:'NPK',       doseParHa:'160 kg/ha' },
+    { jour:20, mois:8,  produit:'K₂SO₄',    doseParHa:'100 kg/ha' },
+  ],
+  Pomme:     [
+    { jour:10, mois:2,  produit:'Urée',      doseParHa:'200 kg/ha' },
+    { jour:10, mois:4,  produit:'NPK',       doseParHa:'500 kg/ha' },
+    { jour:10, mois:7,  produit:'K₂SO₄',    doseParHa:'400 kg/ha' },
+  ],
+  _default:  [
+    { jour:15, mois:3,  produit:'NPK',       doseParHa:'100 kg/ha' },
+    { jour:15, mois:7,  produit:'K₂SO₄',    doseParHa:'60 kg/ha'  },
+  ],
+};
+
+function getFAOFertData(nom) {
+  if (!nom) return FERT_FAO._default;
+  const key = Object.keys(FERT_FAO).find(k => k !== '_default' && nom.toLowerCase().includes(k.toLowerCase()));
+  return key ? FERT_FAO[key] : FERT_FAO._default;
+}
+
+function getNextFAOFertDate(nom) {
+  const events = getFAOFertData(nom);
+  const now    = new Date();
+  const year   = now.getFullYear();
+  const dates  = [];
+  for (const ev of events) {
+    dates.push({ date: new Date(year,     ev.mois - 1, ev.jour), produit: ev.produit, dose: ev.doseParHa });
+    dates.push({ date: new Date(year + 1, ev.mois - 1, ev.jour), produit: ev.produit, dose: ev.doseParHa });
+  }
+  dates.sort((a, b) => a.date - b.date);
+  return dates.find(d => d.date >= now) || dates[dates.length - 1];
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function normalizeNumerals(text) {
+  const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+  return text.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => map[d] || d);
+}
+
+function formatDate(date) {
+  if (!date) return null;
+  return new Date(date).toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+
+function joursLabel(prochaineDate) {
+  if (!prochaineDate) return null;
+  const diff = Math.ceil((new Date(prochaineDate) - new Date()) / 86400000);
+  if (diff > 0)   return `dans ${diff} jour(s)`;
+  if (diff === 0) return "aujourd'hui";
+  return `en retard de ${Math.abs(diff)} jour(s)`;
+}
+
+// ── Contexte utilisateur ──────────────────────────────────────────────────────
+async function buildUserContext(userId, userCity = 'Tunis') {
+  try {
+    const cultures   = await Culture.find({ userId }).sort({ createdAt: -1 });
+    const cultureIds = cultures.map(c => c._id);
+
+    const irrigations = await Irrigation.find({ cultureId: { $in: cultureIds } })
+      .sort({ date: -1 }).limit(20).populate('cultureId', 'nom variete');
+
+    const lastIrrigByCulture = {};
+    for (const irr of irrigations) {
+      const cid = irr.cultureId?._id?.toString();
+      if (cid && !lastIrrigByCulture[cid]) lastIrrigByCulture[cid] = irr;
+    }
+
+    const fertilisations = await Fertilisation.find({ cultureId: { $in: cultureIds } })
+      .sort({ date: -1 }).limit(20).populate('cultureId', 'nom variete');
+
+    const lastFertByCulture = {};
+    for (const f of fertilisations) {
+      const cid = f.cultureId?._id?.toString();
+      if (cid && !lastFertByCulture[cid]) lastFertByCulture[cid] = f;
+    }
+
+    const weather = await getLiveWeather(userCity);
+
+    const cropsSummary = cultures.length === 0
+      ? 'Aucune culture.'
+      : cultures.map((c, i) => {
+          const parts = [`${i + 1}. ${c.nom}`];
+          if (c.variete)     parts.push(`(${c.variete})`);
+          if (c.surface)     parts.push(`${c.surface}m²`);
+          if (c.kcActuel)    parts.push(`Kc=${c.kcActuel}`);
+          if (c.nombreArbres) parts.push(`${c.nombreArbres}arb`);
+          return parts.join(' ');
+        }).join(' | ');
+
+    const irrigationSummary = irrigations.length === 0
+      ? 'Aucune irrigation récente.'
+      : irrigations.slice(0, 3).map(irr => {
+          const name = irr.cultureId?.nom || '?';
+          const date = new Date(irr.date).toLocaleDateString('fr-FR');
+          return `${name}: ${irr.volume}L ${date} ETc=${irr.etc}`;
+        }).join(' | ');
+
+    const irrigationNeeds = cultures.length > 0 && weather?.et0
+      ? cultures.map(c => {
+          if (!c.kcActuel || !weather.et0) return null;
+          const etc       = (weather.et0 * c.kcActuel).toFixed(2);
+          const cid       = c._id.toString();
+          const lastIrr   = lastIrrigByCulture[cid];
+          const mode      = lastIrr?.mode || 'goutte-à-goutte';
+          const effMap    = [['goutte', 0.9], ['aspersion', 0.7], ['gravitaire', 0.6]];
+          const eff       = effMap.find(([k]) => mode.toLowerCase().includes(k))?.[1] ?? 0.9;
+          const effPct    = Math.round(eff * 100);
+          const volumeM3  = c.surface > 0 ? ((parseFloat(etc) * c.surface) / 1000 / eff).toFixed(2) : null;
+          const volumeHa  = (parseFloat(etc) * 10 / eff).toFixed(1);
+          const soilPart  = c.typeSol ? ` | Sol: ${c.typeSol}` : '';
+          return `• ${c.nom} (${c.variete}): ET₀=${weather.et0} mm/j × Kc=${c.kcActuel} = ETc=${etc} mm/j${volumeM3 ? ` → Volume: ${volumeM3} m³/j (${c.surface} m²)` : ''} | ${volumeHa} m³/ha/j | Mode: ${mode} η=${effPct}%${soilPart}`;
+        }).filter(Boolean).join('\n')
+      : 'Calcul ETc non disponible (météo manquante).';
+
+    const nextIrrigLines = cultures.length === 0
+      ? 'Aucune culture enregistrée.'
+      : cultures.map(c => {
+          const cid  = c._id.toString();
+          const last = lastIrrigByCulture[cid];
+          if (!last) return `• ${c.nom} (${c.variete}): aucune irrigation enregistrée`;
+          if (last.prochaineDate)
+            return `• ${c.nom} (${c.variete}): prochaine irrigation le ${formatDate(last.prochaineDate)} [${joursLabel(last.prochaineDate)}]` +
+                   (last.frequenceJours ? ` — fréquence: ${last.frequenceJours} jours` : '');
+          if (last.frequenceJours > 0) {
+            const next = new Date(new Date(last.date).getTime() + last.frequenceJours * 86400000);
+            return `• ${c.nom} (${c.variete}): prochaine irrigation estimée le ${formatDate(next)} [${joursLabel(next)}] — fréquence: ${last.frequenceJours} jours`;
+          }
+          return `• ${c.nom} (${c.variete}): dernière irrigation le ${formatDate(last.date)} — fréquence non définie`;
+        }).join('\n');
+
+    const nextFertLines = cultures.length === 0
+      ? 'Aucune culture enregistrée.'
+      : cultures.map(c => {
+          const cid  = c._id.toString();
+          const last = lastFertByCulture[cid];
+          if (last?.prochaineDate)
+            return `• ${c.nom} (${c.variete}): prochaine fertilisation le ${formatDate(last.prochaineDate)} [${joursLabel(last.prochaineDate)}] — produit: ${last.produit} (${last.typeProduit})` +
+                   (last.frequenceJours ? ` — fréquence: ${last.frequenceJours} jours` : '');
+          if (last?.frequenceJours > 0) {
+            const next = new Date(new Date(last.date).getTime() + last.frequenceJours * 86400000);
+            return `• ${c.nom} (${c.variete}): prochaine fertilisation estimée le ${formatDate(next)} [${joursLabel(next)}] — produit: ${last.produit} (${last.typeProduit}) — fréquence: ${last.frequenceJours} jours`;
+          }
+          const fao   = getNextFAOFertDate(c.nom);
+          const label = last ? `dernière fertilisation: ${formatDate(last.date)} — ` : 'aucune fertilisation en base — ';
+          return fao
+            ? `• ${c.nom} (${c.variete}): ${label}prochaine FAO-56: ${formatDate(fao.date)} [${joursLabel(fao.date)}] — produit: ${fao.produit} (${fao.dose})`
+            : `• ${c.nom} (${c.variete}): aucune donnée de fertilisation`;
+        }).join('\n');
+
+    const weatherSummary = weather
+      ? [`Ville: ${weather.location?.city || userCity}`,
+          `Température: ${weather.temperature?.current}°C (min ${weather.temperature?.min}°C / max ${weather.temperature?.max}°C)`,
+          `Humidité: ${weather.humidity?.current}%`, `Vent: ${weather.wind?.speed} m/s`,
+          `ET₀: ${weather.et0} mm/j`, `Conditions: ${weather.description || 'N/A'}`,
+          `MAJ: ${new Date(weather.date).toLocaleTimeString('fr-FR')}`,
+        ].join(' | ')
+      : 'Données météo non disponibles.';
+
+    return { cropCount: cultures.length, cropsSummary, irrigationSummary, irrigationNeeds, nextIrrigLines, nextFertLines, weatherSummary, city: userCity };
+  } catch (error) {
+    console.error('❌ Error building user context:', error.message);
+    return { cropCount: 0, cropsSummary: 'Impossible de charger les cultures.', irrigationSummary: 'Impossible de charger les irrigations.', irrigationNeeds: 'Calcul non disponible.', nextIrrigLines: 'Données non disponibles.', nextFertLines: 'Données non disponibles.', weatherSummary: 'Météo non disponible.', city: userCity };
+  }
+}
+
+// ── System prompt ─────────────────────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are SmartIrrig AI, a smart irrigation assistant embedded in the SmartIrrig mobile app.
+
+## RESPONSE STYLE — ABSOLUTE RULE
+- Answer in ONE sentence maximum. No exceptions.
+- Answer ONLY what was asked. Do not add extra details unless asked.
+- Examples:
+  • "Quel est le nombre de cultures ?" → "Vous avez 3 cultures."
+  • "What are my crops?" → "Orange, Tomato, Wheat."
+  • "9adh 3andi mn culture?" → "عندك 3 محاصيل."
+  • "كم عدد المحاصيل؟" → "عندك 3 محاصيل."
+  • "Quelle est la prochaine date d'irrigation ?" → "La prochaine irrigation de vos orangers est le jeudi 7 mai 2026."
+  • "متى الري القادم؟" → "الري القادم لـ البرتقال هو يوم الخميس 7 ماي 2026."
+- Always include the crop name when answering about irrigation, fertilisation, or Kc.
+- No greetings, no "bien sûr", no "voici", no filler words.
+- Use a short list ONLY if the user explicitly asks for names/details.
+
+## ARABIC / TUNISIAN CROPS FORMAT — NON-NEGOTIABLE ⚠️⚠️⚠️
+When the user asks HOW MANY crops they have ("9adh", "kam", "كم", "combien de cultures"):
+- THE ONLY CORRECT ANSWER FORMAT IS: "عندك [digit] محاصيل"
+- ✅ CORRECT: "عندك 2 محاصيل"
+- ❌ WRONG — STRICTLY FORBIDDEN: "عندك ثقافتين هما التوم و البرتقال"
+- NEVER list crop names UNLESS the user explicitly says "شنوا محاصيلي" or "liste mes cultures" or "what are my crops".
+- NEVER use dual form (ثقافتين، ثقافتان، اثنتان) — ALWAYS use digit + محاصيل.
+- NEVER use the word "ثقافة" or "ثقافات" — ALWAYS use "محصول" / "محاصيل".
+- قاعدة مطلقة: اكتب الأرقام بالأرقام (2، 3) وليس بالكلمات (ثقافتين، ثلاثة).
+
+## LANGUAGES — ABSOLUTE RULE ⚠️
+You MUST ALWAYS respond in the EXACT language specified in [LANGUE DÉTECTÉE — OBLIGATOIRE].
+
+Language rules:
+- TUNISIAN_ARABIC → respond ONLY in Tunisian Arabic dialect (دارجة تونسية), casual tone
+- MODERN_ARABIC → respond ONLY in Modern Standard Arabic (فصحى)
+- FRENCH → respond ONLY in French
+- ENGLISH → respond ONLY in English
+- TURKISH → respond ONLY in Turkish
+
+## YOUR CAPABILITIES
+You have access to real user data in [CONTEXTE UTILISATEUR]:
+- Their crops (name, variety, surface, Kc, growth stage)
+- Irrigation history (volume, date, mode, ETc)
+- Calculated water needs (ETc = ET₀ × Kc)
+- Live weather (temperature, humidity, wind, ET₀)
+
+## RULES — DATA ACCURACY ⚠️
+- Use ONLY numbers from [CONTEXTE UTILISATEUR] — NEVER invent or estimate values.
+- If data is missing say so in one short sentence.
+
+## NAVIGATION IN APP
+Add a 📍 path ONLY when the user explicitly asks WHERE or HOW TO DO something in the app.
+
+Navigation map (use only when relevant):
+- Change name/profile → 📍 Menu ☰ > Profil > ✏️
+- Add a crop → 📍 Cultures > +
+- View irrigation history → 📍 Historique
+- Water needs → 📍 Irrigation
+- Weather → 📍 Accueil
+- Fertilisation → 📍 Fertilisation
+- Contact/support → 📍 Contact`;
+
+// ── Groq call with model cascade ──────────────────────────────────────────────
+async function callGroq(userMessage, context, langHint) {
+  const contextBlock = `[CONTEXTE UTILISATEUR]
+Cultures (${context.cropCount}): ${context.cropsSummary}
+Irrigation récente: ${context.irrigationSummary}
+Besoins ETc: ${context.irrigationNeeds}
+Prochaines irrigations: ${context.nextIrrigLines}
+Prochaines fertilisations: ${context.nextFertLines}
+Météo à ${context.city}: ${context.weatherSummary}`;
+
+  const body = {
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT + '\n\n' + contextBlock },
+      { role: 'user',   content: `[LANGUE DÉTECTÉE — RÉPONDRE EN CETTE LANGUE]\n${langHint}\n\n[RAPPEL FORMAT ARABIC]\nSi la question porte sur le nombre de cultures/محاصيل → répondre UNIQUEMENT: "عندك X محاصيل" (X = chiffre). INTERDIT: ثقافتين / ثقافتان / lister les noms.\n\n[MESSAGE]\n${userMessage}` },
+    ],
+    max_tokens: 256,
+    temperature: 0.1,
+  };
+
+  let lastErr;
+  for (const model of GROQ_MODELS) {
+    try {
+      const response = await axios.post(
+        `${GROQ_BASE}/chat/completions`,
+        { ...body, model },
+        { headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 30000 }
+      );
+      return response.data.choices[0]?.message?.content?.trim() || '';
+    } catch (err) {
+      const status = err.response?.status;
+      lastErr = err;
+      if (status === 429 || status === 503) {
+        console.warn(`⚠️ Groq ${model} rate-limited (${status}), trying next model`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
+module.exports = { detectMessageLanguage, buildUserContext, callGroq, normalizeNumerals };

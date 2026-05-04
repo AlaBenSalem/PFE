@@ -123,25 +123,13 @@ export const authAPI = {
     });
   },
 
-  // ✅ Delete corrigé : header Authorization bien passé
   async adminDeleteUser(id) {
     const token = await this.getAdminToken();
     if (!token) throw new Error("Token admin manquant — reconnectez-vous");
-
-    const url  = `${API_BASE_URL}/admin/users/${id}`;
-    const res  = await fetch(url, {
+    return request(`/admin/users/${id}`, {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
-
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data?.message || "Suppression impossible");
-    }
-    return data;
   },
 
   // ── LOGOUT ──────────────────────────────────────────────────────────────────

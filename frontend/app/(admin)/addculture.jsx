@@ -394,20 +394,8 @@ export default function AddCulturePage() {
     if (!item?._id) return;
     setDeletingId(item._id);
     try {
-      const AsyncStorage = (
-        await import("@react-native-async-storage/async-storage")
-      ).default;
-      const adminToken = await AsyncStorage.getItem("adminToken");
-      if (!adminToken) {
-        showToast(t("admin.tokenMissing"), "error");
-        return;
-      }
-      const res = await fetch(API_ENDPOINTS.kc.delete(item._id), {
+      const res = await apiFetch(API_ENDPOINTS.kc.delete(item._id), {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
       });
       let data = {};
       try {

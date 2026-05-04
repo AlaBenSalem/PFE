@@ -1,306 +1,67 @@
-@startuml activite1_authentification
+@startuml SmartIrrig_Activite
 
 skinparam monochrome true
 skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam ArrowColor #333333
+skinparam ActivityBorderColor #333333
+skinparam ActivityBackgroundColor #f5f5f5
+skinparam ActivityDiamondBackgroundColor #eeeeee
 
-' ══════════════════════════════════════════════════════
-' ACTIVITE 1 : Authentification
-' ══════════════════════════════════════════════════════
-
-title [1] Processus d'Authentification Utilisateur
+title SmartIrrig — Diagramme d'Activités
 
 start
 
 :Ouvrir l'application SmartIrrig;
 
-if (Possede un compte ?) then (Non)
-  :Choisir "S'inscrire";
-  :Saisir prenom, nom, email, adresse, mot de passe;
-  if (Champs valides ?) then (Non)
-    :Afficher erreurs de validation;
+if (Possède un compte ?) then (Non)
+  :S'inscrire;
+endif
+
+if (Connexion Google ?) then (Oui)
+  :Authentification via Google;
+else (Non)
+  :Saisir email et mot de passe;
+  if (Identifiants valides ?) then (Non)
+    :Afficher erreur;
     stop
   endif
-  :Creer compte via POST /api/auth/register;
-  :Envoyer email de confirmation;
 endif
 
-if (Methode de connexion ?) then (Google OAuth)
-  :Rediriger vers Google;
-  :Autoriser SmartIrrig;
-  :POST /api/auth/google;
-  :Creer ou recuperer le compte utilisateur;
-else (Email + Mot de passe)
-  :Saisir email et mot de passe;
-  :POST /api/auth/login;
-  if (Identifiants corrects ?) then (Non)
-    if (Mot de passe oublie ?) then (Oui)
-      :Saisir email;
-      :Recevoir code de reinitialisation par email;
-      :Saisir le code a 6 chiffres;
-      if (Code valide ?) then (Non)
-        :Afficher erreur code invalide;
-        stop
-      endif
-      :Saisir nouveau mot de passe;
-      :Mettre a jour le mot de passe;
-    else (Non)
-      :Afficher "Email ou mot de passe incorrect";
-      stop
-    endif
+:Accéder au tableau de bord;
+
+if (Profil Administrateur ?) then (Oui)
+
+  :Consulter les statistiques globales;
+
+  fork
+    :Gérer les utilisateurs;
+  fork again
+    :Gérer la base de données Kc;
+  end fork
+
+else (Non — Utilisateur)
+
+  if (Aucune culture enregistrée ?) then (Oui)
+    :Ajouter une culture\n(nom, sol, surface, système d'irrigation);
   endif
+
+  :Choisir une fonctionnalité;
+
+  fork
+    :Irrigation\n(consulter besoins, enregistrer);
+  fork again
+    :Fertilisation\n(consulter calendrier, enregistrer);
+  fork again
+    :Assistant IA\n(poser une question par texte ou voix);
+  end fork
+
+  :Consulter les notifications;
+
 endif
 
-:Generer token JWT;
-:Stocker token dans AsyncStorage;
-:Charger profil depuis /api/auth/profile;
-:Rediriger vers l'accueil;
-
-stop
-
-@enduml
-
-@startuml activite2_irrigation
-
-skinparam monochrome true
-skinparam shadowing false
-
-' ══════════════════════════════════════════════════════
-' ACTIVITE 2 : Calcul et Enregistrement d'une Irrigation
-' ══════════════════════════════════════════════════════
-
-title [2] Calcul des Besoins en Eau et Enregistrement Irrigation
-
-start
-
-:Ouvrir onglet Irrigation;
-:Charger cultures de l'utilisateur;
-
-if (Cultures disponibles ?) then (Non)
-  :Afficher message "Ajoutez une culture";
-  stop
-endif
-
-:Selectionner une culture;
-
-group Calcul Meteo ET0 (FAO-56)
-  :Verifier cache meteo (30 min);
-  if (Cache valide ?) then (Non)
-    :Appeler OpenWeather API;
-    :Calculer ET0 (Penman-Monteith FAO-56);
-    :Sauvegarder en cache MongoDB;
-  endif
-  :Obtenir ET0 du jour (mm/j);
-end group
-
-group Calcul Besoins Culture (FAO-56)
-  :Recuperer Kc actuel de la culture;
-  :ETc = ET0 x Kc;
-  :Volume theorique = ETc x surface (m2);
-  :Appliquer efficacite systeme\n(goutte-a-goutte: 90%, aspersion: 70%, gravitaire: 60%);
-  :Volume reel = Volume theorique / efficacite;
-  :Debit total = debitGoutteur x nbGoutteurs x nbArbres;
-  :Duree = Volume reel / Debit total (min);
-end group
-
-:Afficher recommandation FAO-56\n(volume + duree + mode);
-:Afficher prochaine date d'irrigation;
-
-if (Utilisateur decide d'irriguer ?) then (Oui)
-  :Confirmer le volume et la duree;
-  :POST /api/irrigation\n{cultureId, volume, mode, date};
-  :Sauvegarder en base de donnees;
-  :Mettre a jour la prochaine date;
-  :Afficher confirmation;
-  :Mettre a jour l'historique;
-else (Non)
-  :Rester sur la page;
-endif
-
-stop
-
-@enduml
-
-@startuml activite3_assistant_ia
-
-skinparam monochrome true
-skinparam shadowing false
-
-' ══════════════════════════════════════════════════════
-' ACTIVITE 3 : Interaction avec l'Assistant IA
-' ══════════════════════════════════════════════════════
-
-title [3] Interaction avec l'Assistant IA SmartIrrig
-
-start
-
-:Appuyer sur le bouton IA (FAB);
-:Ouvrir le panneau de chat;
-:Verifier statut du serveur;
-
-if (Serveur disponible ?) then (Non)
-  :Afficher "Connexion au serveur...";
-  :Reessayer toutes les 5 secondes;
-endif
-
-if (Mode de saisie ?) then (Vocal)
-  :Appuyer sur le micro;
-  :Demarrer reconnaissance vocale\n(expo-speech-recognition);
-  :Parler en arabe, francais, anglais ou turc;
-  :Transcrire automatiquement la voix en texte;
-else (Texte)
-  :Taper le message dans le champ;
-endif
-
-:POST /api/ai/chat\n{message, conversationId, city};
-
-group Traitement Backend (Express)
-  :Verifier token JWT;
-  :Charger contexte utilisateur\n(cultures, irrigations, meteo);
-  :Detecter la langue du message;
-  if (Premiere question ?) then (Oui)
-    :Construire requete avec contexte complet\n+ langue + message;
-    :conversation_id = vide;
-  else (Non)
-    :Construire requete avec langue + message;
-    :conversation_id = valeur stockee (useRef);
-  endif
-  :Appeler Dify API (chatflow);
-  :Dify genere une reponse contextuelle;
-  :Retourner {answer, conversationId};
-end group
-
-:Stocker conversationId dans useRef;
-:Afficher la reponse dans le chat;
-
-if (Langue de la reponse = Arabe ?) then (Oui)
-  :POST /api/ai/tts {text: reponse};
-  :ElevenLabs genere audio MP3\n(voix arabe naturelle);
-  :Lire l'audio automatiquement;
-else (Non)
-  :expo-speech - lecture locale;
-endif
-
-if (Utilisateur pose une autre question ?) then (Oui)
-  :Repeter avec conversationId existant\n(Dify conserve le contexte);
-endif
-
-stop
-
-@enduml
-
-@startuml activite4_ajout_culture
-
-skinparam monochrome true
-skinparam shadowing false
-
-' ══════════════════════════════════════════════════════
-' ACTIVITE 4 : Ajout d'une Culture
-' ══════════════════════════════════════════════════════
-
-title [4] Ajout d'une Culture par l'Utilisateur
-
-start
-
-:Appuyer sur "Ajouter une culture";
-:Ouvrir le formulaire d'ajout;
-:Charger la liste des cultures disponibles\n(GET /api/kc/search);
-
-group Remplissage du Formulaire
-  :Selectionner le nom du produit\n(picker traduit en 4 langues);
-  :Selectionner la variete;
-  :Saisir la parcelle;
-  :Saisir la region;
-  :Choisir le type de sol\n(sableux, limoneux, argileux...);
-  :Selectionner la date de plantation;
-  :Saisir la surface (m2);
-  :Saisir le nombre d'arbres;
-  :Saisir le debit goutteur (L/h);
-  :Saisir le nombre de goutteurs par arbre;
-end group
-
-if (Formulaire valide ?) then (Non)
-  :Afficher erreurs en rouge;
-  stop
-endif
-
-:Calculer la densite = arbres / hectare;
-:POST /api/cultures\n{nom, variete, parcelle, surface, typeSol, ...};
-
-if (Succes ?) then (Oui)
-  :Fermer le formulaire;
-  :Rafraichir la liste des cultures;
-  :Afficher "Culture ajoutee avec succes";
-else (Erreur serveur)
-  :Afficher le message d'erreur;
-  stop
-endif
-
-stop
-
-@enduml
-
-@startuml activite5_admin_dashboard
-
-skinparam monochrome true
-skinparam shadowing false
-
-' ══════════════════════════════════════════════════════
-' ACTIVITE 5 : Tableau de Bord Administrateur
-' ══════════════════════════════════════════════════════
-
-title [5] Activite Administrateur - Dashboard et Gestion
-
-start
-
-:Se connecter en tant qu'Administrateur;
-:POST /api/admin/login;
-
-if (Identifiants admin corrects ?) then (Non)
-  :Afficher "Identifiants incorrects";
-  stop
-endif
-
-:Stocker adminToken dans AsyncStorage;
-:Acceder au Dashboard;
-
-:Charger statistiques globales\n(GET /api/admin/users + GET /api/kc + courbe volumes);
-:Afficher nb utilisateurs, nb cultures KC, graphique;
-
-if (Filtrer le graphique ?) then (Oui)
-  :Saisir nom dans la barre de recherche;
-  :Selectionner un utilisateur;
-  :Recharger la courbe pour cet utilisateur\n(GET /api/admin/irrigations/volume-by-day?userId=x);
-endif
-
-if (Action souhaitee ?) then (Gestion KC)
-  :Acceder a la base de donnees Kc;
-  if (Type d'action ?) then (Ajouter)
-    :Remplir nom + variete + Kc (ini/mid/late);
-    :POST /api/kc;
-    :Culture disponible pour tous les utilisateurs;
-  else (Supprimer)
-    :Confirmer la suppression;
-    :DELETE /api/kc/:id;
-  endif
-elseif (Action souhaitee ?) then (Gestion Utilisateurs)
-  :Voir la liste des utilisateurs;
-  if (Action sur un utilisateur ?) then (Creer)
-    :Remplir le formulaire de creation;
-    :POST /api/admin/users;
-  elseif (Action sur un utilisateur ?) then (Modifier)
-    :Modifier infos (nom, adresse, statut);
-    :PATCH /api/admin/users/:id;
-  elseif (Action sur un utilisateur ?) then (Activer/Desactiver)
-    :PATCH /api/admin/users/:id/status;
-  else (Supprimer)
-    :Confirmer la suppression;
-    :DELETE /api/admin/users/:id\n(supprime cultures + irrigations + fertilisations);
-  endif
-else (Profil Admin)
-  :Modifier son nom d'affichage;
-  :PATCH /api/admin/profile;
-  :Mettre a jour AsyncStorage;
-endif
+:Se déconnecter;
 
 stop
 

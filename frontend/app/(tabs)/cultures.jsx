@@ -1,11 +1,10 @@
 // app/(tabs)/cultures.jsx — Merge V1 (interface) + V2 (Type de Sol / RFU)
-import React, { useState, useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   Pressable,
-  Alert,
   TextInput,
   Modal,
   FlatList,
@@ -15,12 +14,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { BrandHeader } from "@components/BrandHeader";
-import { API_ENDPOINTS, apiFetch } from "@api/client";
-import cultureService from "../../api/cultureService";
 import { useLanguage } from "@context/LanguageContext";
+import { useCultures } from "@hooks/useCultures";
+import { useCultureForm } from "@hooks/useCultureForm";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // DONNÉES TYPES DE SOL (depuis V2)
@@ -138,37 +136,18 @@ function translateVariety(variete, lang) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// KC CULTURES FALLBACK (depuis V1)
+// SAXTON & RAWLS (Saxton & Rawls, 2006 — FAO pédotransfert)
+// S, C ∈ [0,1]  OM en %
+// θFC (à -33 kPa)  θWP (à -1500 kPa)
 // ══════════════════════════════════════════════════════════════════════════════
-const KC_CULTURES_FALLBACK = [
-  { nom: "Orange", variete: "Navel Washington" },
-  { nom: "Citron", variete: "Eureka / Lisbon" },
-  { nom: "Mandarine", variete: "Clémentine" },
-  { nom: "Pamplemousse", variete: "Standard" },
-  { nom: "Olivier", variete: "Chemlali / Chetoui" },
-  { nom: "Grenadier", variete: "Standard" },
-  { nom: "Figuier", variete: "Standard" },
-  { nom: "Pommier", variete: "Golden / Red" },
-  { nom: "Poirier", variete: "Williams / Conference" },
-  { nom: "Pêcher", variete: "Standard" },
-  { nom: "Abricotier", variete: "Standard" },
-  { nom: "Vigne", variete: "Table / Vin" },
-  { nom: "Dattier", variete: "Deglet Nour" },
-  { nom: "Tomate", variete: "Cœur de bœuf / Ronde" },
-  { nom: "Pomme de terre", variete: "Standard" },
-  { nom: "Poivron", variete: "Standard" },
-  { nom: "Oignon", variete: "Standard" },
-  { nom: "Concombre", variete: "Standard" },
-  { nom: "Courgette", variete: "Standard" },
-  { nom: "Laitue", variete: "Standard" },
-  { nom: "Haricot", variete: "Standard" },
-  { nom: "Melon", variete: "Standard" },
-  { nom: "Artichaut", variete: "Standard" },
-  { nom: "Blé", variete: "Dur / Tendre" },
-  { nom: "Orge", variete: "Standard" },
-  { nom: "Maïs", variete: "Standard" },
-  { nom: "Tournesol", variete: "Standard" },
-];
+function saxtonRawls(S, C, OM) {
+  const fc = -0.251*S + 0.195*C + 0.011*OM + 0.006*S*OM - 0.027*C*OM + 0.452*S*C + 0.299;
+  const wp = -0.024*S + 0.487*C + 0.006*OM + 0.005*S*OM - 0.013*C*OM + 0.068*S*C + 0.031;
+  return {
+    fc: Math.max(0, Math.min(0.65, parseFloat(fc.toFixed(4)))),
+    wp: Math.max(0, Math.min(0.55, parseFloat(wp.toFixed(4)))),
+  };
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIRM MODAL (V1 — inchangé)
@@ -252,7 +231,7 @@ function SelectPickerModal({
   t,
   translateItem,
 }) {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = React.useState("");
   const searchRef = useRef(null);
 
   const getDisplay = (item) => (translateItem ? translateItem(item) : item);
@@ -697,86 +676,62 @@ function CultureCard({ item, deletingId, onDelete, formatDate, t, typesSol, lang
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SAXTON & RAWLS (Saxton & Rawls, 2006 — FAO pédotransfert)
-// S, C ∈ [0,1]  OM en %
-// θFC (à -33 kPa)  θWP (à -1500 kPa)
-// ══════════════════════════════════════════════════════════════════════════════
-function saxtonRawls(S, C, OM) {
-  const fc = -0.251*S + 0.195*C + 0.011*OM + 0.006*S*OM - 0.027*C*OM + 0.452*S*C + 0.299;
-  const wp = -0.024*S + 0.487*C + 0.006*OM + 0.005*S*OM - 0.013*C*OM + 0.068*S*C + 0.031;
-  return {
-    fc: Math.max(0, Math.min(0.65, parseFloat(fc.toFixed(4)))),
-    wp: Math.max(0, Math.min(0.55, parseFloat(wp.toFixed(4)))),
-  };
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 export default function CulturesPage() {
   const { t, language } = useLanguage();
   const TYPES_SOL = useMemo(() => getTypesSol(t), [t]);
 
-  const [cultures, setCultures] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [error, setError] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-  const [fieldErrors, setFieldErrors] = useState({});
-  const [confirmDelete, setConfirmDelete] = useState({
-    visible: false,
-    id: null,
-  });
-  const [availableCultures, setAvailableCultures] = useState([]);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  // ── Data hook ────────────────────────────────────────────────────────────────
+  const {
+    cultures,
+    loading,
+    error,
+    loadCultures,
+    deletingId,
+    confirmDelete,
+    setConfirmDelete,
+    deleteCulture,
+    doConfirmedDelete,
+    nomSuggestions,
+    allVarietes,
+    availableCultures,
+    totalCulturesDisponibles,
+    loadingSuggestions,
+  } = useCultures();
 
-  // Pickers state
-  const [nomPickerVisible, setNomPickerVisible] = useState(false);
-  const [varietePickerVisible, setVarietePickerVisible] = useState(false);
-  const [solPickerVisible, setSolPickerVisible] = useState(false); // ✅ NOUVEAU
-
-  const [newCulture, setNewCulture] = useState({
-    parcelle: "",
-    nom: "",
-    variete: "",
-    datePlantation: null,
-    surface: "",
-    nombreArbres: "",
-    typeSol: "limoneux",
-    region: "",
-    // ✅ NOUVEAUX — Système d'irrigation (obligatoires)
-    debitGoutteur: "",      // L/h par goutteur (FAO-56 recommande 2–8 L/h)
-    nbGoutteursParArbre: "", // nb goutteurs/arbre (FAO-56: 2–4 pour arbre fruitier)
-    densitePlantation: "",   // arbres/ha (calculé auto si surface+arbres, sinon manuel)
-    // ✅ NOUVEAUX — Paramètres hydriques sol (optionnels, FAO-56 §3.1)
-    thetaCc: "",  // θcc : teneur volumique à capacité au champ (cm³/cm³)
-    thetaPf: "",  // θpf : teneur volumique au point de flétrissement (cm³/cm³)
-    // Texture Saxton & Rawls
-    sablePct:  "", // sable %
-    argilePct: "", // argile %
-    om:        "", // matière organique %
-    p:   "0.5",   // fraction de dépletion FAO-56 (0.3–0.7)
-    z:   "0.6",   // profondeur racinaire effective (m)
-    // Kc manuel (optionnel, remplace FAO-56 si renseigné)
-    kcMode: "auto",  // "auto" = FAO-56 | "manuel" = saisie utilisateur
-    kcIni: "",   // Kc stade initial
-    kcMid: "",   // Kc mi-saison
-    kcEnd: "",   // Kc fin de saison
-  });
+  // ── Form hook ────────────────────────────────────────────────────────────────
+  const {
+    modalVisible,
+    setModalVisible,
+    showDatePicker,
+    setShowDatePicker,
+    step,
+    setStep,
+    submitting,
+    nomPickerVisible,
+    setNomPickerVisible,
+    varietePickerVisible,
+    setVarietePickerVisible,
+    solPickerVisible,
+    setSolPickerVisible,
+    newCulture,
+    setNewCulture,
+    fieldErrors,
+    setFieldErrors,
+    handleNomSelect,
+    handleVarieteSelect,
+    validateStep1,
+    validateStep2,
+    addCulture,
+    resetForm,
+  } = useCultureForm({ onSuccess: loadCultures });
 
   const formatDate = (date) => {
     if (!date) return "";
     const d = new Date(date);
     return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
   };
-
-  const allCultures =
-    availableCultures.length > 0 ? availableCultures : KC_CULTURES_FALLBACK;
-  const nomSuggestions = allCultures.map((c) => c.nom);
-  const allVarietes = [...new Set(allCultures.map((c) => c.variete))];
-  const totalCulturesDisponibles = allCultures.length;
 
   // Sol sélectionné pour affichage dans le formulaire
   const selectedSolData =
@@ -794,294 +749,8 @@ export default function CulturesPage() {
         language={language}
       />
     ),
-    [deletingId, TYPES_SOL, language],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadAllAvailableCultures = async () => {
-    try {
-      setLoadingSuggestions(true);
-      const response = await apiFetch(API_ENDPOINTS.kc.search);
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && Array.isArray(result.data)) {
-          const fromDB = result.data.map((item) => ({
-            nom: item.culture,
-            variete: item.variete || "Standard",
-          }));
-          const merged = [
-            ...fromDB,
-            ...KC_CULTURES_FALLBACK.filter(
-              (local) =>
-                !fromDB.some(
-                  (db) => db.nom.toLowerCase() === local.nom.toLowerCase(),
-                ),
-            ),
-          ].sort((a, b) => a.nom.localeCompare(b.nom));
-          setAvailableCultures(merged);
-        }
-      }
-    } catch (err) {
-      setAvailableCultures(KC_CULTURES_FALLBACK);
-    } finally {
-      setLoadingSuggestions(false);
-    }
-  };
-
-  const loadCultures = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await cultureService.getAllCultures();
-      setCultures(result?.success ? result.data : []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      loadCultures();
-      loadAllAvailableCultures();
-    }, []),
+    [deletingId, TYPES_SOL, language], // eslint-disable-line react-hooks/exhaustive-deps
   );
-
-  const handleNomSelect = (selectedNom) => {
-    const found = allCultures.find(
-      (c) => c.nom.toLowerCase() === selectedNom.toLowerCase(),
-    );
-    setNewCulture((prev) => ({
-      ...prev,
-      nom: selectedNom,
-      variete: found ? found.variete : prev.variete || "Standard",
-    }));
-    setFieldErrors((prev) => ({ ...prev, nom: null, variete: null }));
-    setNomPickerVisible(false);
-  };
-
-  const handleVarieteSelect = (selectedVariete) => {
-    setNewCulture((prev) => ({ ...prev, variete: selectedVariete }));
-    setFieldErrors((prev) => ({ ...prev, variete: null }));
-    setVarietePickerVisible(false);
-  };
-
-  const validate = () => {
-    const errs = {};
-    if (!newCulture.parcelle.trim())
-      errs.parcelle = t("cultures.modal.parcelRequired");
-    if (!newCulture.nom.trim()) errs.nom = t("cultures.modal.nomRequired");
-    if (!newCulture.variete.trim())
-      errs.variete = t("cultures.modal.varietyRequired");
-    if (!newCulture.datePlantation)
-      errs.datePlantation = t("cultures.modal.dateRequired");
-    if (!newCulture.surface.trim()) {
-      errs.surface = t("cultures.modal.surfaceRequired");
-    } else if (
-      isNaN(parseFloat(newCulture.surface)) ||
-      parseFloat(newCulture.surface) <= 0
-    ) {
-      errs.surface = t("cultures.modal.surfaceInvalid");
-    }
-    // ✅ Nombre d'arbres — obligatoire
-    if (!newCulture.nombreArbres?.trim()) {
-      errs.nombreArbres = t("cultures.modal.treesRequired");
-    } else {
-      const n = parseInt(newCulture.nombreArbres);
-      if (isNaN(n) || n <= 0)
-        errs.nombreArbres = t("cultures.modal.treesInvalid");
-    }
-    // ✅ Débit goutteur — obligatoire (FAO-56 : base du calcul temps d'irrigation)
-    if (!newCulture.debitGoutteur.trim()) {
-      errs.debitGoutteur = t("cultures.modal.drip_flow_required") || "Débit du goutteur requis (L/h)";
-    } else {
-      const dg = parseFloat(newCulture.debitGoutteur);
-      if (isNaN(dg) || dg <= 0 || dg > 20)
-        errs.debitGoutteur = t("cultures.modal.drip_flow_invalid") || "Débit invalide (plage FAO-56 : 0.5–20 L/h)";
-    }
-    // ✅ Nb goutteurs/arbre — obligatoire
-    if (!newCulture.nbGoutteursParArbre.trim()) {
-      errs.nbGoutteursParArbre = t("cultures.modal.drip_nb_required") || "Nombre de goutteurs par arbre requis";
-    } else {
-      const ng = parseInt(newCulture.nbGoutteursParArbre);
-      if (isNaN(ng) || ng <= 0 || ng > 20)
-        errs.nbGoutteursParArbre = t("cultures.modal.drip_nb_invalid") || "Valeur invalide (1–20 goutteurs/arbre)";
-    }
-    // ✅ Densité de plantation — obligatoire (arbres/ha)
-    if (!newCulture.densitePlantation.trim()) {
-      errs.densitePlantation = t("cultures.modal.density_required") || "Densité de plantation requise (arbres/ha)";
-    } else {
-      const dp = parseFloat(newCulture.densitePlantation);
-      if (isNaN(dp) || dp <= 0 || dp > 10000)
-        errs.densitePlantation = t("cultures.modal.density_invalid") || "Densité invalide (1–10 000 arbres/ha)";
-    }
-    // ✅ θcc et θpf — optionnels mais si renseignés, cohérence requise
-    if (newCulture.thetaCc.trim()) {
-      const cc = parseFloat(newCulture.thetaCc);
-      if (isNaN(cc) || cc <= 0 || cc > 0.6)
-        errs.thetaCc = t("cultures.modal.thetaCc_invalid") || "θcc invalide (0.05–0.60 cm³/cm³)";
-    }
-    if (newCulture.thetaPf.trim()) {
-      const pf = parseFloat(newCulture.thetaPf);
-      if (isNaN(pf) || pf <= 0 || pf > 0.4)
-        errs.thetaPf = t("cultures.modal.thetaPf_invalid") || "θpf invalide (0.02–0.40 cm³/cm³)";
-    }
-    if (newCulture.thetaCc.trim() && newCulture.thetaPf.trim()) {
-      const cc = parseFloat(newCulture.thetaCc);
-      const pf = parseFloat(newCulture.thetaPf);
-      if (!isNaN(cc) && !isNaN(pf) && pf >= cc)
-        errs.thetaPf = t("cultures.modal.thetaPf_lt_cc") || "θpf doit être inférieur à θcc";
-    }
-    // ✅ Kc manuel — si mode manuel, au moins kcMid requis
-    if (newCulture.kcMode === "manuel") {
-      const checkKc = (v, key) => {
-        if (!v.trim()) return;
-        const n = parseFloat(v);
-        if (isNaN(n) || n < 0.1 || n > 1.5) errs[key] = "Kc invalide (0.10–1.50)";
-      };
-      if (!newCulture.kcMid.trim()) {
-        errs.kcMid = "Kc mi-saison requis";
-      } else {
-        checkKc(newCulture.kcMid, "kcMid");
-      }
-      checkKc(newCulture.kcIni, "kcIni");
-      checkKc(newCulture.kcEnd, "kcEnd");
-    }
-    setFieldErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
-  const addCulture = async () => {
-    if (!validate()) return;
-    try {
-      setSubmitting(true);
-      // ✅ Calcul débit total = debitGoutteur × nbGoutteursParArbre × nombreArbres
-      const debitGoutteurVal    = parseFloat(newCulture.debitGoutteur);
-      const nbGoutteursVal      = parseInt(newCulture.nbGoutteursParArbre);
-      const nbArbresVal         = parseInt(newCulture.nombreArbres);
-      // débit total parcelle (L/h) — utilisé par le moteur d'irrigation
-      const debitTotal = debitGoutteurVal * nbGoutteursVal * nbArbresVal;
-
-      const result = await cultureService.addCulture({
-        parcelle: newCulture.parcelle.trim(),
-        nom: newCulture.nom.trim(),
-        variete: newCulture.variete.trim(),
-        datePlantation: newCulture.datePlantation.toISOString(),
-        surface: parseFloat(newCulture.surface),
-        nombreArbres: nbArbresVal,
-        typeSol: newCulture.typeSol,
-        region: newCulture.region?.trim() || undefined,
-        // ✅ Nouveaux champs irrigation
-        irrigation: {
-          type: "goutte-a-goutte",
-          debit: debitTotal,
-          efficacite: 0.9,
-        },
-        debitGoutteur: debitGoutteurVal,
-        nbGoutteursParArbre: nbGoutteursVal,
-        densitePlantation: parseFloat(newCulture.densitePlantation),
-        // ✅ Paramètres hydriques optionnels (FAO-56 §3.1)
-        thetaCc: newCulture.thetaCc.trim() ? parseFloat(newCulture.thetaCc) : undefined,
-        thetaPf: newCulture.thetaPf.trim() ? parseFloat(newCulture.thetaPf) : undefined,
-        // ✅ p (fraction dépletion) et z (profondeur racinaire)
-        p: newCulture.p.trim() ? parseFloat(newCulture.p) : undefined,
-        profondeurRacinaire: newCulture.z.trim() ? parseFloat(newCulture.z) : undefined,
-        // ✅ Texture Saxton & Rawls
-        ...(newCulture.sablePct.trim() && newCulture.argilePct.trim() && newCulture.om.trim() ? {
-          sableFraction:  parseFloat(newCulture.sablePct)  / 100,
-          argileFraction: parseFloat(newCulture.argilePct) / 100,
-          matOrganique:   parseFloat(newCulture.om),
-          thetaSource:    'saxton_rawls',
-        } : newCulture.thetaCc.trim() ? { thetaSource: 'manuel' } : {}),
-        // ✅ Kc manuel (remplace FAO-56 si mode=manuel)
-        ...(newCulture.kcMode === 'manuel' && newCulture.kcMid.trim() ? {
-          kcManuel: {
-            ini: newCulture.kcIni.trim() ? parseFloat(newCulture.kcIni) : undefined,
-            mid: parseFloat(newCulture.kcMid),
-            end: newCulture.kcEnd.trim() ? parseFloat(newCulture.kcEnd) : undefined,
-          },
-        } : {}),
-      });
-      if (result.success) {
-        setModalVisible(false);
-        resetForm();
-        loadCultures();
-        Alert.alert(t("common.successTitle"), t("cultures.modal.successAdd"));
-      } else {
-        Alert.alert(
-          t("common.errorTitle"),
-          result.error || t("cultures.modal.errorAdd"),
-        );
-      }
-    } catch (err) {
-      const isTimeout = err?.name === "AbortError" || err?.name === "TimeoutError";
-      Alert.alert(
-        t("common.errorTitle"),
-        isTimeout
-          ? "Serveur en démarrage. Veuillez réessayer dans quelques instants."
-          : err.message || t("cultures.modal.errorServer"),
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const deleteCulture = useCallback((id) => setConfirmDelete({ visible: true, id }), []);
-
-  const doConfirmedDelete = async () => {
-    const id = confirmDelete.id;
-    setConfirmDelete({ visible: false, id: null });
-    setDeletingId(id);
-    try {
-      const result = await cultureService.deleteCulture(id);
-      if (result.success) {
-        setCultures((prev) => prev.filter((c) => c._id !== id));
-      } else {
-        Alert.alert(
-          t("common.errorTitle"),
-          result?.error || result?.message || t("cultures.modal.errorDelete"),
-        );
-      }
-    } catch (e) {
-      Alert.alert(
-        t("common.errorTitle"),
-        e?.message || t("cultures.modal.errorDelete"),
-      );
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const resetForm = () => {
-    setNewCulture({
-      parcelle: "",
-      nom: "",
-      variete: "",
-      datePlantation: null,
-      surface: "",
-      nombreArbres: "",
-      typeSol: "limoneux",
-      region: "",
-      debitGoutteur: "",
-      nbGoutteursParArbre: "",
-      densitePlantation: "",
-      thetaCc: "",
-      thetaPf: "",
-      sablePct: "",
-      argilePct: "",
-      om: "",
-      p: "0.5",
-      z: "0.6",
-      kcMode: "auto",
-      kcIni: "",
-      kcMid: "",
-      kcEnd: "",
-    });
-    setFieldErrors({});
-    setNomPickerVisible(false);
-    setVarietePickerVisible(false);
-    setSolPickerVisible(false);
-  };
 
   if (loading && cultures.length === 0) {
     return (
@@ -1171,18 +840,33 @@ export default function CulturesPage() {
           edges={["top", "left", "right", "bottom"]}
         >
           <View className="max-h-[92%] rounded-t-3xl bg-white">
-            <View className="flex-row items-center justify-between rounded-t-3xl bg-green-700 px-5 py-4">
-              <Text className="text-lg font-bold text-white">
-                {t("cultures.modal.addTitle")}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setModalVisible(false);
-                  resetForm();
-                }}
-              >
-                <Ionicons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
+            {/* Header with step indicator */}
+            <View className="rounded-t-3xl bg-green-700 px-5 pt-4 pb-3">
+              <View className="flex-row items-center justify-between mb-2">
+                <Text className="text-lg font-bold text-white">
+                  {step === 1
+                    ? (t("cultures.modal.step1Title") || "Identité de la culture")
+                    : step === 2
+                    ? (t("cultures.modal.step2Title") || "Système d'irrigation")
+                    : (t("cultures.modal.step3Title") || "Paramètres du sol")}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => { setModalVisible(false); resetForm(); }}
+                >
+                  <Ionicons name="close" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              <View className="flex-row items-center gap-1.5">
+                {[1, 2, 3].map((s) => (
+                  <View
+                    key={s}
+                    className={`h-1.5 flex-1 rounded-full ${s <= step ? "bg-white" : "bg-green-500"}`}
+                  />
+                ))}
+                <Text className="ml-1 text-[11px] font-semibold text-green-200">
+                  {step}/3
+                </Text>
+              </View>
             </View>
 
             <ScrollView
@@ -1190,6 +874,9 @@ export default function CulturesPage() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
+
+            {/* ══════════════════ ÉTAPE 1 ══════════════════ */}
+            {step === 1 && <>
               {/* Parcelle */}
               <View className="mb-4">
                 <Text className="mb-1.5 text-sm font-semibold text-gray-700">
@@ -1437,154 +1124,67 @@ export default function CulturesPage() {
                 )}
               </View>
 
-              {/* Arbres */}
+              {/* z racinaire + p dépletion */}
+              <View className="mb-4 flex-row gap-2">
+                <View className="flex-1">
+                  <Text className="mb-1.5 text-xs font-semibold text-gray-700">z racinaire (m)</Text>
+                  <TextInput
+                    className="rounded-xl border border-gray-300 bg-gray-50 px-3.5 py-3 text-sm text-gray-900"
+                    placeholder="ex: 0.60"
+                    keyboardType="numeric"
+                    value={newCulture.z}
+                    onChangeText={(v) => setNewCulture(prev => ({ ...prev, z: v }))}
+                  />
+                  <Text className="mt-0.5 text-[10px] text-gray-400">Profondeur racinaire effective</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="mb-1.5 text-xs font-semibold text-gray-700">p (dépletion)</Text>
+                  <TextInput
+                    className="rounded-xl border border-gray-300 bg-gray-50 px-3.5 py-3 text-sm text-gray-900"
+                    placeholder="ex: 0.50"
+                    keyboardType="numeric"
+                    value={newCulture.p}
+                    onChangeText={(v) => setNewCulture(prev => ({ ...prev, p: v }))}
+                  />
+                  <Text className="mt-0.5 text-[10px] text-gray-400">FAO-56 §3.1 (0.3–0.7)</Text>
+                </View>
+              </View>
+
+              {/* Densité de plantation */}
               <View className="mb-4">
                 <Text className="mb-1.5 text-sm font-semibold text-gray-700">
-                  {t("cultures.modal.treesLabel")}{" "}
-                  <Text className="text-red-500">*</Text>
+                  Densité de plantation (arbres/ha)
                 </Text>
                 <TextInput
                   className={`rounded-xl border bg-gray-50 px-3.5 py-3 text-sm text-gray-900 ${
-                    fieldErrors.nombreArbres
-                      ? "border-red-500 bg-red-50"
-                      : "border-gray-300"
+                    fieldErrors.densitePlantation ? "border-red-500 bg-red-50" : "border-gray-300"
                   }`}
-                  placeholder={t("cultures.modal.treesPlaceholder")}
+                  placeholder="ex: 400 (5×5m), 833 (4×3m)"
                   keyboardType="numeric"
-                  value={newCulture.nombreArbres}
+                  value={newCulture.densitePlantation}
                   onChangeText={(v) => {
-                    setNewCulture({ ...newCulture, nombreArbres: v });
-                    setFieldErrors((p) => ({ ...p, nombreArbres: null }));
-                    // Auto-calcul densité si surface disponible
-                    const arbres = parseInt(v);
-                    const surface = parseFloat(newCulture.surface);
-                    if (!isNaN(arbres) && arbres > 0 && !isNaN(surface) && surface > 0) {
-                      const densite = Math.round((arbres / surface) * 10000);
-                      setNewCulture((prev) => ({ ...prev, nombreArbres: v, densitePlantation: String(densite) }));
-                    }
+                    setNewCulture({ ...newCulture, densitePlantation: v });
+                    setFieldErrors((p) => ({ ...p, densitePlantation: null }));
                   }}
                 />
-                {fieldErrors.nombreArbres ? (
+                {fieldErrors.densitePlantation ? (
                   <Text className="mt-1 text-[11px] font-medium text-red-500">
-                    {fieldErrors.nombreArbres}
+                    {fieldErrors.densitePlantation}
                   </Text>
                 ) : (
                   <Text className="mt-1 text-[11px] text-gray-400">
-                    {t("cultures.modal.treesHint")}
+                    {newCulture.densitePlantation
+                      ? `${newCulture.densitePlantation} arb/ha`
+                      : "Calculé automatiquement à l'étape 2 (nb arbres / surface)"}
                   </Text>
                 )}
               </View>
 
-              {/* ═══════════════════════════════════════════════════════ */}
-              {/* SECTION SYSTÈME D'IRRIGATION (FAO-56) — OBLIGATOIRE    */}
-              {/* ═══════════════════════════════════════════════════════ */}
-              <View className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                <View className="mb-3 flex-row items-center gap-2">
-                  <Text className="text-base">💧</Text>
-                  <Text className="text-[14px] font-bold text-blue-800">
-                    {t("cultures.modal.irrigationSectionTitle") || "Système d'irrigation"}
-                  </Text>
-                  <View className="rounded-full bg-blue-200 px-2 py-0.5">
-                    <Text className="text-[10px] font-bold text-blue-700">FAO-56</Text>
-                  </View>
-                </View>
-
-                {/* Débit goutteur */}
-                <View className="mb-3">
-                  <Text className="mb-1.5 text-sm font-semibold text-gray-700">
-                    {t("cultures.modal.drip_flow_label") || "Débit par goutteur (L/h)"} <Text className="text-red-500">*</Text>
-                  </Text>
-                  <TextInput
-                    className={`rounded-xl border bg-white px-3.5 py-3 text-sm text-gray-900 ${
-                      fieldErrors.debitGoutteur ? "border-red-500 bg-red-50" : "border-gray-300"
-                    }`}
-                    placeholder={t("cultures.modal.drip_flow_placeholder") || "ex: 2, 4, 8 L/h"}
-                    keyboardType="numeric"
-                    value={newCulture.debitGoutteur}
-                    onChangeText={(v) => {
-                      setNewCulture({ ...newCulture, debitGoutteur: v });
-                      setFieldErrors((p) => ({ ...p, debitGoutteur: null }));
-                    }}
-                  />
-                  {fieldErrors.debitGoutteur ? (
-                    <Text className="mt-1 text-[11px] font-medium text-red-500">
-                      {fieldErrors.debitGoutteur}
-                    </Text>
-                  ) : (
-                    <Text className="mt-1 text-[11px] text-blue-600">
-                      {t("cultures.modal.drip_flow_hint") || "FAO-56 §7 : goutteur standard 2–8 L/h selon type de sol"}
-                    </Text>
-                  )}
-                </View>
-
-                {/* Nb goutteurs par arbre */}
-                <View className="mb-3">
-                  <Text className="mb-1.5 text-sm font-semibold text-gray-700">
-                    {t("cultures.modal.drip_nb_label") || "Nb goutteurs / arbre"} <Text className="text-red-500">*</Text>
-                  </Text>
-                  <TextInput
-                    className={`rounded-xl border bg-white px-3.5 py-3 text-sm text-gray-900 ${
-                      fieldErrors.nbGoutteursParArbre ? "border-red-500 bg-red-50" : "border-gray-300"
-                    }`}
-                    placeholder={t("cultures.modal.drip_nb_placeholder") || "ex: 2, 4 goutteurs/arbre"}
-                    keyboardType="numeric"
-                    value={newCulture.nbGoutteursParArbre}
-                    onChangeText={(v) => {
-                      setNewCulture({ ...newCulture, nbGoutteursParArbre: v });
-                      setFieldErrors((p) => ({ ...p, nbGoutteursParArbre: null }));
-                    }}
-                  />
-                  {fieldErrors.nbGoutteursParArbre ? (
-                    <Text className="mt-1 text-[11px] font-medium text-red-500">
-                      {fieldErrors.nbGoutteursParArbre}
-                    </Text>
-                  ) : (
-                    <Text className="mt-1 text-[11px] text-blue-600">
-                      {t("cultures.modal.drip_nb_hint") || "FAO-56 §7 : 2–4 goutteurs/arbre pour arbres fruitiers"}
-                    </Text>
-                  )}
-                </View>
-
-                {/* Densité de plantation */}
-                <View className="mb-0">
-                  <Text className="mb-1.5 text-sm font-semibold text-gray-700">
-                    {t("cultures.modal.density_label") || "Densité de plantation (arbres/ha)"} <Text className="text-red-500">*</Text>
-                  </Text>
-                  <TextInput
-                    className={`rounded-xl border bg-white px-3.5 py-3 text-sm text-gray-900 ${
-                      fieldErrors.densitePlantation ? "border-red-500 bg-red-50" : "border-gray-300"
-                    }`}
-                    placeholder={t("cultures.modal.density_placeholder") || "ex: 400 (5×5m), 833 (4×3m)"}
-                    keyboardType="numeric"
-                    value={newCulture.densitePlantation}
-                    onChangeText={(v) => {
-                      setNewCulture({ ...newCulture, densitePlantation: v });
-                      setFieldErrors((p) => ({ ...p, densitePlantation: null }));
-                    }}
-                  />
-                  {fieldErrors.densitePlantation ? (
-                    <Text className="mt-1 text-[11px] font-medium text-red-500">
-                      {fieldErrors.densitePlantation}
-                    </Text>
-                  ) : (
-                    <Text className="mt-1 text-[11px] text-blue-600">
-                      {newCulture.nombreArbres && newCulture.surface
-                        ? `${t("cultures.modal.density_hint_auto") || "Auto-calculé depuis vos données"} (${newCulture.densitePlantation} arb/ha)`
-                        : t("cultures.modal.density_hint_manual") || "Ex : 5m×5m = 400 arb/ha · 4m×3m = 833 arb/ha"}
-                    </Text>
-                  )}
-                </View>
-              </View>
-
-              {/* ═══════════════════════════════════════════════════════ */}
-              {/* SECTION KC MANUEL (FAO-56 §6) — OPTIONNEL              */}
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* Coefficient cultural Kc */}
               <View className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <View className="mb-1 flex-row items-center gap-2">
                   <Text className="text-base">🌾</Text>
-                  <Text className="text-[14px] font-bold text-amber-800">
-                    Coefficient cultural Kc
-                  </Text>
+                  <Text className="text-[14px] font-bold text-amber-800">Coefficient cultural Kc</Text>
                   <View className="rounded-full bg-amber-200 px-2 py-0.5">
                     <Text className="text-[10px] font-bold text-amber-700">optionnel</Text>
                   </View>
@@ -1592,8 +1192,6 @@ export default function CulturesPage() {
                 <Text className="mb-3 text-[11px] leading-4 text-amber-600">
                   FAO-56 §6 : Par défaut les Kc FAO-56 sont utilisés automatiquement selon la saison. Si vous disposez de mesures locales, activez la saisie manuelle.
                 </Text>
-
-                {/* Toggle auto / manuel */}
                 <View className="mb-3 flex-row overflow-hidden rounded-xl border border-amber-200">
                   <TouchableOpacity
                     className={`flex-1 items-center py-2.5 ${newCulture.kcMode === "auto" ? "bg-amber-500" : "bg-white"}`}
@@ -1614,11 +1212,9 @@ export default function CulturesPage() {
                     </Text>
                   </TouchableOpacity>
                 </View>
-
                 {newCulture.kcMode === "manuel" && (
                   <>
                     <View className="flex-row gap-2">
-                      {/* Kc ini */}
                       <View className="flex-1">
                         <Text className="mb-1 text-xs font-semibold text-gray-700">Kc ini</Text>
                         <TextInput
@@ -1626,15 +1222,11 @@ export default function CulturesPage() {
                           placeholder="ex: 0.55"
                           keyboardType="numeric"
                           value={newCulture.kcIni}
-                          onChangeText={(v) => {
-                            setNewCulture(p => ({ ...p, kcIni: v }));
-                            setFieldErrors(p => ({ ...p, kcIni: null }));
-                          }}
+                          onChangeText={(v) => { setNewCulture(p => ({ ...p, kcIni: v })); setFieldErrors(p => ({ ...p, kcIni: null })); }}
                         />
                         <Text className="mt-0.5 text-[10px] text-amber-600">Stade initial</Text>
                         {fieldErrors.kcIni && <Text className="mt-0.5 text-[10px] text-red-500">{fieldErrors.kcIni}</Text>}
                       </View>
-                      {/* Kc mid */}
                       <View className="flex-1">
                         <Text className="mb-1 text-xs font-semibold text-gray-700">Kc mid</Text>
                         <TextInput
@@ -1642,15 +1234,11 @@ export default function CulturesPage() {
                           placeholder="ex: 0.85"
                           keyboardType="numeric"
                           value={newCulture.kcMid}
-                          onChangeText={(v) => {
-                            setNewCulture(p => ({ ...p, kcMid: v }));
-                            setFieldErrors(p => ({ ...p, kcMid: null }));
-                          }}
+                          onChangeText={(v) => { setNewCulture(p => ({ ...p, kcMid: v })); setFieldErrors(p => ({ ...p, kcMid: null })); }}
                         />
                         <Text className="mt-0.5 text-[10px] text-amber-600">Mi-saison</Text>
                         {fieldErrors.kcMid && <Text className="mt-0.5 text-[10px] text-red-500">{fieldErrors.kcMid}</Text>}
                       </View>
-                      {/* Kc end */}
                       <View className="flex-1">
                         <Text className="mb-1 text-xs font-semibold text-gray-700">Kc end</Text>
                         <TextInput
@@ -1658,10 +1246,7 @@ export default function CulturesPage() {
                           placeholder="ex: 0.70"
                           keyboardType="numeric"
                           value={newCulture.kcEnd}
-                          onChangeText={(v) => {
-                            setNewCulture(p => ({ ...p, kcEnd: v }));
-                            setFieldErrors(p => ({ ...p, kcEnd: null }));
-                          }}
+                          onChangeText={(v) => { setNewCulture(p => ({ ...p, kcEnd: v })); setFieldErrors(p => ({ ...p, kcEnd: null })); }}
                         />
                         <Text className="mt-0.5 text-[10px] text-amber-600">Fin saison</Text>
                         {fieldErrors.kcEnd && <Text className="mt-0.5 text-[10px] text-red-500">{fieldErrors.kcEnd}</Text>}
@@ -1675,10 +1260,114 @@ export default function CulturesPage() {
                   </>
                 )}
               </View>
+              {/* Nombre d'arbres */}
+              <View className="mb-4">
+                <Text className="mb-1.5 text-sm font-semibold text-gray-700">
+                  {t("cultures.modal.treesLabel")}{" "}
+                  <Text className="text-red-500">*</Text>
+                </Text>
+                <TextInput
+                  className={`rounded-xl border bg-gray-50 px-3.5 py-3 text-sm text-gray-900 ${
+                    fieldErrors.nombreArbres ? "border-red-500 bg-red-50" : "border-gray-300"
+                  }`}
+                  placeholder={t("cultures.modal.treesPlaceholder")}
+                  keyboardType="numeric"
+                  value={newCulture.nombreArbres}
+                  onChangeText={(v) => {
+                    setFieldErrors((p) => ({ ...p, nombreArbres: null }));
+                    const arbres = parseInt(v);
+                    const surface = parseFloat(newCulture.surface);
+                    if (!isNaN(arbres) && arbres > 0 && !isNaN(surface) && surface > 0) {
+                      const densite = Math.round((arbres / surface) * 10000);
+                      setNewCulture((prev) => ({ ...prev, nombreArbres: v, densitePlantation: String(densite) }));
+                    } else {
+                      setNewCulture({ ...newCulture, nombreArbres: v });
+                    }
+                  }}
+                />
+                {fieldErrors.nombreArbres ? (
+                  <Text className="mt-1 text-[11px] font-medium text-red-500">
+                    {fieldErrors.nombreArbres}
+                  </Text>
+                ) : (
+                  <Text className="mt-1 text-[11px] text-gray-400">
+                    {newCulture.nombreArbres && newCulture.surface &&
+                     !isNaN(parseInt(newCulture.nombreArbres)) && !isNaN(parseFloat(newCulture.surface))
+                      ? `→ Densité : ${Math.round((parseInt(newCulture.nombreArbres) / parseFloat(newCulture.surface)) * 10000)} arb/ha`
+                      : t("cultures.modal.treesHint")}
+                  </Text>
+                )}
+              </View>
+            </>}
 
-              {/* ═══════════════════════════════════════════════════════ */}
-              {/* SECTION PARAMÈTRES HYDRIQUES (FAO-56 §3.1) — OPTIONNEL */}
-              {/* ═══════════════════════════════════════════════════════ */}
+            {/* ══════════════════ ÉTAPE 2 ══════════════════ */}
+            {step === 2 && <>
+              {/* Système d'irrigation */}
+              <View className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <View className="mb-3 flex-row items-center gap-2">
+                  <Text className="text-base">💧</Text>
+                  <Text className="text-[14px] font-bold text-blue-800">
+                    {t("cultures.modal.irrigationSectionTitle") || "Système d'irrigation"}
+                  </Text>
+                  <View className="rounded-full bg-blue-200 px-2 py-0.5">
+                    <Text className="text-[10px] font-bold text-blue-700">FAO-56</Text>
+                  </View>
+                </View>
+                {/* Débit goutteur */}
+                <View className="mb-3">
+                  <Text className="mb-1.5 text-sm font-semibold text-gray-700">
+                    {t("cultures.modal.drip_flow_label") || "Débit par goutteur (L/h)"} <Text className="text-red-500">*</Text>
+                  </Text>
+                  <TextInput
+                    className={`rounded-xl border bg-white px-3.5 py-3 text-sm text-gray-900 ${
+                      fieldErrors.debitGoutteur ? "border-red-500 bg-red-50" : "border-gray-300"
+                    }`}
+                    placeholder={t("cultures.modal.drip_flow_placeholder") || "ex: 2, 4, 8 L/h"}
+                    keyboardType="numeric"
+                    value={newCulture.debitGoutteur}
+                    onChangeText={(v) => {
+                      setNewCulture({ ...newCulture, debitGoutteur: v });
+                      setFieldErrors((p) => ({ ...p, debitGoutteur: null }));
+                    }}
+                  />
+                  {fieldErrors.debitGoutteur ? (
+                    <Text className="mt-1 text-[11px] font-medium text-red-500">{fieldErrors.debitGoutteur}</Text>
+                  ) : (
+                    <Text className="mt-1 text-[11px] text-blue-600">
+                      {t("cultures.modal.drip_flow_hint") || "FAO-56 §7 : goutteur standard 2–8 L/h selon type de sol"}
+                    </Text>
+                  )}
+                </View>
+                {/* Nb goutteurs par arbre */}
+                <View className="mb-0">
+                  <Text className="mb-1.5 text-sm font-semibold text-gray-700">
+                    {t("cultures.modal.drip_nb_label") || "Nb goutteurs / arbre"} <Text className="text-red-500">*</Text>
+                  </Text>
+                  <TextInput
+                    className={`rounded-xl border bg-white px-3.5 py-3 text-sm text-gray-900 ${
+                      fieldErrors.nbGoutteursParArbre ? "border-red-500 bg-red-50" : "border-gray-300"
+                    }`}
+                    placeholder={t("cultures.modal.drip_nb_placeholder") || "ex: 2, 4 goutteurs/arbre"}
+                    keyboardType="numeric"
+                    value={newCulture.nbGoutteursParArbre}
+                    onChangeText={(v) => {
+                      setNewCulture({ ...newCulture, nbGoutteursParArbre: v });
+                      setFieldErrors((p) => ({ ...p, nbGoutteursParArbre: null }));
+                    }}
+                  />
+                  {fieldErrors.nbGoutteursParArbre ? (
+                    <Text className="mt-1 text-[11px] font-medium text-red-500">{fieldErrors.nbGoutteursParArbre}</Text>
+                  ) : (
+                    <Text className="mt-1 text-[11px] text-blue-600">
+                      {t("cultures.modal.drip_nb_hint") || "FAO-56 §7 : 2–4 goutteurs/arbre pour arbres fruitiers"}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </>}
+
+            {/* ══════════════════ ÉTAPE 3 ══════════════════ */}
+            {step === 3 && <>
               <View className="mb-6 rounded-2xl border border-violet-200 bg-violet-50 p-4">
                 <View className="mb-1 flex-row items-center gap-2">
                   <Text className="text-base">🧪</Text>
@@ -1694,8 +1383,7 @@ export default function CulturesPage() {
                 <Text className="mb-3 text-[11px] leading-4 text-violet-600">
                   {t("cultures.modal.hydric_desc") || "FAO-56 §3.1 : Si vous avez fait une analyse de sol, entrez θcc et θpf pour un calcul RU plus précis. Sinon, les valeurs standard du type de sol seront utilisées."}
                 </Text>
-
-                {/* ── Calculateur Saxton & Rawls ── */}
+                {/* Calculateur Saxton & Rawls */}
                 <View className="mb-4 rounded-xl border border-violet-300 bg-white p-3">
                   <Text className="mb-1 text-[13px] font-bold text-violet-700">
                     🔬 Calculateur Saxton & Rawls
@@ -1703,34 +1391,7 @@ export default function CulturesPage() {
                   <Text className="mb-2.5 text-[11px] text-violet-500">
                     Entrez la texture de votre sol → θFC et θWP calculés automatiquement
                   </Text>
-                  {/* p et z */}
-                  <View className="mb-2 flex-row gap-2">
-                    <View className="flex-1">
-                      <Text className="mb-1 text-xs font-semibold text-gray-600">p (dépletion)</Text>
-                      <TextInput
-                        className="rounded-lg border border-gray-300 bg-gray-50 px-2.5 py-2.5 text-sm text-gray-900"
-                        placeholder="ex: 0.50"
-                        keyboardType="numeric"
-                        value={newCulture.p}
-                        onChangeText={(v) => setNewCulture(prev => ({ ...prev, p: v }))}
-                      />
-                      <Text className="mt-0.5 text-[10px] text-violet-500">FAO-56 §3.1 (0.3–0.7)</Text>
-                    </View>
-                    <View className="flex-1">
-                      <Text className="mb-1 text-xs font-semibold text-gray-600">z racinaire (m)</Text>
-                      <TextInput
-                        className="rounded-lg border border-gray-300 bg-gray-50 px-2.5 py-2.5 text-sm text-gray-900"
-                        placeholder="ex: 0.60"
-                        keyboardType="numeric"
-                        value={newCulture.z}
-                        onChangeText={(v) => setNewCulture(prev => ({ ...prev, z: v }))}
-                      />
-                      <Text className="mt-0.5 text-[10px] text-violet-500">Profondeur effective</Text>
-                    </View>
-                  </View>
-
                   <View className="flex-row gap-2">
-                    {/* Sable */}
                     <View className="flex-1">
                       <Text className="mb-1 text-xs font-semibold text-gray-600">Sable (%)</Text>
                       <TextInput
@@ -1753,7 +1414,6 @@ export default function CulturesPage() {
                         }}
                       />
                     </View>
-                    {/* Argile */}
                     <View className="flex-1">
                       <Text className="mb-1 text-xs font-semibold text-gray-600">Argile (%)</Text>
                       <TextInput
@@ -1776,7 +1436,6 @@ export default function CulturesPage() {
                         }}
                       />
                     </View>
-                    {/* MO */}
                     <View className="flex-1">
                       <Text className="mb-1 text-xs font-semibold text-gray-600">MO (%)</Text>
                       <TextInput
@@ -1800,7 +1459,6 @@ export default function CulturesPage() {
                       />
                     </View>
                   </View>
-                  {/* Validation S+C */}
                   {(() => {
                     const S = parseFloat(newCulture.sablePct);
                     const C = parseFloat(newCulture.argilePct);
@@ -1809,7 +1467,6 @@ export default function CulturesPage() {
                     }
                     return null;
                   })()}
-                  {/* Résultat calculé */}
                   {(() => {
                     const S = parseFloat(newCulture.sablePct) / 100;
                     const C = parseFloat(newCulture.argilePct) / 100;
@@ -1818,9 +1475,7 @@ export default function CulturesPage() {
                       const r = saxtonRawls(S, C, OM);
                       return (
                         <View className="mt-2 rounded-lg bg-violet-50 p-2.5">
-                          <Text className="text-[11px] font-bold text-violet-700">
-                            ✓ Saxton & Rawls (2006) :
-                          </Text>
+                          <Text className="text-[11px] font-bold text-violet-700">✓ Saxton & Rawls (2006) :</Text>
                           <Text className="mt-0.5 text-[11px] text-violet-600">
                             θFC = <Text className="font-bold">{r.fc} cm³/cm³</Text>  ·  θWP = <Text className="font-bold">{r.wp} cm³/cm³</Text>
                           </Text>
@@ -1845,11 +1500,8 @@ export default function CulturesPage() {
                 </Text>
 
                 <View className="flex-row gap-3">
-                  {/* θcc */}
                   <View className="flex-1">
-                    <Text className="mb-1.5 text-sm font-semibold text-gray-700">
-                      θcc (cm³/cm³)
-                    </Text>
+                    <Text className="mb-1.5 text-sm font-semibold text-gray-700">θcc (cm³/cm³)</Text>
                     <TextInput
                       className={`rounded-xl border bg-white px-3.5 py-3 text-sm text-gray-900 ${
                         fieldErrors.thetaCc ? "border-red-500 bg-red-50" : "border-gray-300"
@@ -1863,20 +1515,14 @@ export default function CulturesPage() {
                       }}
                     />
                     {fieldErrors.thetaCc && (
-                      <Text className="mt-1 text-[10px] font-medium text-red-500">
-                        {fieldErrors.thetaCc}
-                      </Text>
+                      <Text className="mt-1 text-[10px] font-medium text-red-500">{fieldErrors.thetaCc}</Text>
                     )}
                     <Text className="mt-1 text-[10px] text-violet-500">
                       {t("cultures.modal.thetaCc_hint") || "Capacité au champ"}
                     </Text>
                   </View>
-
-                  {/* θpf */}
                   <View className="flex-1">
-                    <Text className="mb-1.5 text-sm font-semibold text-gray-700">
-                      θpf (cm³/cm³)
-                    </Text>
+                    <Text className="mb-1.5 text-sm font-semibold text-gray-700">θpf (cm³/cm³)</Text>
                     <TextInput
                       className={`rounded-xl border bg-white px-3.5 py-3 text-sm text-gray-900 ${
                         fieldErrors.thetaPf ? "border-red-500 bg-red-50" : "border-gray-300"
@@ -1890,9 +1536,7 @@ export default function CulturesPage() {
                       }}
                     />
                     {fieldErrors.thetaPf && (
-                      <Text className="mt-1 text-[10px] font-medium text-red-500">
-                        {fieldErrors.thetaPf}
-                      </Text>
+                      <Text className="mt-1 text-[10px] font-medium text-red-500">{fieldErrors.thetaPf}</Text>
                     )}
                     <Text className="mt-1 text-[10px] text-violet-500">
                       {t("cultures.modal.thetaPf_hint") || "Point de flétrissement"}
@@ -1900,7 +1544,6 @@ export default function CulturesPage() {
                   </View>
                 </View>
 
-                {/* Aperçu RU calculé */}
                 {newCulture.thetaCc && newCulture.thetaPf &&
                   !isNaN(parseFloat(newCulture.thetaCc)) &&
                   !isNaN(parseFloat(newCulture.thetaPf)) &&
@@ -1924,20 +1567,32 @@ export default function CulturesPage() {
                   </View>
                 )}
               </View>
+            </>}
 
-              {/* Boutons */}
-              <View className="flex-row gap-3">
+            {/* Navigation */}
+            <View className="flex-row gap-3 mb-4">
+              <TouchableOpacity
+                className="flex-1 rounded-xl border border-gray-200 bg-gray-100 py-3.5"
+                onPress={() => {
+                  if (step > 1) { setStep(step - 1); setFieldErrors({}); }
+                  else { setModalVisible(false); resetForm(); }
+                }}
+              >
+                <Text className="text-center text-sm font-bold text-gray-700">
+                  {step > 1 ? "← Précédent" : t("cultures.modal.cancel")}
+                </Text>
+              </TouchableOpacity>
+              {step < 3 ? (
                 <TouchableOpacity
-                  className="flex-1 rounded-xl border border-gray-200 bg-gray-100 py-3.5"
+                  className="flex-1 rounded-xl bg-green-700 py-3.5"
                   onPress={() => {
-                    setModalVisible(false);
-                    resetForm();
+                    const valid = step === 1 ? validateStep1() : validateStep2();
+                    if (valid) { setStep(step + 1); setFieldErrors({}); }
                   }}
                 >
-                  <Text className="text-center text-sm font-bold text-gray-700">
-                    {t("cultures.modal.cancel")}
-                  </Text>
+                  <Text className="text-center text-sm font-bold text-white">Suivant →</Text>
                 </TouchableOpacity>
+              ) : (
                 <TouchableOpacity
                   className={`flex-1 rounded-xl bg-green-700 py-3.5 ${submitting ? "opacity-70" : ""}`}
                   onPress={addCulture}
@@ -1951,7 +1606,8 @@ export default function CulturesPage() {
                     </Text>
                   )}
                 </TouchableOpacity>
-              </View>
+              )}
+            </View>
             </ScrollView>
           </View>
 
@@ -1961,7 +1617,7 @@ export default function CulturesPage() {
             title={t("cultures.modal.nomLabel")}
             items={nomSuggestions}
             selectedValue={newCulture.nom}
-            onSelect={handleNomSelect}
+            onSelect={(nom) => handleNomSelect(nom, availableCultures)}
             onClose={() => setNomPickerVisible(false)}
             loading={loadingSuggestions}
             loadingText={t("cultures.modal.loading")}

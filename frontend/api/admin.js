@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { API_BASE_URL } from "@api/client";
+import { API_BASE_URL, apiFetch } from "@api/client";
 
 async function getTokens() {
   const [adminToken, userToken] = await Promise.all([
@@ -22,7 +22,7 @@ async function requestWithFallback(method, path, body) {
 
   for (const token of tokens) {
     try {
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         ...options,
         headers: { ...options.headers, Authorization: `Bearer ${token}` },
       });
@@ -47,7 +47,7 @@ async function requestWithFallback(method, path, body) {
   if (method === "DELETE") {
     const id = path.split("/").pop();
     const fallbackUrl = `${API_BASE_URL}/users/${id}`;
-    const response = await fetch(fallbackUrl, {
+    const response = await apiFetch(fallbackUrl, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
     });

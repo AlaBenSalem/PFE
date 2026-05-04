@@ -8,8 +8,18 @@ import { Stack } from "expo-router";
 import { StatusBar, View, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "../global.css";
 import { LanguageProvider } from "@context/LanguageContext";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      retry: 1,
+    },
+  },
+});
 
 // Silent wakeup — keeps Render.com free-tier server warm during app load
 function wakeupBackend() {
@@ -52,17 +62,19 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <LanguageProvider>
-          <View className="flex-1">
-            <StatusBar barStyle="dark-content" />
-            <Stack initialRouteName="index" screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="(admin)" />
-            </Stack>
-          </View>
-        </LanguageProvider>
+        <QueryClientProvider client={queryClient}>
+          <LanguageProvider>
+            <View className="flex-1">
+              <StatusBar barStyle="dark-content" />
+              <Stack initialRouteName="index" screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="(admin)" />
+              </Stack>
+            </View>
+          </LanguageProvider>
+        </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
