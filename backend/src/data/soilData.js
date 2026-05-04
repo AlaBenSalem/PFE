@@ -12,47 +12,48 @@
  */
 
 // ─── Paramètres sol FAO-56 Table 5 ───────────────────────────────────────────
+// θFC/θWP aligned with frontend THETA_STD (useIrrigationData.js)
 const SOIL_PARAMS = {
   sableux: {
-    thetaFC:  0.10,   // cm³/cm³
-    thetaWP:  0.04,   // cm³/cm³
-    ruMmParM: 60,     // mm/m  (θFC - θWP) × 1000
-    tauxInfiltration: 50,  // mm/h
+    thetaFC:  0.12,
+    thetaWP:  0.05,
+    ruMmParM: 70,     // (0.12 - 0.05) × 1000
+    tauxInfiltration: 50,
     emoji:  '🏖️',
     couleur: '#f59e0b',
     description: 'Sableux — Drainage très rapide, irrigation fréquente',
   },
   limono_sableux: {
-    thetaFC:  0.18,
-    thetaWP:  0.09,
-    ruMmParM: 90,
+    thetaFC:  0.23,
+    thetaWP:  0.10,
+    ruMmParM: 130,    // (0.23 - 0.10) × 1000
     tauxInfiltration: 25,
     emoji:  '🌾',
     couleur: '#84cc16',
     description: 'Limono-sableux — Bonne structure, drainage modéré',
   },
   limoneux: {
-    thetaFC:  0.26,
-    thetaWP:  0.14,
-    ruMmParM: 120,
+    thetaFC:  0.31,
+    thetaWP:  0.15,
+    ruMmParM: 160,    // (0.31 - 0.15) × 1000
     tauxInfiltration: 12,
     emoji:  '🌱',
     couleur: '#22c55e',
     description: 'Limoneux — Sol équilibré, idéal pour cultures',
   },
   argilo_limoneux: {
-    thetaFC:  0.30,
-    thetaWP:  0.16,
-    ruMmParM: 140,
+    thetaFC:  0.38,
+    thetaWP:  0.22,
+    ruMmParM: 160,    // (0.38 - 0.22) × 1000
     tauxInfiltration: 6,
     emoji:  '🏔️',
     couleur: '#8b5cf6',
     description: 'Argilo-limoneux — Forte rétention, drainage lent',
   },
   argileux: {
-    thetaFC:  0.36,
-    thetaWP:  0.21,
-    ruMmParM: 150,
+    thetaFC:  0.42,
+    thetaWP:  0.26,
+    ruMmParM: 160,    // (0.42 - 0.26) × 1000
     tauxInfiltration: 2,
     emoji:  '🪨',
     couleur: '#ef4444',

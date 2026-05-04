@@ -75,7 +75,11 @@ const cultureSchema = new mongoose.Schema({
     etc: Number,
     eauMm: Number,
     debitMmh: Number,
-  }]
+  }],
+
+  // Stock eau persistant (bilan hydrique FAO-56 cumulé jour par jour)
+  stockEauMm:        { type: Number, default: null },  // mm eau actuel dans le sol
+  stockEauUpdatedAt: { type: Date,   default: null },  // date du dernier update cron
 }, {
   timestamps: true
 });

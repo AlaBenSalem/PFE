@@ -28,6 +28,8 @@ const INITIAL_FORM = {
   // FAO-56 depletion / root depth
   p: "0.5",
   z: "0.6",
+  // Initial water stock
+  stockInitial: "",
   // Kc mode
   kcMode: "auto",
   kcIni: "",
@@ -302,6 +304,12 @@ export function useCultureForm({ onSuccess }) {
         p: newCulture.p.trim() ? parseFloat(newCulture.p) : undefined,
         profondeurRacinaire: newCulture.z.trim()
           ? parseFloat(newCulture.z)
+          : undefined,
+        stockEauMm: newCulture.stockInitial.trim()
+          ? parseFloat(newCulture.stockInitial)
+          : undefined,
+        stockEauUpdatedAt: newCulture.stockInitial.trim()
+          ? new Date().toISOString()
           : undefined,
         ...(newCulture.sablePct.trim() &&
         newCulture.argilePct.trim() &&

@@ -164,9 +164,14 @@ export function useIrrigationData() {
       if (result.success) {
         setCultures(result.data ?? []);
         if (result.data?.length > 0) {
-          setSelectedCulture(result.data[0]);
-          fetchKcDynamique(result.data[0]);
-          checkDebitMissing(result.data[0]);
+          // Preserve currently selected culture after refresh (match by _id)
+          const currentId = selectedCulture?._id?.toString();
+          const next = currentId
+            ? (result.data.find(c => c._id?.toString() === currentId) ?? result.data[0])
+            : result.data[0];
+          setSelectedCulture(next);
+          fetchKcDynamique(next);
+          checkDebitMissing(next);
         }
       } else throw new Error(result.message || "Réponse API invalide");
     } catch (err) {
@@ -290,9 +295,18 @@ export function useIrrigationData() {
       const nbGoutteursParArbre = parseFloat(culture.nbGoutteursParArbre) || 0;
       let debitLH;
       if (debitGoutteur > 0 && nbGoutteursParArbre > 0 && nbArbres) {
+        // Total flow = flow/drip × drips/tree × trees
         debitLH = debitGoutteur * nbGoutteursParArbre * nbArbres;
       } else if (debitGoutteur > 0 && nbGoutteursParArbre > 0) {
-        debitLH = debitGoutteur * nbGoutteursParArbre;
+        // Estimate nbArbres from density (arbres/ha) or from surface
+        const densite = parseFloat(culture.densitePlantation) || parseFloat(culture.densite) || null;
+        const nbEstime = densite ? Math.round(densite * surface / 10000) : null;
+        if (nbEstime && nbEstime > 0) {
+          debitLH = debitGoutteur * nbGoutteursParArbre * nbEstime;
+        } else {
+          // Fallback: assume 1 drip system per m² equivalent
+          debitLH = debitGoutteur * nbGoutteursParArbre;
+        }
       } else {
         debitLH = parseFloat(culture.irrigation?.debit) || 1000;
       }
@@ -364,7 +378,9 @@ export function useIrrigationData() {
             ? new Date(culture.createdAt)
             : new Date(now - 86400000);
 
-      const rawDays = Math.max(0, (now - refDate.getTime()) / 86400000);
+      const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
+      const refMidnight   = new Date(refDate); refMidnight.setHours(0, 0, 0, 0);
+      const rawDays       = Math.max(0, Math.round((todayMidnight - refMidnight) / 86400000));
 
       const roughFreq = etc > 0
         ? Math.max(1, Math.round((pAdj * (thetaCcEff - thetaPfEff) * z * 1000) / etc))
@@ -383,17 +399,31 @@ export function useIrrigationData() {
       if (rainRaw >= 25) peff = 0.6 * rainRaw + 0.5;
       peff = Math.min(peff, ru);
 
-      const W_cc      = thetaCcEff * z * 1000;
-      const W_pf_mm   = thetaPfEff * z * 1000;
-      const W_seuil   = W_cc - rfu;
-      const W_current = Math.min(W_cc, Math.max(W_pf_mm, W_cc - etc * joursSinceIrrig + peff));
+      const W_cc    = thetaCcEff * z * 1000;
+      const W_pf_mm = thetaPfEff * z * 1000;
+      const W_seuil = W_cc - rfu;
+
+      // Use persistent stored stock if available (updated daily by cron).
+      // If the backend hasn't synced yet today (server downtime), catch up client-side.
+      let W_current;
+      if (culture.stockEauMm != null) {
+        let stock = parseFloat(culture.stockEauMm);
+        if (culture.stockEauUpdatedAt) {
+          const lastUpd = new Date(culture.stockEauUpdatedAt);
+          lastUpd.setHours(0, 0, 0, 0);
+          const missed = Math.max(0, Math.round((todayMidnight - lastUpd) / 86400000));
+          if (missed > 0) stock = Math.max(W_pf_mm, Math.min(W_cc, stock - etc * missed + peff));
+        }
+        W_current = Math.min(W_cc, Math.max(W_pf_mm, stock));
+      } else {
+        W_current = Math.min(W_cc, Math.max(W_pf_mm, W_cc - etc * joursSinceIrrig + peff));
+      }
       const stockPct  = ru > 0 ? Math.min(100, Math.round(((W_current - W_pf_mm) / ru) * 100)) : 100;
 
       const deficitMm = Math.max(0, W_cc - W_current);
       const eauMm     = deficitMm / eta;
       const perteMm   = eauMm - deficitMm;
 
-      const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
       const baseDate = lastIrrig ? new Date(lastIrrig.date) : new Date(now);
       const scheduledDate = new Date(baseDate);
       scheduledDate.setDate(scheduledDate.getDate() + frequenceJours);

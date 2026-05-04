@@ -75,6 +75,9 @@ exports.createCulture = async (req, res) => {
       argileFraction,
       matOrganique,
       thetaSource,
+      p,
+      stockEauMm,
+      stockEauUpdatedAt,
     } = req.body;
 
     const currentMonth = new Date().getMonth() + 1;
@@ -121,6 +124,9 @@ exports.createCulture = async (req, res) => {
       argileFraction: argileFraction != null ? parseFloat(argileFraction) : null,
       matOrganique:   matOrganique   != null ? parseFloat(matOrganique)   : null,
       thetaSource:    thetaSource    || null,
+      p:                 p            != null ? parseFloat(p)            : null,
+      stockEauMm:        stockEauMm   != null ? parseFloat(stockEauMm)   : null,
+      stockEauUpdatedAt: stockEauUpdatedAt ? new Date(stockEauUpdatedAt) : null,
     });
 
     await culture.save();

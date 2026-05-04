@@ -417,6 +417,179 @@ const KC_DATA = [
     kcMoyen: 0.75,
     references: { fao: true, source: "FAO-56" },
   },
+
+  // ─── AGRUMES (suite) ──────────────────────────────────────────────────────
+  {
+    culture: "Citrus",
+    aliases: ["citrus", "agrume", "agrumes", "citrus sinensis", "bigaradier"],
+    variete: "Générique",
+    type: "agrume",
+    stades: [
+      { nom: "Repos végétatif",   periode: { debut: 12, fin: 2  }, kc: 0.65 },
+      { nom: "Floraison",         periode: { debut: 3,  fin: 4  }, kc: 0.75 },
+      { nom: "Croissance fruits", periode: { debut: 5,  fin: 9  }, kc: 0.85 },
+      { nom: "Maturation",        periode: { debut: 10, fin: 11 }, kc: 0.80 },
+    ],
+    kcMoyen: 0.78,
+    references: {
+      fao: true,
+      source: "FAO-56 Table 12",
+      notes: "Agrumes génériques, couverture canopée 50–70 %. Valeurs identiques orangers adultes.",
+    },
+  },
+
+  // ─── FRUITS (suite) ───────────────────────────────────────────────────────
+  {
+    culture: "Amandier",
+    aliases: ["amande", "amandier", "almond"],
+    variete: "Standard",
+    type: "fruit",
+    stades: [
+      { nom: "Repos hivernal",  periode: { debut: 12, fin: 1  }, kc: 0.40 },
+      { nom: "Floraison",       periode: { debut: 2,  fin: 3  }, kc: 0.60 },
+      { nom: "Développement",   periode: { debut: 4,  fin: 6  }, kc: 0.90 },
+      { nom: "Maturation",      periode: { debut: 7,  fin: 9  }, kc: 0.80 },
+      { nom: "Post-récolte",    periode: { debut: 10, fin: 11 }, kc: 0.55 },
+    ],
+    kcMoyen: 0.70,
+    references: { fao: true, source: "FAO-56 Table 12", notes: "Amandiers adultes, milieu semi-aride" },
+  },
+  {
+    culture: "Cerisier",
+    aliases: ["cerise", "cerisier", "cherry"],
+    variete: "Standard",
+    type: "fruit",
+    stades: [
+      { nom: "Repos",         periode: { debut: 12, fin: 2  }, kc: 0.45 },
+      { nom: "Floraison",     periode: { debut: 3,  fin: 3  }, kc: 0.65 },
+      { nom: "Croissance",    periode: { debut: 4,  fin: 5  }, kc: 0.95 },
+      { nom: "Maturation",    periode: { debut: 6,  fin: 7  }, kc: 0.80 },
+      { nom: "Post-récolte",  periode: { debut: 8,  fin: 11 }, kc: 0.55 },
+    ],
+    kcMoyen: 0.68,
+    references: { fao: true, source: "FAO-56 Table 12" },
+  },
+  {
+    culture: "Fraisier",
+    aliases: ["fraise", "fraisier", "strawberry"],
+    variete: "Standard",
+    type: "fruit",
+    stades: [
+      { nom: "Plantation",     periode: { debut: 10, fin: 11 }, kc: 0.40 },
+      { nom: "Développement",  periode: { debut: 12, fin: 1  }, kc: 0.60 },
+      { nom: "Floraison",      periode: { debut: 2,  fin: 3  }, kc: 0.85 },
+      { nom: "Fructification", periode: { debut: 4,  fin: 5  }, kc: 0.85 },
+      { nom: "Fin saison",     periode: { debut: 6,  fin: 6  }, kc: 0.75 },
+    ],
+    kcMoyen: 0.70,
+    references: { fao: true, source: "FAO-56 Table 12", notes: "Culture sous serre ou plein champ, cycle automne–printemps" },
+  },
+
+  // ─── LÉGUMES (suite) ──────────────────────────────────────────────────────
+  {
+    culture: "Aubergine",
+    aliases: ["aubergine", "eggplant", "brinjal"],
+    variete: "Standard",
+    type: "legume",
+    stades: [
+      { nom: "Initial",       periode: { debut: 4,  fin: 5  }, kc: 0.60 },
+      { nom: "Développement", periode: { debut: 6,  fin: 6  }, kc: 0.75 },
+      { nom: "Mi-saison",     periode: { debut: 7,  fin: 9  }, kc: 1.05 },
+      { nom: "Fin saison",    periode: { debut: 10, fin: 10 }, kc: 0.90 },
+    ],
+    kcMoyen: 0.85,
+    references: { fao: true, source: "FAO-56 Table 12" },
+  },
+  {
+    culture: "Carotte",
+    aliases: ["carotte", "carrot"],
+    variete: "Standard",
+    type: "legume",
+    stades: [
+      { nom: "Initial",       periode: { debut: 10, fin: 11 }, kc: 0.70 },
+      { nom: "Développement", periode: { debut: 12, fin: 1  }, kc: 0.85 },
+      { nom: "Mi-saison",     periode: { debut: 2,  fin: 4  }, kc: 1.05 },
+      { nom: "Fin saison",    periode: { debut: 5,  fin: 5  }, kc: 0.95 },
+    ],
+    kcMoyen: 0.90,
+    references: { fao: true, source: "FAO-56 Table 12", notes: "Cycle automne–printemps, climat méditerranéen" },
+  },
+  {
+    culture: "Pastèque",
+    aliases: ["pasteque", "pastèque", "watermelon"],
+    variete: "Standard",
+    type: "legume",
+    stades: [
+      { nom: "Initial",       periode: { debut: 4,  fin: 5  }, kc: 0.40 },
+      { nom: "Développement", periode: { debut: 6,  fin: 6  }, kc: 0.70 },
+      { nom: "Mi-saison",     periode: { debut: 7,  fin: 8  }, kc: 1.00 },
+      { nom: "Fin saison",    periode: { debut: 9,  fin: 9  }, kc: 0.75 },
+    ],
+    kcMoyen: 0.73,
+    references: { fao: true, source: "FAO-56 Table 12" },
+  },
+  {
+    culture: "Betterave sucrière",
+    aliases: ["betterave", "beet", "sugar beet", "betterave sucriere"],
+    variete: "Standard",
+    type: "legume",
+    stades: [
+      { nom: "Initial",       periode: { debut: 9,  fin: 10 }, kc: 0.35 },
+      { nom: "Développement", periode: { debut: 11, fin: 12 }, kc: 0.75 },
+      { nom: "Mi-saison",     periode: { debut: 1,  fin: 4  }, kc: 1.20 },
+      { nom: "Fin saison",    periode: { debut: 5,  fin: 6  }, kc: 0.70 },
+    ],
+    kcMoyen: 0.85,
+    references: { fao: true, source: "FAO-56 Table 12", notes: "Cycle automne–été, Kc mi-saison = 1.20 (max FAO-56)" },
+  },
+  {
+    culture: "Pois chiche",
+    aliases: ["pois chiche", "pois chiches", "chickpea", "pois"],
+    variete: "Standard",
+    type: "legume",
+    stades: [
+      { nom: "Initial",       periode: { debut: 11, fin: 12 }, kc: 0.40 },
+      { nom: "Développement", periode: { debut: 1,  fin: 2  }, kc: 0.70 },
+      { nom: "Mi-saison",     periode: { debut: 3,  fin: 4  }, kc: 1.00 },
+      { nom: "Fin saison",    periode: { debut: 5,  fin: 5  }, kc: 0.35 },
+    ],
+    kcMoyen: 0.65,
+    references: { fao: true, source: "FAO-56 Table 12", notes: "Légumineuse hiverno-printanière" },
+  },
+
+  // ─── CÉRÉALES (suite) ─────────────────────────────────────────────────────
+  {
+    culture: "Sorgho",
+    aliases: ["sorgho", "sorghum"],
+    variete: "Standard",
+    type: "cereale",
+    stades: [
+      { nom: "Initial",       periode: { debut: 5,  fin: 6  }, kc: 0.30 },
+      { nom: "Développement", periode: { debut: 7,  fin: 7  }, kc: 0.70 },
+      { nom: "Mi-saison",     periode: { debut: 8,  fin: 9  }, kc: 1.05 },
+      { nom: "Fin saison",    periode: { debut: 10, fin: 10 }, kc: 0.55 },
+    ],
+    kcMoyen: 0.73,
+    references: { fao: true, source: "FAO-56 Table 12" },
+  },
+  {
+    culture: "Luzerne",
+    aliases: ["luzerne", "alfalfa", "fourrage"],
+    variete: "Standard",
+    type: "cereale",
+    stades: [
+      { nom: "Repos hivernal",  periode: { debut: 12, fin: 1  }, kc: 0.40 },
+      { nom: "Reprise",         periode: { debut: 2,  fin: 3  }, kc: 0.60 },
+      { nom: "Mi-saison",       periode: { debut: 4,  fin: 9  }, kc: 1.05 },
+      { nom: "Arrière-saison",  periode: { debut: 10, fin: 11 }, kc: 0.80 },
+    ],
+    kcMoyen: 0.90,
+    references: {
+      fao: true,
+      source: "FAO-56 Table 12",
+      notes: "Luzerne pérenne, Kc moyen sur plusieurs coupes. Kc mi-saison = 0.95–1.20 selon fréquence de coupe.",
+    },
+  },
 ];
 
 module.exports = KC_DATA;

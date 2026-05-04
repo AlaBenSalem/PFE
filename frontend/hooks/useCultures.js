@@ -35,6 +35,18 @@ const KC_CULTURES_FALLBACK = [
   { nom: "Orge", variete: "Standard" },
   { nom: "Maïs", variete: "Standard" },
   { nom: "Tournesol", variete: "Standard" },
+  // Nouvelles cultures ajoutées
+  { nom: "Citrus", variete: "Générique" },
+  { nom: "Amandier", variete: "Standard" },
+  { nom: "Cerisier", variete: "Standard" },
+  { nom: "Fraisier", variete: "Standard" },
+  { nom: "Aubergine", variete: "Standard" },
+  { nom: "Carotte", variete: "Standard" },
+  { nom: "Pastèque", variete: "Standard" },
+  { nom: "Betterave sucrière", variete: "Standard" },
+  { nom: "Pois chiche", variete: "Standard" },
+  { nom: "Sorgho", variete: "Standard" },
+  { nom: "Luzerne", variete: "Standard" },
 ];
 
 export function useCultures() {

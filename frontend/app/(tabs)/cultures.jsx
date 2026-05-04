@@ -115,6 +115,18 @@ const CROP_NAME_MAP = {
   "Orge":           { fr: "Orge",            en: "Barley",       ar: "الشعير",            tr: "Arpa" },
   "Maïs":           { fr: "Maïs",            en: "Corn",         ar: "الذرة",             tr: "Mısır" },
   "Tournesol":      { fr: "Tournesol",       en: "Sunflower",    ar: "عباد الشمس",        tr: "Ayçiçeği" },
+  // Nouvelles cultures
+  "Citrus":         { fr: "Citrus",           en: "Citrus",       ar: "الحمضيات",          tr: "Narenciye" },
+  "Amandier":       { fr: "Amandier",         en: "Almond tree",  ar: "شجرة اللوز",        tr: "Badem ağacı" },
+  "Cerisier":       { fr: "Cerisier",         en: "Cherry tree",  ar: "شجرة الكرز",        tr: "Kiraz ağacı" },
+  "Fraisier":       { fr: "Fraisier",         en: "Strawberry",   ar: "الفراولة",          tr: "Çilek" },
+  "Aubergine":      { fr: "Aubergine",        en: "Eggplant",     ar: "الباذنجان",         tr: "Patlıcan" },
+  "Carotte":        { fr: "Carotte",          en: "Carrot",       ar: "الجزر",             tr: "Havuç" },
+  "Pastèque":       { fr: "Pastèque",         en: "Watermelon",   ar: "البطيخ",            tr: "Karpuz" },
+  "Betterave sucrière": { fr: "Betterave sucrière", en: "Sugar beet", ar: "بنجر السكر",   tr: "Şeker pancarı" },
+  "Pois chiche":    { fr: "Pois chiche",      en: "Chickpea",     ar: "الحمص",             tr: "Nohut" },
+  "Sorgho":         { fr: "Sorgho",           en: "Sorghum",      ar: "الذرة الرفيعة",     tr: "Sorgum" },
+  "Luzerne":        { fr: "Luzerne",          en: "Alfalfa",      ar: "البرسيم الحجازي",   tr: "Yonca" },
 };
 
 const VARIETY_MAP = {
@@ -966,51 +978,6 @@ export default function CulturesPage() {
                 </Text>
               )}
 
-              {/* ✅ TYPE DE SOL — NOUVEAU */}
-              <View className="mb-4">
-                <Text className="mb-1.5 text-sm font-semibold text-gray-700">
-                  🌍 {t("cultures.modal.sol_title") || "Type de Sol"} <Text className="text-red-500">*</Text>
-                  <Text className="text-[11px] font-normal text-gray-400">
-                    {" "}{t("cultures.modal.sol_label_hint") || "(pour calcul RFU)"}
-                  </Text>
-                </Text>
-                <TouchableOpacity
-                  className="h-[58px] flex-row items-center rounded-xl border-1.5 bg-gray-50 px-3.5"
-                  style={{
-                    borderColor: selectedSolData.couleur,
-                    borderWidth: 1.5,
-                  }}
-                  onPress={() => setSolPickerVisible(true)}
-                  activeOpacity={0.75}
-                >
-                  <Text className="mr-2.5 text-xl">
-                    {selectedSolData.emoji}
-                  </Text>
-                  <View className="flex-1">
-                    <Text
-                      className="text-sm font-bold"
-                      style={{ color: selectedSolData.couleur }}
-                    >
-                      {selectedSolData.nom}
-                    </Text>
-                    <Text className="mt-0.5 text-[11px] text-gray-400">
-                      {selectedSolData.description}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-down" size={18} color="#9ca3af" />
-                </TouchableOpacity>
-                <View className="mt-1.5 flex-row items-center gap-1.5 px-1">
-                  <Ionicons
-                    name="information-circle-outline"
-                    size={13}
-                    color="#3b82f6"
-                  />
-                  <Text className="text-[11px] text-blue-500">
-                    {selectedSolData.ruInfo} — {t("cultures.modal.sol_determines") || "Détermine quand irriguer"}
-                  </Text>
-                </View>
-              </View>
-
               {/* Date */}
               <View className="mb-4">
                 <Text className="mb-1.5 text-sm font-semibold text-gray-700">
@@ -1150,6 +1117,45 @@ export default function CulturesPage() {
                 </View>
               </View>
 
+              {/* Nombre d'arbres */}
+              <View className="mb-4">
+                <Text className="mb-1.5 text-sm font-semibold text-gray-700">
+                  {t("cultures.modal.treesLabel")}{" "}
+                  <Text className="text-red-500">*</Text>
+                </Text>
+                <TextInput
+                  className={`rounded-xl border bg-gray-50 px-3.5 py-3 text-sm text-gray-900 ${
+                    fieldErrors.nombreArbres ? "border-red-500 bg-red-50" : "border-gray-300"
+                  }`}
+                  placeholder={t("cultures.modal.treesPlaceholder")}
+                  keyboardType="numeric"
+                  value={newCulture.nombreArbres}
+                  onChangeText={(v) => {
+                    setFieldErrors((p) => ({ ...p, nombreArbres: null }));
+                    const arbres = parseInt(v);
+                    const surface = parseFloat(newCulture.surface);
+                    if (!isNaN(arbres) && arbres > 0 && !isNaN(surface) && surface > 0) {
+                      const densite = Math.round((arbres / surface) * 10000);
+                      setNewCulture((prev) => ({ ...prev, nombreArbres: v, densitePlantation: String(densite) }));
+                    } else {
+                      setNewCulture({ ...newCulture, nombreArbres: v });
+                    }
+                  }}
+                />
+                {fieldErrors.nombreArbres ? (
+                  <Text className="mt-1 text-[11px] font-medium text-red-500">
+                    {fieldErrors.nombreArbres}
+                  </Text>
+                ) : (
+                  <Text className="mt-1 text-[11px] text-gray-400">
+                    {newCulture.nombreArbres && newCulture.surface &&
+                     !isNaN(parseInt(newCulture.nombreArbres)) && !isNaN(parseFloat(newCulture.surface))
+                      ? `→ Densité : ${Math.round((parseInt(newCulture.nombreArbres) / parseFloat(newCulture.surface)) * 10000)} arb/ha`
+                      : t("cultures.modal.treesHint")}
+                  </Text>
+                )}
+              </View>
+
               {/* Densité de plantation */}
               <View className="mb-4">
                 <Text className="mb-1.5 text-sm font-semibold text-gray-700">
@@ -1260,44 +1266,6 @@ export default function CulturesPage() {
                   </>
                 )}
               </View>
-              {/* Nombre d'arbres */}
-              <View className="mb-4">
-                <Text className="mb-1.5 text-sm font-semibold text-gray-700">
-                  {t("cultures.modal.treesLabel")}{" "}
-                  <Text className="text-red-500">*</Text>
-                </Text>
-                <TextInput
-                  className={`rounded-xl border bg-gray-50 px-3.5 py-3 text-sm text-gray-900 ${
-                    fieldErrors.nombreArbres ? "border-red-500 bg-red-50" : "border-gray-300"
-                  }`}
-                  placeholder={t("cultures.modal.treesPlaceholder")}
-                  keyboardType="numeric"
-                  value={newCulture.nombreArbres}
-                  onChangeText={(v) => {
-                    setFieldErrors((p) => ({ ...p, nombreArbres: null }));
-                    const arbres = parseInt(v);
-                    const surface = parseFloat(newCulture.surface);
-                    if (!isNaN(arbres) && arbres > 0 && !isNaN(surface) && surface > 0) {
-                      const densite = Math.round((arbres / surface) * 10000);
-                      setNewCulture((prev) => ({ ...prev, nombreArbres: v, densitePlantation: String(densite) }));
-                    } else {
-                      setNewCulture({ ...newCulture, nombreArbres: v });
-                    }
-                  }}
-                />
-                {fieldErrors.nombreArbres ? (
-                  <Text className="mt-1 text-[11px] font-medium text-red-500">
-                    {fieldErrors.nombreArbres}
-                  </Text>
-                ) : (
-                  <Text className="mt-1 text-[11px] text-gray-400">
-                    {newCulture.nombreArbres && newCulture.surface &&
-                     !isNaN(parseInt(newCulture.nombreArbres)) && !isNaN(parseFloat(newCulture.surface))
-                      ? `→ Densité : ${Math.round((parseInt(newCulture.nombreArbres) / parseFloat(newCulture.surface)) * 10000)} arb/ha`
-                      : t("cultures.modal.treesHint")}
-                  </Text>
-                )}
-              </View>
             </>}
 
             {/* ══════════════════ ÉTAPE 2 ══════════════════ */}
@@ -1368,6 +1336,69 @@ export default function CulturesPage() {
 
             {/* ══════════════════ ÉTAPE 3 ══════════════════ */}
             {step === 3 && <>
+              {/* TYPE DE SOL */}
+              <View className="mb-4">
+                <Text className="mb-1.5 text-sm font-semibold text-gray-700">
+                  🌍 {t("cultures.modal.sol_title") || "Type de Sol"} <Text className="text-red-500">*</Text>
+                  <Text className="text-[11px] font-normal text-gray-400">
+                    {" "}{t("cultures.modal.sol_label_hint") || "(pour calcul RFU)"}
+                  </Text>
+                </Text>
+                <TouchableOpacity
+                  className="h-[58px] flex-row items-center rounded-xl border-1.5 bg-gray-50 px-3.5"
+                  style={{
+                    borderColor: selectedSolData.couleur,
+                    borderWidth: 1.5,
+                  }}
+                  onPress={() => setSolPickerVisible(true)}
+                  activeOpacity={0.75}
+                >
+                  <Text className="mr-2.5 text-xl">
+                    {selectedSolData.emoji}
+                  </Text>
+                  <View className="flex-1">
+                    <Text
+                      className="text-sm font-bold"
+                      style={{ color: selectedSolData.couleur }}
+                    >
+                      {selectedSolData.nom}
+                    </Text>
+                    <Text className="mt-0.5 text-[11px] text-gray-400">
+                      {selectedSolData.description}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={18} color="#9ca3af" />
+                </TouchableOpacity>
+                <View className="mt-1.5 flex-row items-center gap-1.5 px-1">
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={13}
+                    color="#3b82f6"
+                  />
+                  <Text className="text-[11px] text-blue-500">
+                    {selectedSolData.ruInfo} — {t("cultures.modal.sol_determines") || "Détermine quand irriguer"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Stock initial d'eau */}
+              <View className="mb-4">
+                <Text className="mb-1.5 text-sm font-semibold text-gray-700">
+                  💧 Stock initial d'eau (mm){" "}
+                  <Text className="text-xs font-normal text-gray-400">(optionnel)</Text>
+                </Text>
+                <TextInput
+                  className="rounded-xl border border-gray-300 bg-gray-50 px-3.5 py-3 text-sm text-gray-900"
+                  placeholder="ex: 58 (vide = capacité au champ)"
+                  keyboardType="numeric"
+                  value={newCulture.stockInitial}
+                  onChangeText={(v) => setNewCulture(prev => ({ ...prev, stockInitial: v }))}
+                />
+                <Text className="mt-1 text-[11px] text-gray-400">
+                  État actuel du sol. Si vide, le stock démarre à la capacité au champ (W_cc).
+                </Text>
+              </View>
+
               <View className="mb-6 rounded-2xl border border-violet-200 bg-violet-50 p-4">
                 <View className="mb-1 flex-row items-center gap-2">
                   <Text className="text-base">🧪</Text>

@@ -12,6 +12,7 @@ export function useIrrigationSession({
   selectedCulture,
   calculateNeeds,
   fetchHistory,
+  fetchCultures,
   historyItems,
   cultures,
   t,
@@ -72,7 +73,7 @@ export function useIrrigationSession({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const result = await res.json();
       if (result.success) {
-        await fetchHistory();
+        await Promise.all([fetchHistory(), fetchCultures?.()]);
         setIsCompleted(true);
         setEtcHistoryKey((p) => p + 1);
         Alert.alert("Succès", "Irrigation enregistrée avec succès");

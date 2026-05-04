@@ -1,10 +1,11 @@
 // app/(tabs)/irrigation.jsx
-import React from "react";
+import React, { useCallback } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator,
   Modal, FlatList, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { BrandHeader } from "@components/BrandHeader";
 import NotificationBell from "@components/NotificationBell";
@@ -115,9 +116,17 @@ export default function IrrigationPage() {
     debitMissing,
     calculateNeeds,
     selectCulture,
+    fetchCultures,
     fetchHistory,
     retry,
   } = useIrrigationData();
+
+  // Refresh cultures whenever this tab comes into focus (e.g. after adding a culture)
+  useFocusEffect(
+    useCallback(() => {
+      fetchCultures();
+    }, [])
+  );
 
   // ── Session hook — internally calls calculateNeeds(selectedMode) ─────────────
   const {
@@ -143,6 +152,7 @@ export default function IrrigationPage() {
     selectedCulture,
     calculateNeeds,
     fetchHistory,
+    fetchCultures,
     historyItems,
     cultures,
     t,

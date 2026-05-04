@@ -7,6 +7,7 @@ const CROP_TRANSLATIONS = {
   Mandarine:   { ar: 'يوسفي',       en: 'Mandarin',      tr: 'Mandalina' },
   Pamplemousse:{ ar: 'بوملو',       en: 'Grapefruit',    tr: 'Greyfurt' },
   Bergamote:   { ar: 'برجموت',      en: 'Bergamot',      tr: 'Bergamot' },
+  Citrus:      { ar: 'حمضيات',      en: 'Citrus',        tr: 'Narenciye' },
 
   // Fruits à pépins
   Pommier:     { ar: 'تفاح',        en: 'Apple',         tr: 'Elma' },
@@ -33,6 +34,7 @@ const CROP_TRANSLATIONS = {
   Vigne:       { ar: 'عنب',         en: 'Grapevine',     tr: 'Üzüm' },
   Dattier:     { ar: 'نخيل تمر',    en: 'Date Palm',     tr: 'Hurma' },
   Bananier:    { ar: 'موز',         en: 'Banana',        tr: 'Muz' },
+  Fraisier:    { ar: 'فراولة',      en: 'Strawberry',    tr: 'Çilek' },
 
   // Légumes fruits
   Tomate:      { ar: 'طماطم',       en: 'Tomato',        tr: 'Domates' },
@@ -49,6 +51,7 @@ const CROP_TRANSLATIONS = {
   Epinard:     { ar: 'سبانخ',       en: 'Spinach',       tr: 'Ispanak' },
   Carotte:     { ar: 'جزر',         en: 'Carrot',        tr: 'Havuç' },
   Betterave:   { ar: 'شمندر',       en: 'Beetroot',      tr: 'Pancar' },
+  'Betterave sucrière': { ar: 'بنجر السكر', en: 'Sugar beet', tr: 'Şeker pancarı' },
   Radis:       { ar: 'فجل',         en: 'Radish',        tr: 'Turp' },
   Navet:       { ar: 'لفت',         en: 'Turnip',        tr: 'Şalgam' },
   Celeri:      { ar: 'كرفس',        en: 'Celery',        tr: 'Kereviz' },
@@ -76,6 +79,7 @@ const CROP_TRANSLATIONS = {
   Maïs:        { ar: 'ذرة',         en: 'Corn',          tr: 'Mısır' },
   Sorgho:      { ar: 'ذرة رفيعة',   en: 'Sorghum',       tr: 'Sorgum' },
   Tournesol:   { ar: 'عباد الشمس',  en: 'Sunflower',     tr: 'Ayçiçeği' },
+  Luzerne:     { ar: 'برسيم حجازي', en: 'Alfalfa',       tr: 'Yonca' },
 
   // Tubercules
   'Pomme de terre': { ar: 'بطاطا',  en: 'Potato',        tr: 'Patates' },

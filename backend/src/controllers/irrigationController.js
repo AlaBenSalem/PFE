@@ -236,6 +236,22 @@ exports.createIrrigation = async (req, res) => {
       debitMmh: irrigation.debitMmh,
     });
     culture.kcActuel = parseFloat(kc);
+
+    // Remettre le stock à la capacité au champ (W_cc) après irrigation
+    const THETA_STD_CTRL = {
+      sableux:         { cc: 0.12 }, limono_sableux: { cc: 0.23 },
+      limoneux:        { cc: 0.31 }, argilo_limoneux: { cc: 0.38 }, argileux: { cc: 0.42 },
+    };
+    const Z_DEFAUT_CTRL = { agrume: 0.9, fruit: 1.0, legume: 0.5, cereale: 1.0 };
+    const thetaCcEff = culture.thetaCc != null
+      ? culture.thetaCc
+      : (THETA_STD_CTRL[typeSol]?.cc || 0.31);
+    const zEff = culture.profondeurRacinaire != null
+      ? culture.profondeurRacinaire
+      : (Z_DEFAUT_CTRL[typeCulture] || 0.6);
+    culture.stockEauMm        = parseFloat((thetaCcEff * zEff * 1000).toFixed(1));
+    culture.stockEauUpdatedAt = new Date();
+
     await culture.save();
 
     console.log(
