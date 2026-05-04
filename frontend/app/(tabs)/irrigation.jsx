@@ -1,26 +1,24 @@
 // app/(tabs)/irrigation.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator,
-  Modal, FlatList, Alert, Platform,
+  Modal, FlatList, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { BrandHeader } from "@components/BrandHeader";
 import NotificationBell from "@components/NotificationBell";
 import { useIrrigationNotifications } from "@hooks/useNotifications";
-import { API_ENDPOINTS, apiFetch } from "@api/client";
 import { useLanguage } from "@context/LanguageContext";
 import { translateCropName } from "@utils/cropNames";
 import ETcHistory from "@components/ETcHistory";
 import WeatherAlert from "@components/WeatherAlert";
 import AutoRecommendation from "@components/AutoRecommendation";
-import { exportPDFReport } from "@utils/pdfReport";
-import * as FileSystem from "expo-file-system";
-import * as Sharing from "expo-sharing";
 import * as Notifications from "expo-notifications";
+import { useIrrigationData, PERTE_PAR_MODE, DEFAULT_BESOINS } from "@hooks/useIrrigationData";
+import { useIrrigationSession } from "@hooks/useIrrigationSession";
 
-if (Platform.OS !== 'web') {
+if (Platform.OS !== "web") {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -30,16 +28,7 @@ if (Platform.OS !== 'web') {
   });
 }
 
-const PERTE_PAR_MODE = {
-  "goutte-à-goutte": 0.1,
-  aspersion: 0.3,
-  gravitaire: 0.4,
-};
-const EFF_PAR_MODE = {
-  "goutte-à-goutte": 0.9,
-  aspersion: 0.7,
-  gravitaire: 0.6,
-};
+// ── UI-only constants ─────────────────────────────────────────────────────────
 const MODE_EMOJI = {
   "goutte-à-goutte": "💧",
   aspersion: "💦",
@@ -51,13 +40,6 @@ const SOL_LABELS = {
   limoneux: "Limoneux 🌱",
   argilo_limoneux: "Argilo-limoneux 🏔️",
   argileux: "Argileux 🪨",
-};
-const DEFAULT_BESOINS = {
-  eauMm: "0.0", eauTheoriqueMm: "0.0", perteMm: "0.0",
-  pourcentagePerte: 0, temps: 0, debitMmh: "0.0", eta: 90,
-  et0: "0.00", kc: "0.65", etc: "0.00",
-  volumeLitres: null, litresParArbre: null, mmParArbre: null, surface: 0,
-  eauM3: "0.00", debitM3h: "0.000",
 };
 const TAB_LABELS = {
   needs:   { fr: "Besoins",    en: "Needs",   ar: "الاحتياجات", tr: "İhtiyaçlar" },
@@ -71,50 +53,7 @@ const ALERT_TXT = {
 };
 const MOIS_LABELS_FR = ["Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
 
-function mmToM3(eauMm, surface) {
-  return ((parseFloat(eauMm) * parseFloat(surface)) / 1000).toFixed(2);
-}
-function lhToM3h(lh) {
-  return (parseFloat(lh) / 1000).toFixed(3);
-}
-
-function getPlantUnit(cropName) {
-  if (!cropName) return "arbre";
-  const n = cropName.toLowerCase();
-  const HERBS = [
-    "tomate","poivron","piment","aubergine","concombre","courgette",
-    "laitue","salade","melon","pastèque","fraise","haricot","pois",
-    "carotte","oignon","ail","épinard","chou","brocoli","céleri",
-    "fenouil","basilic","menthe","persil","coriandre","poireau",
-    "navet","radis","betterave","artichaut","asperge","courge",
-  ];
-  if (HERBS.some((h) => n.includes(h))) return "plant";
-  if (n.includes("vigne") || n.includes("raisin")) return "pied";
-  return "arbre";
-}
-// Saxton & Rawls (2006), SSSAJ 70:1569-1578, Table 1 — deux étapes obligatoires
-function saxtonRawls(sablePct, argilePct, moPct) {
-  const S  = sablePct  / 100;   // fraction (0–1)
-  const C  = argilePct / 100;   // fraction (0–1)
-  const OM = moPct;             // % matière organique
-
-  // Étape 1 : estimations intermédiaires (suffixe t)
-  const theta1500t = -0.024*S + 0.487*C + 0.006*OM
-                   + 0.005*S*OM - 0.013*C*OM + 0.068*S*C + 0.031;
-
-  const theta33t   = -0.251*S + 0.195*C + 0.011*OM
-                   + 0.006*S*OM - 0.027*C*OM + 0.452*S*C + 0.299;
-
-  // Étape 2 : correction (Saxton & Rawls 2006, Table 1, équations finales)
-  const thetaPf = theta1500t + (0.14 * theta1500t - 0.02);
-  const thetaCc = theta33t   + (1.283 * theta33t * theta33t - 0.374 * theta33t - 0.015);
-
-  return {
-    thetaPf: parseFloat(Math.max(0.01, thetaPf).toFixed(3)),
-    thetaCc: parseFloat(Math.max(thetaPf + 0.01, thetaCc).toFixed(3)),
-    source: "saxton_rawls"
-  };
-}
+// ── Pure UI helpers ───────────────────────────────────────────────────────────
 const fmtTemps = (minutes) =>
   minutes >= 60
     ? `${Math.floor(minutes / 60)}h${minutes % 60 > 0 ? String(minutes % 60).padStart(2, "0") : ""}`
@@ -130,7 +69,6 @@ const fmtDate = (date) => {
   } catch { return "Date inconnue"; }
 };
 
-
 const fmtAujourdhui = () =>
   new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 
@@ -143,506 +81,80 @@ const fmtDateIrrig = (date) => {
   return d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 };
 
+function getPlantUnit(cropName) {
+  if (!cropName) return "arbre";
+  const n = cropName.toLowerCase();
+  const HERBS = [
+    "tomate","poivron","piment","aubergine","concombre","courgette",
+    "laitue","salade","melon","pastèque","fraise","haricot","pois",
+    "carotte","oignon","ail","épinard","chou","brocoli","céleri",
+    "fenouil","basilic","menthe","persil","coriandre","poireau",
+    "navet","radis","betterave","artichaut","asperge","courge",
+  ];
+  if (HERBS.some((h) => n.includes(h))) return "plant";
+  if (n.includes("vigne") || n.includes("raisin")) return "pied";
+  return "arbre";
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 export default function IrrigationPage() {
   const { t, language } = useLanguage();
   const lang = language || "fr";
 
-  const [cultures,             setCultures]             = useState([]);
-  const [selectedCulture,      setSelectedCulture]      = useState(null);
-  const [selectedMode,         setSelectedMode]         = useState("goutte-à-goutte");
-  const [loading,              setLoading]              = useState(true);
-  const [weatherData,          setWeatherData]          = useState(null);
-  const [weatherByRegion,      setWeatherByRegion]      = useState({});
-  const [loadingWeatherRegion, setLoadingWeatherRegion] = useState(false);
-  const [historyItems,         setHistoryItems]         = useState([]);
-  const [isCompleted,          setIsCompleted]          = useState(false);
-  const [etcHistoryKey,        setEtcHistoryKey]        = useState(0);
-  const [cultureModalVisible,  setCultureModalVisible]  = useState(false);
-  const [activeTab,            setActiveTab]            = useState("needs");
-  const [error,                setError]                = useState(null);
-  const [exporting,            setExporting]            = useState(false);
-  const [kcDynamique,          setKcDynamique]          = useState(null);
-  const [kcStade,              setKcStade]              = useState("");
-  const [loadingKc,            setLoadingKc]            = useState(false);
-  const [debitMissing,         setDebitMissing]         = useState(false);
-  const [rainReduction,        setRainReduction]        = useState(0);
-  const [exportingPDF,         setExportingPDF]         = useState(false);
-  const [now,                  setNow]                  = useState(Date.now());
+  // ── Data hook — calculateNeeds(mode) accepts mode as argument ───────────────
+  const {
+    cultures,
+    selectedCulture,
+    loading,
+    error,
+    historyItems,
+    loadingWeatherRegion,
+    kcDynamique,
+    kcStade,
+    loadingKc,
+    debitMissing,
+    calculateNeeds,
+    selectCulture,
+    fetchHistory,
+    retry,
+  } = useIrrigationData();
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60000);
-    return () => clearInterval(timer);
-  }, []);
+  // ── Session hook — internally calls calculateNeeds(selectedMode) ─────────────
+  const {
+    selectedMode,
+    isCompleted,
+    etcHistoryKey,
+    cultureModalVisible,
+    activeTab,
+    exporting,
+    exportingPDF,
+    rainReduction,
+    setIsCompleted,
+    setEtcHistoryKey,
+    setCultureModalVisible,
+    setActiveTab,
+    setRainReduction,
+    handleFaitPress,
+    handleModeChange,
+    exportIrrigation,
+    handleExportPDF,
+    resetCompletion,
+  } = useIrrigationSession({
+    selectedCulture,
+    calculateNeeds,
+    fetchHistory,
+    historyItems,
+    cultures,
+    t,
+  });
 
-  const alertNotifId = useRef(null); // ID notification future planifiée
-  const alertSentRef = useRef("");   // "cultureId_YYYY-MM-DD" — évite doublons immédiats
-
-  // Demande permission notifications au premier chargement (mobile only)
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    Notifications.requestPermissionsAsync();
-  }, []);
-
-  // Annule la notification planifiée quand la culture change
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    return () => {
-      if (alertNotifId.current) {
-        Notifications.cancelScheduledNotificationAsync(alertNotifId.current).catch(() => {});
-        alertNotifId.current = null;
-      }
-    };
-  }, [selectedCulture?._id]);
-
-  // Gère les alertes d'irrigation (mobile only)
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    if (!selectedCulture) return;
-    const besoins = calculateNeeds();
-    if (!besoins?.W_current) return;
-
-    if (besoins.isIrrigationDue) {
-      // Notification immédiate — 1 seule fois par jour par culture
-      const sentKey = `${selectedCulture._id}_${new Date().toISOString().slice(0, 10)}`;
-      if (alertSentRef.current === sentKey) return;
-
-      // Annule toute notification future déjà planifiée
-      if (alertNotifId.current) {
-        Notifications.cancelScheduledNotificationAsync(alertNotifId.current).catch(() => {});
-        alertNotifId.current = null;
-      }
-
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: `🚨 Irriguer maintenant — ${selectedCulture.nom}`,
-          body: `Stock = ${besoins.W_current.toFixed(1)} mm ≤ seuil RFU. Ouvrez la vanne.`,
-          sound: true,
-        },
-        trigger: null,
-      }).then(() => { alertSentRef.current = sentKey; }).catch(() => {});
-      return;
-    }
-
-    // Pas encore dû — planifier une alerte future (une seule fois, pas chaque minute)
-    if (alertNotifId.current) return;
-    const etcPerHour = (besoins.etc || 0) / 24;
-    if (etcPerHour <= 0) return;
-    const hoursUntilAlert = (besoins.W_current - besoins.W_seuil) / etcPerHour;
-    if (hoursUntilAlert <= 0 || hoursUntilAlert > 72) return;
-
-    Notifications.scheduleNotificationAsync({
-      content: {
-        title: `⚠️ Irrigation requise — ${selectedCulture.nom}`,
-        body: `Dans ~${Math.round(hoursUntilAlert)}h le stock atteindra le seuil RFU. Préparez-vous.`,
-        sound: true,
-      },
-      trigger: { date: new Date(Date.now() + hoursUntilAlert * 3_600_000) },
-    }).then(id => { alertNotifId.current = id; }).catch(() => {});
-
-  }, [now, selectedCulture?._id]);
-
-  useEffect(() => {
-    const init = async () => {
-      try {
-        await Promise.all([fetchCultures(), fetchWeather(), fetchHistory()]);
-      } catch (err) {
-        console.error("Irrigation.init:", err.message);
-        setError("Erreur lors du chargement initial");
-      }
-    };
-    init();
-  }, []);
-
-  const fetchCultures = async () => {
-    try {
-      const res = await apiFetch(API_ENDPOINTS.cultures.base);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const result = await res.json();
-      if (result.success) {
-        setCultures(result.data ?? []);
-        if (result.data?.length > 0) {
-          setSelectedCulture(result.data[0]);
-          fetchKcDynamique(result.data[0]);
-          checkDebitMissing(result.data[0]);
-        }
-      } else throw new Error(result.message || "Réponse API invalide");
-    } catch (err) {
-      console.error("Irrigation.fetchCultures:", err.message);
-      setError("Impossible de charger les cultures.");
-      Alert.alert("Erreur", "Impossible de charger les cultures. Veuillez réessayer.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchWeather = async (city = "Tunis") => {
-    try {
-      const res = await apiFetch(`${API_ENDPOINTS.weather.current}?city=${encodeURIComponent(city)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const result = await res.json();
-      if (result.success && result.data) { setWeatherData(result.data); return result.data; }
-      throw new Error("Données météo invalides");
-    } catch (err) {
-      console.error("Irrigation.fetchWeather:", err.message);
-      const fallback = { et0: 4.48, temperature: { avg: 20 }, humidity: { avg: 60 } };
-      setWeatherData(fallback);
-      return fallback;
-    }
-  };
-
-  const fetchWeatherForRegion = async (region) => {
-    if (!region) return;
-    const key = region.trim().toLowerCase();
-    if (weatherByRegion[key]) return;
-    setLoadingWeatherRegion(true);
-    try {
-      const res = await apiFetch(`${API_ENDPOINTS.weather.current}?city=${encodeURIComponent(region)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const result = await res.json();
-      if (result.success && result.data)
-        setWeatherByRegion((prev) => ({ ...prev, [key]: result.data }));
-    } catch (err) {
-      console.error("fetchWeatherForRegion:", err.message);
-    } finally {
-      setLoadingWeatherRegion(false);
-    }
-  };
-
-  const fetchHistory = async () => {
-    try {
-      const res = await apiFetch(API_ENDPOINTS.irrigations.base);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const result = await res.json();
-      if (result.success) setHistoryItems(result.data ?? []);
-      else throw new Error("Données historiques invalides");
-    } catch (err) {
-      console.error("Irrigation.fetchHistory:", err.message);
-      setHistoryItems([]);
-    }
-  };
-
-  const fetchKcDynamique = async (culture) => {
-    if (culture?.kcManuel?.mid != null) {
-      const mois = new Date().getMonth() + 1;
-      let kcVal = parseFloat(culture.kcManuel.mid);
-      let stade = "mi-saison";
-      if (mois <= 3 && culture.kcManuel.ini != null) {
-        kcVal = parseFloat(culture.kcManuel.ini);
-        stade = "initial";
-      } else if (mois >= 10 && culture.kcManuel.end != null) {
-        kcVal = parseFloat(culture.kcManuel.end);
-        stade = "fin saison";
-      }
-      setKcDynamique(kcVal);
-      setKcStade(stade);
-      setLoadingKc(false);
-      return;
-    }
-
-    if (!culture?.nom) return;
-    setLoadingKc(true);
-    try {
-      const moisCourant = new Date().getMonth() + 1;
-      const endpoint    = API_ENDPOINTS.kc.current(culture.nom, moisCourant);
-      const res         = await apiFetch(endpoint);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const result = await res.json();
-      const kcRaw = result.kc ?? result.data?.kc;
-      if (result.success && kcRaw != null) {
-        const kc    = parseFloat(kcRaw);
-        const stade = result.stade ?? result.data?.stade ?? "";
-        setKcDynamique(kc >= 0.1 && kc <= 2.0 ? kc : 0.65);
-        setKcStade(stade);
-      } else throw new Error(result.error || "Réponse invalide");
-    } catch (err) {
-      console.warn(`⚠️ fetchKcDynamique fallback pour "${culture.nom}":`, err.message);
-      setKcDynamique(parseFloat(culture.kcActuel) || 0.65);
-      setKcStade("");
-    } finally {
-      setLoadingKc(false);
-    }
-  };
-
-  const checkDebitMissing = (culture) => {
-    const debitLegacy   = parseFloat(culture?.irrigation?.debit);
-    const debitGoutteur = parseFloat(culture?.debitGoutteur);
-    const nbGoutteurs   = parseFloat(culture?.nbGoutteursParArbre);
-    const hasDebit = (debitLegacy > 0) || (debitGoutteur > 0 && nbGoutteurs > 0);
-    setDebitMissing(!hasDebit);
-  };
-
-  const calculateNeeds = () => {
-    if (!selectedCulture || !weatherData) return { ...DEFAULT_BESOINS };
-    try {
-      const regionKey     = selectedCulture.region?.trim().toLowerCase();
-      const activeWeather = (regionKey && weatherByRegion[regionKey]) || weatherData;
-      const et0           = parseFloat(activeWeather.et0) || 4.48;
-      const kc            = kcDynamique ?? parseFloat(selectedCulture.kcActuel) ?? 0.65;
-      const surface       = parseFloat(selectedCulture.surface) || 100;
-      const nbArbres      = selectedCulture.nombreArbres || null;
-
-      // Débit total parcelle (L/h)
-      const debitGoutteur       = parseFloat(selectedCulture.debitGoutteur) || 0;
-      const nbGoutteursParArbre = parseFloat(selectedCulture.nbGoutteursParArbre) || 0;
-      let debitLH;
-      if (debitGoutteur > 0 && nbGoutteursParArbre > 0 && nbArbres) {
-        debitLH = debitGoutteur * nbGoutteursParArbre * nbArbres;
-      } else if (debitGoutteur > 0 && nbGoutteursParArbre > 0) {
-        debitLH = debitGoutteur * nbGoutteursParArbre;
-      } else {
-        debitLH = parseFloat(selectedCulture.irrigation?.debit) || 1000;
-      }
-
-      const perte = PERTE_PAR_MODE[selectedMode] || 0.1;
-      const eta   = 1 - perte;
-      const etc   = et0 * kc;
-
-      // ── 1) z, θcc, θpf — PRIORITÉS CORRIGÉES ──────────────────────────────
-      const typeSol  = selectedCulture.typeSol || "limoneux";
-      const typeCult = selectedCulture.type    || "legume";
-
-      const Z_DEFAUT = { agrume: 0.9, fruit: 1.0, legume: 0.5, cereale: 1.0 };
-      const P_BASE   = { agrume: 0.5, fruit: 0.5, legume: 0.4, cereale: 0.55 };
-
-      const z = selectedCulture.profondeurRacinaire != null
-        ? parseFloat(selectedCulture.profondeurRacinaire)
-        : (Z_DEFAUT[typeCult] || 0.6);
-
-      const pAdj = selectedCulture.p != null
-        ? parseFloat(selectedCulture.p)
-        : Math.min(0.8, Math.max(0.1, (P_BASE[typeCult] || 0.5) + 0.04 * (5 - etc)));
-
-      const THETA_STD = {
-        sableux:         { cc: 0.12, pf: 0.05 },
-        limono_sableux:  { cc: 0.23, pf: 0.10 },
-        limoneux:        { cc: 0.31, pf: 0.15 },
-        argilo_limoneux: { cc: 0.38, pf: 0.22 },
-        argileux:        { cc: 0.42, pf: 0.26 },
-      };
-
-      const thetaCc    = selectedCulture.thetaCc != null ? parseFloat(selectedCulture.thetaCc) : null;
-      const thetaPf    = selectedCulture.thetaPf != null ? parseFloat(selectedCulture.thetaPf) : null;
-      const stdTheta   = THETA_STD[typeSol] || THETA_STD.limoneux;
-      
-      // ✅ 3 PRIORITÉS - Logique claire et sans doublon
-      let thetaCcEff, thetaPfEff, thetaSource;
-
-      // Priorité 1: Mesure directe (valeurs saisies par l'utilisateur)
-      if (thetaCc != null && thetaPf != null) {
-        thetaCcEff  = thetaCc;
-        thetaPfEff  = thetaPf;
-        thetaSource = selectedCulture.thetaSource === "saxton_rawls" ? "saxton_rawls" : "mesure";
-      } 
-      // Priorité 2: Calcul Saxton & Rawls (à partir des fractions sable/argile/MO stockées)
-      else if (
-        selectedCulture.sableFraction  != null &&
-        selectedCulture.argileFraction != null &&
-        selectedCulture.matOrganique   != null
-      ) {
-        const sr   = saxtonRawls(
-          selectedCulture.sableFraction  * 100,
-          selectedCulture.argileFraction * 100,
-          selectedCulture.matOrganique
-        );
-        thetaCcEff  = sr.thetaCc;
-        thetaPfEff  = sr.thetaPf;
-        thetaSource = "saxton_rawls";
-      } 
-      // Priorité 3: Standard FAO-56 (valeurs par défaut selon le type de sol)
-      else {
-        thetaCcEff  = stdTheta.cc;
-        thetaPfEff  = stdTheta.pf;
-        thetaSource = "FAO-56";
-      }
-
-      // ── 2) Bilan hydrique FAO-56 — déficit réel ────────────────────────────
-      const lastIrrig = historyItems
-        .filter((h) => (h.cultureId?._id || h.cultureId) === selectedCulture._id)
-        .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-
-      // Référence initiale : dernière irrigation → sinon datePlantation → sinon createdAt → sinon 1j
-      const refDate = lastIrrig
-        ? new Date(lastIrrig.date)
-        : selectedCulture.datePlantation
-          ? new Date(selectedCulture.datePlantation)
-          : selectedCulture.createdAt
-            ? new Date(selectedCulture.createdAt)
-            : new Date(now - 86400000);
-
-      const rawDays = Math.max(0, (now - refDate.getTime()) / 86400000);
-
-      // Sans historique d'irrigation, plafonner à 1 cycle (RFU/ETc) pour éviter
-      // une dépletion irréaliste quand la datePlantation est lointaine.
-      const roughFreq = etc > 0
-        ? Math.max(1, Math.round((pAdj * (thetaCcEff - thetaPfEff) * z * 1000) / etc))
-        : 14;
-      const joursSinceIrrig = lastIrrig ? rawDays : Math.min(rawDays, roughFreq);
-
-      // ── 3) RU / RFU / fréquence ────────────────────────────────────────────
-      const ru  = parseFloat(((thetaCcEff - thetaPfEff) * z * 1000).toFixed(1));
-      const rfu = parseFloat((pAdj * ru).toFixed(1));
-      const ruSource = thetaCc != null ? "θcc−θpf (manuel)" : `FAO-56 std (${typeSol})`;
-
-      const frequenceJours = etc > 0 ? Math.max(1, Math.round(rfu / etc)) : 7;
-
-      // ── 4) Pluie efficace (FAO-56 / Doorenbos & Pruitt, 1977) ─────────────
-      // rain = précipitation récente (mm) depuis l'API météo
-      const rainRaw = parseFloat(activeWeather.precipitation?.rain) || 0;
-      let peff = 0;
-      if (rainRaw > 5)   peff = 0.8 * rainRaw - 2;
-      if (rainRaw >= 25) peff = 0.6 * rainRaw + 0.5;
-      peff = Math.min(peff, ru); // borne max = RU (pas de percolation profonde)
-
-      // ── 5) Bilan stock hydrique avec pluie ────────────────────────────────
-      // W_cc = θcc × z × 1000 (mm)  ·  W_pf = θpf × z × 1000 (mm)
-      // W_current = W_cc − ETc×jours + Peff  (borné à [W_pf, W_cc])
-      const W_cc      = thetaCcEff * z * 1000;
-      const W_pf_mm   = thetaPfEff * z * 1000;
-      const W_seuil   = W_cc - rfu;
-      const W_current = Math.min(W_cc, Math.max(W_pf_mm, W_cc - etc * joursSinceIrrig + peff));
-      const stockPct  = ru > 0 ? Math.min(100, Math.round(((W_current - W_pf_mm) / ru) * 100)) : 100;
-
-      // Déficit net = volume à restituer pour revenir à W_cc
-      const deficitMm = Math.max(0, W_cc - W_current);
-      const eauMm     = deficitMm / eta;
-      const perteMm   = eauMm - deficitMm;
-
-      // Date planifiée = dernière irrigation + fréquence
-      const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
-      const baseDate = lastIrrig ? new Date(lastIrrig.date) : new Date(now);
-      const scheduledDate = new Date(baseDate);
-      scheduledDate.setDate(scheduledDate.getDate() + frequenceJours);
-      scheduledDate.setHours(0, 0, 0, 0);
-      const joursAvantScheduled = Math.ceil((scheduledDate - todayMidnight) / 86400000);
-
-      // Si le stock est au seuil RFU → irrigation due AUJOURD'HUI (priorité sur la date)
-      const stockDue       = W_current <= W_seuil;
-      const isIrrigationDue = joursAvantScheduled <= 0 || stockDue;
-      const dateProchaine  = isIrrigationDue ? new Date(todayMidnight) : scheduledDate;
-      const joursAvantIrrig = isIrrigationDue ? 0 : joursAvantScheduled;
-
-      // Alerte stock : warning si stock ≤ seuil RFU, critical si proche de W_pf
-      let stockAlert = null;
-      if (W_current <= W_seuil)               stockAlert = "warning";
-      if (W_current <= W_pf_mm + 0.15 * ru)  stockAlert = "critical";
-
-      // ── 5) Volumes et débits ───────────────────────────────────────────────
-      const debitMmh        = debitLH / surface;
-      const tempsMinutes    = debitMmh > 0 ? Math.round((eauMm / debitMmh) * 60) : 0;
-      const volumeLitres    = Math.round(eauMm * surface);
-      const litresParArbre  = nbArbres ? Math.round((eauMm * surface) / nbArbres) : null;
-      const mmParArbre      = nbArbres ? ((eauMm * surface) / nbArbres).toFixed(1) : null;
-      const eauM3           = mmToM3(eauMm, surface);
-      const debitM3h        = lhToM3h(debitLH);
-      const volumeM3Ha      = (eauMm * 10).toFixed(1);
-      const kcLabel         = selectedCulture.kcManuel?.mid != null ? "Kc manuel" : "Kc (FAO-56)";
-
-      return {
-        eauMm: eauMm.toFixed(1),
-        eauM3,
-        debitM3h,
-        eauTheoriqueMm: etc.toFixed(1),
-        perteMm: perteMm.toFixed(1),
-        pourcentagePerte: Math.round(perte * 100),
-        temps: tempsMinutes,
-        debitMmh: debitMmh.toFixed(1),
-        eta: Math.round(eta * 100),
-        et0: et0.toFixed(2),
-        kc: kc.toFixed(2),
-        etc: etc.toFixed(2),
-        mmParArbre, litresParArbre, volumeLitres, surface,
-        typeSol, ru, rfu,
-        pAdj: pAdj.toFixed(2), z,
-        frequenceJours,
-        sourceRegion: regionKey && weatherByRegion[regionKey] ? selectedCulture.region : null,
-        volumeM3Ha,
-        thetaCc, thetaPf, ruSource,
-        thetaCcDisplay: thetaCcEff,
-        thetaPfDisplay: thetaPfEff,
-        thetaSource,
-        debitGoutteur, nbGoutteursParArbre,
-        debitLH,
-        kcLabel,
-        joursSinceIrrig,
-        deficitMm: deficitMm.toFixed(1),
-        W_cc, W_pf_mm, W_seuil, W_current, stockPct,
-        peff, rainRaw,
-        dateProchaine, joursAvantIrrig, isIrrigationDue, stockDue, stockAlert,
-      };
-    } catch (err) {
-      console.error("Irrigation.calculateNeeds:", err.message);
-      return { ...DEFAULT_BESOINS };
-    }
-  };
-
-  const handleFaitPress = async () => {
-    if (!selectedCulture) {
-      Alert.alert("Erreur", "Veuillez sélectionner une culture");
-      return;
-    }
-    if (isCompleted) return;
-
-    const needs = calculateNeeds();
-
-    if (!needs.volumeLitres || needs.volumeLitres <= 0) {
-      Alert.alert(
-        "Configuration incomplète",
-        "Le volume calculé est 0. Vérifiez que la culture a un débit et une surface configurés."
-      );
-      return;
-    }
-    if (!needs.temps || needs.temps < 1) {
-      Alert.alert(
-        "Configuration incomplète",
-        "La durée calculée est nulle. Vérifiez le débit de la culture."
-      );
-      return;
-    }
-
-    try {
-      const res = await apiFetch(API_ENDPOINTS.irrigations.base, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cultureId: selectedCulture._id,
-          mode: selectedMode,
-          duree: needs.temps,
-          volume: needs.volumeLitres,
-          debit: selectedCulture.irrigation?.debit || 1000,
-          et0: parseFloat(needs.et0),
-          etc: parseFloat(needs.etc),
-          kc: parseFloat(needs.kc),
-          surface: needs.surface,
-          efficacite: EFF_PAR_MODE[selectedMode],
-          eauMm: parseFloat(needs.eauMm),
-          debitMmh: parseFloat(needs.debitMmh),
-        }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const result = await res.json();
-      if (result.success) {
-        await fetchHistory();
-        setIsCompleted(true);
-        setEtcHistoryKey((p) => p + 1);
-        Alert.alert("Succès", "Irrigation enregistrée avec succès");
-      } else throw new Error(result.message || "Échec de l'enregistrement");
-    } catch (err) {
-      console.error("Irrigation.handleFaitPress:", err.message);
-      Alert.alert("Erreur", "Impossible d'enregistrer l'irrigation.");
-    }
-  };
-
-  const handleSelectCulture = (culture) => {
-    setSelectedCulture(culture);
-    setKcDynamique(null);
-    setKcStade("");
-    setIsCompleted(false);
-    setEtcHistoryKey((p) => p + 1);
-    setCultureModalVisible(false);
-    checkDebitMissing(culture);
-    if (culture.region) fetchWeatherForRegion(culture.region);
-    fetchKcDynamique(culture);
-  };
+  // ── Notifications ───────────────────────────────────────────────────────────
+  const { notifications, markRead, markAllRead } = useIrrigationNotifications(
+    cultures ?? [], historyItems ?? [], null, lang,
+  );
+  const urgentCount = (notifications ?? []).filter(
+    (n) => !n.read && (n.type === "urgent" || n.type === "warning")
+  ).length;
 
   const getModeLabel = (mode) => {
     if (mode === "goutte-à-goutte") return t("irrigation.drip") || "Goutte-à-goutte";
@@ -650,101 +162,13 @@ export default function IrrigationPage() {
     return t("irrigation.gravity") || "Gravitaire";
   };
 
-  const exportIrrigation = async () => {
-    try {
-      setExporting(true);
-      if (!historyItems?.length) { Alert.alert("Information", "Aucune donnée à exporter"); return; }
-      const headers = ["Date","Culture","Parcelle","Mode","Eau (m³)","Durée (min)","Débit (m³/h)","ET₀ (mm/j)","ETc (mm/j)","Kc","Surface (m²)","Efficacité (%)"];
-      const rows = historyItems.map((item) => {
-        const culture    = cultures.find((c) => c._id === (item.cultureId?._id || item.cultureId));
-        const surface    = item.surface || culture?.surface || 100;
-        const eauMmVal   = item.eauMm != null ? Number(item.eauMm) : (item.volume / surface);
-        const eauM3Val   = ((eauMmVal * surface) / 1000).toFixed(2);
-        const debitLhVal  = item.debit || 1000;
-        const debitM3hVal = (debitLhVal / 1000).toFixed(3);
-        return [
-          new Date(item.date).toLocaleDateString("fr-FR"),
-          item.nom || culture?.nom || item.cultureId?.nom || "—",
-          culture?.parcelle || "—",
-          item.mode || "—",
-          eauM3Val,
-          item.duree || item.temps || "—",
-          debitM3hVal,
-          item.et0  != null ? Number(item.et0).toFixed(2) : "—",
-          item.etc  != null ? Number(item.etc).toFixed(2) : "—",
-          item.kc   != null ? Number(item.kc).toFixed(2)  : "—",
-          surface,
-          item.efficacite != null ? Math.round(item.efficacite * 100) : "—",
-        ];
-      });
-      const escape = (v) => {
-        const s = v == null ? "" : String(v);
-        return s.includes(",") || s.includes('"') || s.includes("\n")
-          ? '"' + s.replace(/"/g, '""') + '"' : s;
-      };
-      const csv = "\uFEFF" + [
-        headers.map(escape).join(","),
-        ...rows.map((r) => r.map(escape).join(",")),
-      ].join("\r\n");
-      const filename = `SmartIrrig_Irrigation_${new Date().toISOString().split("T")[0]}.csv`;
-
-      if (Platform.OS === "web") {
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const url  = URL.createObjectURL(blob);
-        const a    = Object.assign(document.createElement("a"), {
-          href: url, download: filename, style: "display:none",
-        });
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else {
-        const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
-        if (!baseDir) {
-          Alert.alert("Erreur", "Stockage inaccessible. Redémarrez l'application et réessayez.");
-          return;
-        }
-        const fileUri = baseDir + filename;
-        await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
-        const sharingAvailable = await Sharing.isAvailableAsync();
-        if (sharingAvailable) {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: "text/csv",
-            dialogTitle: t("irrigation.exporter") || "Exporter l'irrigation",
-            UTI: "public.comma-separated-values-text",
-          });
-        } else {
-          Alert.alert("Information", `Fichier sauvegardé : ${filename}`);
-        }
-      }
-    } catch (err) {
-      console.error("Irrigation.exportIrrigation:", err.message);
-      Alert.alert("Erreur", "Impossible d'exporter les données");
-    } finally {
-      setExporting(false);
-    }
+  const handleSelectCulture = (culture) => {
+    selectCulture(culture);
+    resetCompletion();
+    setCultureModalVisible(false);
   };
 
-  const handleExportPDF = async () => {
-    try {
-      setExportingPDF(true);
-      await exportPDFReport({
-        irrigations: historyItems,
-        fertilisations: [],
-        cultureName: selectedCulture?.nom || "",
-      });
-    } catch (e) {
-      Alert.alert("Erreur", "Impossible de générer le rapport PDF.");
-    } finally {
-      setExportingPDF(false);
-    }
-  };
-
-  const { notifications, markRead, markAllRead } = useIrrigationNotifications(
-    cultures ?? [], historyItems ?? [], weatherData ?? null, lang,
-  );
-  const urgentCount = (notifications ?? []).filter(
-    (n) => !n.read && (n.type === "urgent" || n.type === "warning")
-  ).length;
-
+  // ── Loading / error guards ──────────────────────────────────────────────────
   if (loading)
     return (
       <SafeAreaView className="flex-1 bg-gray-100 items-center justify-center">
@@ -759,19 +183,14 @@ export default function IrrigationPage() {
         <Text className="mt-4 text-base text-gray-500 text-center">{error}</Text>
         <TouchableOpacity
           className="mt-5 bg-green-500 px-5 py-3 rounded-xl"
-          onPress={() => {
-            setError(null);
-            setLoading(true);
-            Promise.all([fetchCultures(), fetchWeather(), fetchHistory()])
-              .finally(() => setLoading(false));
-          }}
+          onPress={retry}
         >
           <Text className="text-white font-semibold">Réessayer</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
 
-  const besoins    = selectedCulture ? calculateNeeds() : DEFAULT_BESOINS;
+  const besoins    = selectedCulture ? calculateNeeds(selectedMode) : DEFAULT_BESOINS;
   const alertTxt   = ALERT_TXT[lang] || ALERT_TXT.fr;
   const hasData    = selectedCulture && besoins.eauMm !== "0.0";
   const moisActuel = MOIS_LABELS_FR[new Date().getMonth()];
@@ -910,7 +329,7 @@ export default function IrrigationPage() {
                   <TouchableOpacity
                     key={mode}
                     className={`flex-1 items-center py-3 px-1 rounded-xl border-[1.5px] ${active ? "bg-green-50 border-green-300" : "border-transparent"}`}
-                    onPress={() => { setSelectedMode(mode); setIsCompleted(false); }}
+                    onPress={() => handleModeChange(mode)}
                   >
                     <Text className="text-[24px] mb-1">{MODE_EMOJI[mode]}</Text>
                     <Text className={`text-[11px] text-center ${active ? "font-bold text-green-800" : "font-medium text-gray-600"}`}>
@@ -941,7 +360,6 @@ export default function IrrigationPage() {
                   {" · "}{SOL_LABELS[besoins.typeSol] || besoins.typeSol}
                   {selectedCulture.region ? ` · 🌍 ${selectedCulture.region}` : ""}
                 </Text>
-
 
                 <View className="flex-row items-center bg-slate-50 rounded-xl p-2.5 mb-3.5">
                   {[
@@ -1013,11 +431,11 @@ export default function IrrigationPage() {
                     <View className="flex-row flex-wrap items-center gap-x-3 gap-y-0.5">
                       <Text className="text-[12px] text-violet-700">
                         <Text className="font-bold">θcc = {besoins.thetaCcDisplay ?? "—"}</Text>
-                        <Text className="text-violet-500"> m³/m³</Text>
+                        <Text className="text-violet-500"> cm³/cm³</Text>
                       </Text>
                       <Text className="text-[12px] text-violet-700">
                         <Text className="font-bold">θpf = {besoins.thetaPfDisplay ?? "—"}</Text>
-                        <Text className="text-violet-500"> m³/m³</Text>
+                        <Text className="text-violet-500"> cm³/cm³</Text>
                       </Text>
                       <View className={`rounded-full px-2 py-0.5 ${
                         besoins.thetaSource === "saxton_rawls" ? "bg-blue-100"
@@ -1035,11 +453,6 @@ export default function IrrigationPage() {
                         </Text>
                       </View>
                     </View>
-                    <Text className="text-[11px] text-violet-500 mt-0.5">
-                      RU {t("irrigation.from") || "depuis"}{" "}
-                      <Text className="font-semibold">{besoins.ruSource}</Text>
-                      {" · FAO-56 §3.1"}
-                    </Text>
                   </View>
                 </View>
 
@@ -1135,8 +548,7 @@ export default function IrrigationPage() {
                     </Text>
                     {" · Prochaine : "}
                     <Text className="font-bold">{fmtDateIrrig(besoins.dateProchaine)}</Text>
-                    {besoins.joursAvantIrrig > 0 ? ` (J+${besoins.joursAvantIrrig})` : " (aujourd'hui)"}
-                    {"."}
+                    {besoins.joursAvantIrrig > 0 ? ` (J+${besoins.joursAvantIrrig}).` : " (aujourd'hui)."}
                   </Text>
                 </View>
 
