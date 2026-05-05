@@ -53,7 +53,7 @@ const messageValidators = [
   body('message').optional().trim(),
   body().custom((_, { req }) => {
     const text = String(req.body?.body ?? req.body?.message ?? '').trim();
-    if (text.length < 10) throw new Error('Le message doit contenir au moins 10 caractères.');
+    if (text.length < 4) throw new Error('Le message doit contenir au moins 4 caractères.');
     return true;
   }),
 ];
