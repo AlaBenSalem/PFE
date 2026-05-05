@@ -397,6 +397,17 @@ export default function FertilisationPage() {
     .filter((ev) => ev.mois === selectedMonth)
     .sort((a, b) => a.jour - b.jour);
 
+  const getTypeProduit = (produit) => {
+    if (!produit) return "autre";
+    const p = produit.toLowerCase();
+    if (p.includes("npk")) return "NPK";
+    if (p.includes("urée") || p.includes("uree") || p.includes("dap") || p.includes("azote")) return "azote";
+    if (p.includes("phosphore") || p.includes("superphosphate")) return "phosphore";
+    if (p.includes("k₂so₄") || p.includes("k2so4") || p.includes("kno") || p.includes("potassium") || p.includes("kcl")) return "potassium";
+    if (p.includes("fumier") || p.includes("compost") || p.includes("organique")) return "organique";
+    return "autre";
+  };
+
   const handleConfirmFert = async (ev) => {
     const key = `${ev.culture?._id}_${ev.mois}_${ev.jour}`;
     if (confirmedEvents.has(key)) return;
@@ -408,10 +419,11 @@ export default function FertilisationPage() {
         body: JSON.stringify({
           cultureId: ev.culture?._id,
           date: new Date(new Date().getFullYear(), ev.mois - 1, ev.jour).toISOString(),
-          typeProduit: "engrais",
+          typeProduit: getTypeProduit(ev.produit),
           produit: ev.produit,
           dose: parseFloat(ev.doseParHa) || parseFloat(ev.doseParArbre) || 0,
           uniteDose: ev.doseParHa ? "kg/ha" : "g/arbre",
+          modeApplication: "sol",
           surface: ev.culture?.surface,
           nombreArbres: ev.culture?.nombreArbres,
         }),

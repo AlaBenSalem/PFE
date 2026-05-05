@@ -78,13 +78,13 @@ export default function ContactAdmin() {
     });
   }, []);
 
-  const canSend = useMemo(() => body.trim().length >= 4 && !sending, [body, sending]);
+  const canSend = useMemo(() => body.trim().length >= 10 && !sending, [body, sending]);
 
   const onSend = async () => {
     const trimmedBody = body.trim();
     const trimmedSubject = subject.trim();
 
-    if (trimmedBody.length < 4) {
+    if (trimmedBody.length < 10) {
       Alert.alert(t("common.error"), t("messages.tooShort"));
       return;
     }
