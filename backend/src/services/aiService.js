@@ -191,6 +191,9 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
         }).filter(Boolean).join('\n')
       : 'Calcul ETc non disponible (météo manquante).';
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     const nextIrrigLines = cultures.length === 0
       ? 'Aucune culture enregistrée.'
       : cultures.map(c => {
@@ -198,13 +201,33 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
           const last = lastIrrigByCulture[cid];
           const overrideDate = irrigationOverrides[c.nom.toLowerCase().trim()]
                             || irrigationOverrides[cid];
-          const prochaineDate = overrideDate || last?.prochaineDate;
+
+          // Raw candidate date (override > stored prochaineDate)
+          let rawDate = overrideDate
+            ? new Date(overrideDate)
+            : last?.prochaineDate ? new Date(last.prochaineDate) : null;
+
+          // ⚠️ If the stored prochaineDate is in the past, recompute from last
+          // irrigation date + frequency so the AI never surfaces a stale date.
+          if (rawDate && rawDate < today && last?.frequenceJours > 0) {
+            const lastDate = new Date(last.date);
+            // Advance by multiples of frequency until we reach a future date
+            const freq = last.frequenceJours * 86400000;
+            const diff = today - lastDate;
+            const cycles = Math.ceil(diff / freq);
+            rawDate = new Date(lastDate.getTime() + cycles * freq);
+          }
+
           if (!last && !overrideDate) return `• ${c.nom} (${c.variete}): aucune irrigation enregistrée`;
-          if (prochaineDate)
-            return `• ${c.nom} (${c.variete}): prochaine irrigation le ${formatDate(prochaineDate)} [${joursLabel(prochaineDate)}]` +
+          if (rawDate && rawDate >= today)
+            return `• ${c.nom} (${c.variete}): prochaine irrigation le ${formatDate(rawDate)} [${joursLabel(rawDate)}]` +
                    (last?.frequenceJours ? ` — fréquence: ${last.frequenceJours} jours` : '');
           if (last?.frequenceJours > 0) {
-            const next = new Date(new Date(last.date).getTime() + last.frequenceJours * 86400000);
+            const lastDate = new Date(last.date);
+            const freq     = last.frequenceJours * 86400000;
+            const diff     = today - lastDate;
+            const cycles   = Math.ceil(diff / freq);
+            const next     = new Date(lastDate.getTime() + cycles * freq);
             return `• ${c.nom} (${c.variete}): prochaine irrigation estimée le ${formatDate(next)} [${joursLabel(next)}] — fréquence: ${last.frequenceJours} jours`;
           }
           return `• ${c.nom} (${c.variete}): dernière irrigation le ${formatDate(last.date)} — fréquence non définie`;
@@ -326,6 +349,9 @@ Arabic vocabulary rules (دارجة + فصحى):
 - If ET₀ is 0 or unavailable: say "ET₀ indisponible actuellement" and do not compute ETc.
 - If no crops registered: say so and guide user to add one (📍 Cultures > +).
 - Dates: always format as "lundi 5 mai 2026" (full weekday + day + month + year).
+- ⚠️ PAST DATES FORBIDDEN: If a "prochaine irrigation" or "prochaine fertilisation" date
+  is BEFORE today's date, DO NOT cite it. Instead say the date has passed and the user
+  should record a new irrigation (📍 Irrigation > Enregistrer) to recalculate.
 
 ════════════════════════════════════════
   5. AGRONOMIC REASONING
@@ -406,6 +432,7 @@ async function callGroq(userMessage, context, langHint, history = []) {
   const contextBlock = `════════════════════════════════════════
 [CONTEXTE UTILISATEUR — DONNÉES RÉELLES]
 ════════════════════════════════════════
+DATE AUJOURD'HUI : ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
 Cultures (${context.cropCount}): ${context.cropsSummary}
 Irrigation récente   : ${context.irrigationSummary}
 Besoins ETc          : ${context.irrigationNeeds}

@@ -147,12 +147,16 @@ export function useAIChat({ speakText, setIsSpeaking, detectSpeechLang, setTtsLa
       const aiText  = data.answer;
       setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", text: aiText }]);
 
+      // ✅ Use the USER'S question language for TTS — not the AI response text.
+      // Detecting on the response text is unreliable: a French answer with no
+      // accented chars scores 0 and falls back to Arabic voice.
+      const ttsLangDetected = detectSpeechLang(trimmed);
+      setTtsLang(ttsLangDetected);
+
       // ✅ Truncate TTS to 200 chars max — long sentences cause bad voice quality
-      const ttsText  = aiText.length > 200 ? aiText.slice(0, 200).replace(/[^.!?،؟]*$/, '').trim() || aiText.slice(0, 200) : aiText;
-      const detected = detectSpeechLang(aiText);
-      setTtsLang(detected);
+      const ttsText = aiText.length > 200 ? aiText.slice(0, 200).replace(/[^.!?،؟]*$/, '').trim() || aiText.slice(0, 200) : aiText;
       setIsSpeaking(true);
-      await speakText(ttsText, detected);
+      await speakText(ttsText, ttsLangDetected);
 
     } catch (err) {
       console.error("❌ [sendMessage]", err.message);
