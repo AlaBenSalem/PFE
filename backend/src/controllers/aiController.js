@@ -10,11 +10,11 @@ const GROQ_MODELS         = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
 const GREETING_PATTERN = /^(bonjour|bonsoir|salam|salut|hello|hi|hey|cava|cv|winek|labas|mar7ba|ahlen|مرحبا|أهلا|سلام|صباح الخير|مساء الخير|merhaba|selam|günaydın|iyi günler)[\s!?.،,]*$/i;
 
 const GREETING_RESPONSES = {
-  TUNISIAN_ARABIC: '!أهلاً 👋 كيفاش نعاونك اليوم؟',
-  MODERN_ARABIC:   '!أهلاً بك 👋 كيف يمكنني مساعدتك اليوم؟',
-  FRENCH:          'Bonjour ! 👋 Comment puis-je vous aider ?',
-  ENGLISH:         'Hello! 👋 How can I help you today?',
-  TURKISH:         'Merhaba! 👋 Bugün size nasıl yardımcı olabilirim?',
+  TUNISIAN_ARABIC: '!أهلاً  كيفاش نعاونك اليوم؟',
+  MODERN_ARABIC:   '!أهلاً بك  كيف يمكنني مساعدتك اليوم؟',
+  FRENCH:          'Bonjour !  Comment puis-je vous aider ?',
+  ENGLISH:         'Hello!  How can I help you today?',
+  TURKISH:         'Merhaba!  Bugün size nasıl yardımcı olabilirim?',
 };
 
 function getGreetingLang(langHint) {
