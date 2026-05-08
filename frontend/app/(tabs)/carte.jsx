@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { BrandHeader } from "@components/BrandHeader";
 import { API_ENDPOINTS, apiFetch } from "@api/client";
+import { useLanguage } from "@context/LanguageContext";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -21,10 +22,10 @@ function treeIcon(nom = "") {
 }
 
 const STATUS = {
-  ok:      { color: "#22c55e", bg: "#f0fdf4", label: "Bien irrigué" },
-  soon:    { color: "#f59e0b", bg: "#fffbeb", label: "Bientôt" },
-  overdue: { color: "#ef4444", bg: "#fef2f2", label: "En retard" },
-  unknown: { color: "#94a3b8", bg: "#f8fafc", label: "Non irrigué" },
+  ok:      { color: "#22c55e", bg: "#f0fdf4", labelKey: "statusOk" },
+  soon:    { color: "#f59e0b", bg: "#fffbeb", labelKey: "statusSoon" },
+  overdue: { color: "#ef4444", bg: "#fef2f2", labelKey: "statusOverdue" },
+  unknown: { color: "#94a3b8", bg: "#f8fafc", labelKey: "statusUnknown" },
 };
 
 function irrigStatus(culture, irrigations) {
@@ -39,8 +40,7 @@ function irrigStatus(culture, irrigations) {
   return "overdue";
 }
 
-function ParcelGrid({ count, icon, color }) {
-  // Cap at 300 for display; above that show scale indicator
+function ParcelGrid({ count, icon, color, scaleLabel }) {
   const MAX_DISPLAY = 300;
   const displayCount = Math.min(count, MAX_DISPLAY);
   const scale = count > MAX_DISPLAY ? Math.ceil(count / MAX_DISPLAY) : 1;
@@ -53,7 +53,7 @@ function ParcelGrid({ count, icon, color }) {
     <View>
       {scale > 1 && (
         <Text style={{ fontSize: 11, color: "#6b7280", textAlign: "center", marginBottom: 8 }}>
-          1 icône = {scale} arbres (total : {count})
+          {scaleLabel(scale, count)}
         </Text>
       )}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
@@ -77,6 +77,7 @@ function ParcelGrid({ count, icon, color }) {
 }
 
 export default function CartePage() {
+  const { t } = useLanguage();
   const [cultures, setCultures] = useState([]);
   const [irrigations, setIrrigations] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -123,7 +124,7 @@ export default function CartePage() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
-      <BrandHeader title="Mes Parcelles" />
+      <BrandHeader title={t("carte.title")} />
 
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: 36 }}
@@ -135,7 +136,7 @@ export default function CartePage() {
           <View style={{ flexDirection: "row", gap: 8, paddingRight: 4 }}>
             {cultures.length === 0 ? (
               <View style={{ padding: 20 }}>
-                <Text style={{ color: "#9ca3af", fontSize: 13 }}>Aucune culture enregistrée</Text>
+                <Text style={{ color: "#9ca3af", fontSize: 13 }}>{t("carte.noCulture")}</Text>
               </View>
             ) : cultures.map(c => {
               const s = irrigStatus(c, irrigations);
@@ -178,7 +179,7 @@ export default function CartePage() {
           <View style={{ alignItems: "center", padding: 48 }}>
             <Text style={{ fontSize: 48 }}>🌿</Text>
             <Text style={{ color: "#9ca3af", marginTop: 12, fontSize: 14 }}>
-              Sélectionnez une culture
+              {t("carte.selectCulture")}
             </Text>
           </View>
         ) : (
@@ -207,17 +208,17 @@ export default function CartePage() {
                   paddingHorizontal: 12, paddingVertical: 5,
                   borderWidth: 1.5, borderColor: cfg.color,
                 }}>
-                  <Text style={{ fontSize: 11, fontWeight: "700", color: cfg.color }}>{cfg.label}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: cfg.color }}>{t(`carte.${cfg.labelKey}`)}</Text>
                 </View>
               </View>
 
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 {[
-                  { icon: "location-outline",  label: selected.parcelle || "Parcelle non définie" },
-                  { icon: "expand-outline",     label: selected.surface ? `${selected.surface} m²` : "Surface n/d" },
-                  { icon: "leaf-outline",       label: `${nbTrees || "—"} arbres` },
-                  { icon: "layers-outline",     label: selected.typeSol || "Sol n/d" },
-                  { icon: "location-outline",   label: selected.region || "Région n/d" },
+                  { icon: "location-outline",  label: selected.parcelle || t("carte.parcelUndefined") },
+                  { icon: "expand-outline",     label: selected.surface ? `${selected.surface} m²` : t("carte.surfaceNd") },
+                  { icon: "leaf-outline",       label: `${nbTrees || "—"} ${t("carte.trees")}` },
+                  { icon: "layers-outline",     label: selected.typeSol || t("carte.soilNd") },
+                  { icon: "location-outline",   label: selected.region || t("carte.regionNd") },
                 ].map((item, i) => (
                   <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Ionicons name={item.icon} size={13} color="#6b7280" />
@@ -238,10 +239,10 @@ export default function CartePage() {
               <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
                 <Ionicons name="grid-outline" size={18} color="#15803d" />
                 <Text style={{ fontSize: 15, fontWeight: "bold", color: "#111827", marginLeft: 7, flex: 1 }}>
-                  Vue de la parcelle
+                  {t("carte.parcelView")}
                 </Text>
                 <Text style={{ fontSize: 12, color: "#6b7280" }}>
-                  {nbTrees} {nbTrees === 1 ? "arbre" : "arbres"}
+                  {nbTrees} {nbTrees === 1 ? t("carte.tree") : t("carte.trees")}
                   {selected.surface ? ` · ${selected.surface} m²` : ""}
                 </Text>
               </View>
@@ -251,21 +252,28 @@ export default function CartePage() {
                 {Object.entries(STATUS).map(([k, v]) => (
                   <View key={k} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: v.color }} />
-                    <Text style={{ fontSize: 10, color: "#6b7280" }}>{v.label}</Text>
+                    <Text style={{ fontSize: 10, color: "#6b7280" }}>{t(`carte.${v.labelKey}`)}</Text>
                   </View>
                 ))}
               </View>
 
               {nbTrees > 0 ? (
-                <ParcelGrid count={nbTrees} icon={icon} color={cfg.color} />
+                <ParcelGrid
+                  count={nbTrees}
+                  icon={icon}
+                  color={cfg.color}
+                  scaleLabel={(scale, count) =>
+                    t("carte.iconScale").replace("{scale}", scale).replace("{count}", count)
+                  }
+                />
               ) : (
                 <View style={{ alignItems: "center", paddingVertical: 32 }}>
                   <Text style={{ fontSize: 48 }}>{icon}</Text>
                   <Text style={{ color: "#9ca3af", fontSize: 13, marginTop: 8 }}>
-                    Nombre d'arbres non configuré
+                    {t("carte.treesNotConfigured")}
                   </Text>
                   <Text style={{ color: "#6b7280", fontSize: 11, marginTop: 4, textAlign: "center" }}>
-                    Allez dans Cultures → modifier pour ajouter le nombre d'arbres
+                    {t("carte.treesHint")}
                   </Text>
                 </View>
               )}
@@ -282,16 +290,16 @@ export default function CartePage() {
                   flexWrap: "wrap",
                 }}>
                   <Text style={{ fontSize: 11, color: "#15803d" }}>
-                    Kc = <Text style={{ fontWeight: "bold" }}>{selected.kcActuel}</Text>
+                    {t("carte.kcLabel")}<Text style={{ fontWeight: "bold" }}>{selected.kcActuel}</Text>
                   </Text>
                   {selected.stadeActuel ? (
                     <Text style={{ fontSize: 11, color: "#15803d" }}>
-                      Stade : <Text style={{ fontWeight: "bold" }}>{selected.stadeActuel}</Text>
+                      {t("carte.stageLabel")}<Text style={{ fontWeight: "bold" }}>{selected.stadeActuel}</Text>
                     </Text>
                   ) : null}
                   {selected.surface && selected.kcActuel ? (
                     <Text style={{ fontSize: 11, color: "#15803d" }}>
-                      Surface : <Text style={{ fontWeight: "bold" }}>{(selected.surface / 10000).toFixed(3)} ha</Text>
+                      {t("carte.surfaceLabel")}<Text style={{ fontWeight: "bold" }}>{(selected.surface / 10000).toFixed(3)} ha</Text>
                     </Text>
                   ) : null}
                 </View>

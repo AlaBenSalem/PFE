@@ -140,7 +140,7 @@ export default function IrrigationPage() {
     } catch (err) {
       console.error('Irrigation.fetchCultures:', err.message);
       setError('Impossible de charger les cultures.');
-      Alert.alert('Erreur', 'Impossible de charger les cultures. Veuillez réessayer.');
+      Alert.alert(t('common.error'), t('irrigation.cannotLoad'));
     } finally {
       setLoading(false);
     }
@@ -287,7 +287,7 @@ export default function IrrigationPage() {
   // ── Actions ─────────────────────────────────────────────────────────────────
 
   const handleFaitPress = async () => {
-    if (!selectedCulture) { Alert.alert('Erreur', 'Veuillez sélectionner une culture'); return; }
+    if (!selectedCulture) { Alert.alert(t('common.error'), t('irrigation.selectCulture')); return; }
     if (isCompleted) return;
     try {
       const needs = calculateNeeds();
@@ -315,11 +315,11 @@ export default function IrrigationPage() {
         setIsCompleted(true);
         await fetchHistory();
         setEtcHistoryKey(p => p + 1);
-        Alert.alert('Succès', 'Irrigation enregistrée avec succès');
+        Alert.alert(t('common.success'), t('irrigation.saveSuccess'));
       } else throw new Error(result.message || "Échec de l'enregistrement");
     } catch (err) {
       console.error('Irrigation.handleFaitPress:', err.message);
-      Alert.alert('Erreur', "Impossible d'enregistrer l'irrigation.");
+      Alert.alert(t('common.error'), t('irrigation.saveFailed'));
     }
   };
 
@@ -344,7 +344,7 @@ export default function IrrigationPage() {
   const exportIrrigation = async () => {
     try {
       setExporting(true);
-      if (!historyItems?.length) { Alert.alert('Information', 'Aucune donnée à exporter'); return; }
+      if (!historyItems?.length) { Alert.alert(t('common.information'), t('irrigation.noDataToExport')); return; }
       const headers = ['Date','Culture','Parcelle','Mode','Eau (mm)','Durée (min)','Débit (mm/h)','ET₀ (mm/j)','ETc (mm/j)','Kc','Surface (m²)','Efficacité (%)'];
       const rows = historyItems.map(item => {
         const culture = cultures.find(c => c._id === (item.cultureId?._id || item.cultureId));
@@ -385,12 +385,12 @@ export default function IrrigationPage() {
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: t('irrigation.exporter') || "Exporter l'irrigation", UTI: 'public.comma-separated-values-text' });
         } else {
-          Alert.alert('Erreur', "Le partage n'est pas disponible sur cet appareil");
+          Alert.alert(t('common.error'), t('irrigation.shareNotAvailable'));
         }
       }
     } catch (err) {
       console.error('Irrigation.exportIrrigation:', err.message);
-      Alert.alert('Erreur', "Impossible d'exporter les données");
+      Alert.alert(t('common.error'), t('irrigation.exportFailed'));
     } finally {
       setExporting(false);
     }

@@ -414,7 +414,7 @@ function AIChatSheet({ onClose }) {
             placeholderTextColor={voice.isListening ? RAW.recording : RAW.muted}
             value={input}
             onChangeText={setInput}
-            onSubmitEditing={() => { if (input.trim() && !voice.isListening) chat.sendMessage(input); }}
+            onSubmitEditing={() => { if (input.trim() && !voice.isListening) { chat.sendMessage(input); setInput(""); } }}
             submitBehavior="blurAndSubmit"
             returnKeyType="send"
             maxLength={500}

@@ -421,7 +421,7 @@ export const AUTH_TRANSLATIONS = {
   },
 
   ar: {
-    tabs: { login: "تسجيل الدخول", signup: "إنشاء حساب" },
+    tabs: { login: "تسجيل الدخول", signup: "إنشاء حساب", admin: "مسؤول" },
     common: {
       confirm: "تأكيد",
       errorTitle: "خطأ",
@@ -602,7 +602,7 @@ export const AUTH_TRANSLATIONS = {
   },
 
   tr: {
-    tabs: { login: "Giris", signup: "Kayit ol" },
+    tabs: { login: "Giris", signup: "Kayit ol", admin: "Yönetici" },
     common: {
       confirm: "Onayla",
       errorTitle: "Hata",

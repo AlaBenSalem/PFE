@@ -431,11 +431,11 @@ export default function FertilisationPage() {
       if (res.ok) {
         setConfirmedEvents((prev) => new Set([...prev, key]));
       } else {
-        Alert.alert(t("common.error") || "Erreur", "Impossible d'enregistrer la fertilisation.");
+        Alert.alert(t("common.error"), t("fertilisation.saveFailed"));
       }
     } catch (e) {
       console.error("handleConfirmFert:", e.message);
-      Alert.alert(t("common.error") || "Erreur", "Erreur réseau.");
+      Alert.alert(t("common.error"), t("errors.network"));
     } finally {
       setConfirmingKey(null);
     }
@@ -509,7 +509,7 @@ export default function FertilisationPage() {
         URL.revokeObjectURL(url);
       } else {
         const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
-        if (!baseDir) { Alert.alert(t("common.error") || "Erreur", "Stockage indisponible sur cet appareil"); return; }
+        if (!baseDir) { Alert.alert(t("common.error"), t("fertilisation.storageUnavailable")); return; }
         const fileUri = baseDir + filename;
         await FileSystem.writeAsStringAsync(fileUri, csv, {
           encoding: FileSystem.EncodingType.UTF8,
@@ -523,7 +523,7 @@ export default function FertilisationPage() {
             UTI: "public.comma-separated-values-text",
           });
         } else {
-          Alert.alert("Information", `Fichier sauvegardé : ${filename}`);
+          Alert.alert(t("common.information"), t("fertilisation.fileSaved").replace("{filename}", filename));
         }
       }
     } catch (e) {

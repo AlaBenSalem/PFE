@@ -6,15 +6,50 @@ const ELEVENLABS_API_KEY  = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'cFUFIbKkO2iZFwS8cRnY';
 const GROQ_MODELS         = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
 
+// ── Greeting detection ────────────────────────────────────────────────────────
+const GREETING_PATTERN = /^(bonjour|bonsoir|salam|salut|hello|hi|hey|cava|cv|winek|labas|mar7ba|ahlen|مرحبا|أهلا|سلام|صباح الخير|مساء الخير|merhaba|selam|günaydın|iyi günler)[\s!?.،,]*$/i;
+
+const GREETING_RESPONSES = {
+  TUNISIAN_ARABIC: '!أهلاً 👋 كيفاش نعاونك اليوم؟',
+  MODERN_ARABIC:   '!أهلاً بك 👋 كيف يمكنني مساعدتك اليوم؟',
+  FRENCH:          'Bonjour ! 👋 Comment puis-je vous aider ?',
+  ENGLISH:         'Hello! 👋 How can I help you today?',
+  TURKISH:         'Merhaba! 👋 Bugün size nasıl yardımcı olabilirim?',
+};
+
+function getGreetingLang(langHint) {
+  if (langHint.startsWith('TUNISIAN_ARABIC')) return 'TUNISIAN_ARABIC';
+  if (langHint.startsWith('MODERN_ARABIC'))   return 'MODERN_ARABIC';
+  if (langHint.startsWith('ENGLISH'))         return 'ENGLISH';
+  if (langHint.startsWith('TURKISH'))         return 'TURKISH';
+  return 'FRENCH';
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
 exports.chat = async (req, res) => {
-  const { message, city } = req.body;
+  const { message, city, history = [], irrigationOverrides = {} } = req.body;
   if (!message?.trim())
     return res.status(400).json({ success: false, error: 'Message requis.' });
 
+  const trimmed = message.trim();
+
+  // ✅ Greeting shortcut — skip DB calls entirely
+  if (GREETING_PATTERN.test(trimmed)) {
+    const langHint = detectMessageLanguage(trimmed);
+    const lang     = getGreetingLang(langHint);
+    return res.json({
+      success: true,
+      answer:  GREETING_RESPONSES[lang],
+      conversationId: '',
+      context: { cropCount: 0, city: city || 'Tunis' },
+      provider: 'groq',
+    });
+  }
+
   try {
-    const context  = await buildUserContext(req.userId, city || 'Tunis');
-    const langHint = detectMessageLanguage(message.trim());
-    const answer   = await callGroq(message.trim(), context, langHint);
+    const context  = await buildUserContext(req.userId, city || 'Tunis', irrigationOverrides);
+    const langHint = detectMessageLanguage(trimmed);
+    const answer   = await callGroq(trimmed, context, langHint, history);
     return res.json({
       success: true,
       answer:  normalizeNumerals(answer),
@@ -28,6 +63,7 @@ exports.chat = async (req, res) => {
   }
 };
 
+// ── TTS ───────────────────────────────────────────────────────────────────────
 exports.tts = async (req, res) => {
   try {
     const { text } = req.body;
@@ -63,6 +99,7 @@ exports.tts = async (req, res) => {
   }
 };
 
+// ── Status ────────────────────────────────────────────────────────────────────
 exports.status = (req, res) => {
   res.json({ success: true, provider: 'groq', models: GROQ_MODELS });
 };

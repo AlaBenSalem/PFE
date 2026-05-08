@@ -1,15 +1,15 @@
-@startuml SD05 — Assistant IA (Dify + ElevenLabs)
+@startuml SD05 — Assistant IA (Groq + ElevenLabs)
 
 skinparam monochrome true
 skinparam shadowing false
-title SD05 — Assistant IA SmartIrrig\n(Dify Chatflow + ElevenLabs TTS + Reconnaissance Vocale)
+title SD05 — Assistant IA SmartIrrig\n(Groq Llama 3.3-70B + ElevenLabs TTS + Reconnaissance Vocale)
 
 actor "Utilisateur" as U
 participant "AIChatScreen\n(React Native)" as App
 participant "aiRoutes\n(Express)" as API
 participant "weatherService" as WS
 database "MongoDB" as DB
-participant "Dify API\n(Chatflow)" as Dify
+participant "Groq API\n(Llama 3.3-70B)" as Groq
 participant "ElevenLabs\nTTS" as EL
 
 == Ouverture du chat ==
@@ -17,7 +17,7 @@ participant "ElevenLabs\nTTS" as EL
 U -> App : Appuie sur FAB 🤖
 App --> U : Panneau de chat s'ouvre (slide)
 App -> API : GET /api/ai/status
-API --> App : { provider: "Dify", configured: true }
+API --> App : { provider: "Groq", configured: true }
 App --> U : Serveur prêt ✅
 
 == Envoi d'un message (texte ou vocal) ==
@@ -35,9 +35,9 @@ end
 
 App -> API : POST /api/ai/chat\n{ message, conversationId, city }
 note right of App
-  conversationIdRef.current :
+  conversationId :
   • "" pour 1ère question
-  • id Dify pour la suite
+  • id conservé pour la suite
   (useRef → pas de re-render)
 end note
 
@@ -56,26 +56,24 @@ WS --> API : { et0, temperature, humidity,\n  wind, description }
 API -> API : buildUserContext() :\n• Résumé cultures (nom, variete,\n  surface, Kc, nb arbres)\n• Irrigations récentes (volume, date)\n• Besoins ETc = ET₀ × Kc par culture\n• Prochaines irrigations\n• Prochaines fertilisations\n• Météo du jour
 API -> API : detectMessageLanguage(message)\n→ TUNISIAN_ARABIC | MODERN_ARABIC\n  | FRENCH | ENGLISH | TURKISH
 
-' ── Appel Dify ──
+' ── Appel Groq ──
 alt 1ère question (conversationId vide)
-  API -> Dify : POST /v1/chat-messages\n{\n  inputs: {},\n  query: "[CONTEXTE]\n    Cultures(N): ...\n    ETc: ...\n    Météo: ...\n    [LANGUE DÉTECTÉE]\n    TUNISIAN_ARABIC\n    [MESSAGE]\n    {message}",\n  response_mode: "blocking",\n  conversation_id: "",\n  user: userId\n}
-  note right of Dify
-    Dify crée une nouvelle conversation
-    et retourne un conversation_id unique
+  API -> Groq : POST /openai/v1/chat/completions\n{\n  model: "llama-3.3-70b-versatile",\n  messages: [\n    { role: "system", content: systemPrompt },\n    { role: "user", content:\n      "[CONTEXTE]\\nCultures(N): ...\\n"\n      + "ETc: ...\\nMétéo: ...\\n"\n      + "[LANGUE] FRENCH\\n"\n      + "[MESSAGE] {message}" }\n  ]\n}
+  note right of Groq
+    Groq retourne une réponse directe
+    (pas de gestion de session côté Groq)
   end note
 else Suite de conversation
-  API -> Dify : POST /v1/chat-messages\n{\n  query: "[LANGUE DÉTECTÉE]\n    ...\n    [MESSAGE]\n    {message}",\n  conversation_id: "abc-xyz-123",\n  user: userId\n}
-  note right of Dify
-    Dify retrouve l'historique
-    via conversation_id
-    → contexte conservé
+  API -> Groq : POST /openai/v1/chat/completions\n{\n  model: "llama-3.3-70b-versatile",\n  messages: [\n    { role: "system", ... },\n    ...historique,\n    { role: "user", content: message }\n  ]\n}
+  note right of Groq
+    L'historique est géré
+    côté serveur (tableau messages)
   end note
 end
 
-Dify --> API : { answer: "...", conversation_id: "abc-xyz-123" }
+Groq --> API : { choices: [{ message: { content: "..." } }] }
 API -> API : normalizeNumerals(answer)\n(١٢٣ → 123)
 API --> App : { success, answer, conversationId }
-App -> App : conversationIdRef.current = conversationId
 App --> U : Réponse affichée dans le chat 💬
 
 == Synthèse Vocale (TTS) ==
@@ -102,7 +100,7 @@ end
 == Changement de langue ==
 
 U -> App : Change la langue de l'app\n(AR → FR → EN → TR)
-App -> App : conversationIdRef.current = ""\n(réinitialise la conversation Dify)
+App -> App : conversationId = ""\n(réinitialise la conversation)
 App -> App : messages = [message d'accueil\ndans la nouvelle langue]
 App --> U : Nouveau fil de conversation\ndans la langue choisie
 

@@ -80,7 +80,7 @@ export default function CalendarScreen() {
 
   const fetchAll = useCallback(async (cityName, lat = null, lon = null) => {
     if (!cityName?.trim()) {
-      Alert.alert(t("common.error"), "Veuillez entrer un nom de ville valide");
+      Alert.alert(t("common.error"), t("calendar.invalidCity"));
       return;
     }
     try {

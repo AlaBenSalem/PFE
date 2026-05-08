@@ -69,4 +69,31 @@ API --> App : 200 { success, fullName }
 App -> App : AsyncStorage.setItem("adminData")
 App --> A : ✅ Nom mis à jour dans la sidebar
 
+== Gestion des Messages ==
+
+A -> App : Accède à "Messages"
+App -> API : GET /api/admin/messages\n?limit=20&unreadOnly=false\nAuthorization: Bearer {adminToken}
+API -> DB : Message.find()\n.sort({ createdAt: -1 })\n.limit(20)
+DB --> API : liste des messages
+API --> App : { data: [...messages] }
+App --> A : Liste des messages\n(sujet, expéditeur, date, statut lu/non lu)
+
+A -> App : Clique sur un message non lu
+App -> API : PATCH /api/admin/messages/:id/read
+API -> DB : Message.findByIdAndUpdate(:id,\n{ isRead: true })
+DB --> API : message mis à jour
+API --> App : 200 { success }
+App --> A : Message marqué comme lu ✅
+
+A -> App : Saisit une réponse et valide
+App -> API : POST /api/admin/messages/:id/reply\n{ reply: "Bonjour, voici ma réponse..." }
+API -> DB : Message.findById(:id)
+DB --> API : message + senderEmail
+API -> Mail : Envoyer email de réponse\n(HTML template)\nDest: senderEmail
+Mail --> A : Email envoyé ✅
+API -> DB : Message.findByIdAndUpdate(:id,\n{ reply, isRead: true })
+DB --> API : message mis à jour
+API --> App : 200 { success }
+App --> A : ✅ Réponse envoyée
+
 @enduml

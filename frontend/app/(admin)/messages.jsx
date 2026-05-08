@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -63,8 +61,6 @@ export default function AdminMessages() {
   const [selected, setSelected] = useState(null);
   const [detailVisible, setDetailVisible] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
-  const [replyText, setReplyText] = useState("");
-  const [sendingReply, setSendingReply] = useState(false);
 
   const loadMessages = async ({ showSpinner } = { showSpinner: true }) => {
     if (showSpinner) setLoading(true);
@@ -89,39 +85,8 @@ export default function AdminMessages() {
     loadMessages({ showSpinner: true });
   }, [unreadOnly]);
 
-  const sendReply = async () => {
-    if (!replyText.trim() || !selected) return;
-    setSendingReply(true);
-    try {
-      const res = await apiFetch(API_ENDPOINTS.admin.messageReply(selected._id), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ replyBody: replyText.trim() }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (res.ok && json?.success) {
-        const now = new Date().toISOString();
-        setSelected((prev) => prev ? { ...prev, repliedAt: now, replyBody: replyText.trim() } : prev);
-        setItems((prev) =>
-          prev.map((item) =>
-            item._id === selected._id ? { ...item, repliedAt: now } : item,
-          ),
-        );
-        setReplyText("");
-        Alert.alert(t("common.success"), t("admin.replySuccess"));
-      } else {
-        Alert.alert(t("common.error"), json?.message || t("admin.replyError"));
-      }
-    } catch {
-      Alert.alert(t("common.error"), t("admin.replyError"));
-    } finally {
-      setSendingReply(false);
-    }
-  };
-
   const openMessage = async (message) => {
     setSelected(message);
-    setReplyText("");
     setDetailVisible(true);
 
     if (message?.readAt) return;
@@ -434,41 +399,6 @@ export default function AdminMessages() {
                 </View>
               ) : null}
 
-              {/* ── REPLY BOX ── */}
-              <View className="mt-4 pt-3 border-t border-gray-100">
-                <View className="flex-row items-center gap-1.5 mb-2">
-                  <Ionicons name="send-outline" size={14} color={COLORS.greenDark} />
-                  <Text className="text-gray-800 text-xs font-extrabold">
-                    {t("admin.replyLabel")}
-                  </Text>
-                </View>
-                <TextInput
-                  value={replyText}
-                  onChangeText={setReplyText}
-                  placeholder={t("admin.replyPlaceholder")}
-                  placeholderTextColor="#94a3b8"
-                  multiline
-                  textAlignVertical="top"
-                  maxLength={5000}
-                  className="min-h-[90px] rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-900"
-                />
-                <TouchableOpacity
-                  onPress={sendReply}
-                  disabled={!replyText.trim() || sendingReply}
-                  activeOpacity={0.85}
-                  className="mt-2.5 h-11 rounded-xl bg-green-600 items-center justify-center flex-row gap-2"
-                  style={{ opacity: !replyText.trim() || sendingReply ? 0.5 : 1 }}
-                >
-                  {sendingReply ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Ionicons name="send" size={15} color="#fff" />
-                  )}
-                  <Text className="text-white text-xs font-extrabold">
-                    {sendingReply ? t("admin.replySending") : t("admin.replySend")}
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </ScrollView>
           </View>
         </View>

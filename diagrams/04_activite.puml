@@ -25,7 +25,15 @@ else (Non)
   :Saisir email et mot de passe;
   if (Identifiants valides ?) then (Non)
     :Afficher erreur;
-    stop
+    if (Mot de passe oublié ?) then (Oui)
+      :Saisir email de récupération;
+      :Recevoir code par email;
+      :Vérifier le code;
+      :Saisir nouveau mot de passe;
+      :Mot de passe réinitialisé;
+    else (Non)
+      stop
+    endif
   endif
 endif
 
@@ -39,6 +47,8 @@ if (Profil Administrateur ?) then (Oui)
     :Gérer les utilisateurs;
   fork again
     :Gérer la base de données Kc;
+  fork again
+    :Gérer les messages\n(lire, répondre, marquer lu);
   end fork
 
 else (Non — Utilisateur)
@@ -54,10 +64,14 @@ else (Non — Utilisateur)
   fork again
     :Fertilisation\n(consulter calendrier, enregistrer);
   fork again
+    :Météo & Prévisions\n(consulter météo, chercher ville);
+  fork again
     :Assistant IA\n(poser une question par texte ou voix);
+  fork again
+    :Contacter l'administrateur\n(envoyer un message);
   end fork
 
-  :Consulter les notifications;
+  :Consulter / Modifier son profil;
 
 endif
 

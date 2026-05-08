@@ -31,7 +31,7 @@ export default function HistoriquePage() {
       setExporting(true);
       await exportPDFReport({ irrigations, fertilisations });
     } catch (e) {
-      Alert.alert("Erreur", "Impossible de générer le rapport PDF.");
+      Alert.alert(t("common.error"), t("history.pdfError"));
       console.error(e);
     } finally {
       setExporting(false);

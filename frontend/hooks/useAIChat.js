@@ -15,6 +15,9 @@ const INITIAL_MESSAGES = {
   tr: "🌿 Merhaba! Size nasıl yardımcı olabilirim?",
 };
 
+// IDs of messages to exclude from history sent to the backend
+const INITIAL_MSG_ID = "0";
+
 /**
  * @param {{
  *   speakText: (text: string, lang: string) => Promise<void>,
@@ -27,7 +30,7 @@ const INITIAL_MESSAGES = {
 export function useAIChat({ speakText, setIsSpeaking, detectSpeechLang, setTtsLang, flatListRef }) {
   const { language } = useLanguage();
 
-  const [messages,     setMessages]     = useState([{ id: "0", role: "assistant", text: INITIAL_MESSAGES[language] || INITIAL_MESSAGES.fr }]);
+  const [messages,     setMessages]     = useState([{ id: INITIAL_MSG_ID, role: "assistant", text: INITIAL_MESSAGES[language] || INITIAL_MESSAGES.fr }]);
   const [loading,      setLoading]      = useState(false);
   const [serverStatus, setServerStatus] = useState("connecting"); // "connecting" | "ready"
 
@@ -66,7 +69,7 @@ export function useAIChat({ speakText, setIsSpeaking, detectSpeechLang, setTtsLa
 
   // ── Reset messages when language changes ────────────────────────────────
   useEffect(() => {
-    setMessages([{ id: "0", role: "assistant", text: INITIAL_MESSAGES[language] || INITIAL_MESSAGES.fr }]);
+    setMessages([{ id: INITIAL_MSG_ID, role: "assistant", text: INITIAL_MESSAGES[language] || INITIAL_MESSAGES.fr }]);
     conversationIdRef.current = "";
   }, [language]);
 
@@ -98,16 +101,28 @@ export function useAIChat({ speakText, setIsSpeaking, detectSpeechLang, setTtsLa
     // Unlock AudioContext during a user gesture (web)
     if (Platform.OS === "web") { try { getWebAudioCtx()?.resume(); } catch {} }
 
+    // ✅ Build history BEFORE setMessages, excluding the static welcome message (id="0")
+    // so the AI doesn't think it already greeted and skip the salutation response.
+    const history = [
+      ...messages
+        .filter((m) => m.id !== INITIAL_MSG_ID && (m.role === "user" || m.role === "assistant"))
+        .slice(-6)
+        .map((m) => ({ role: m.role, content: m.text })),
+      { role: "user", content: trimmed },
+    ];
+
     setMessages((prev) => [...prev, { id: Date.now().toString(), role: "user", text: trimmed }]);
     setLoading(true);
 
     try {
+
       const res = await apiFetch(API_ENDPOINTS.ai?.chat || "/ai/chat", {
         method: "POST",
         body: JSON.stringify({
           message:        trimmed,
           conversationId: conversationIdRef.current || "",
           city:           "Tunis",
+          history,
         }),
         timeoutMs: 90000,
       });
@@ -132,10 +147,12 @@ export function useAIChat({ speakText, setIsSpeaking, detectSpeechLang, setTtsLa
       const aiText  = data.answer;
       setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", text: aiText }]);
 
+      // ✅ Truncate TTS to 200 chars max — long sentences cause bad voice quality
+      const ttsText  = aiText.length > 200 ? aiText.slice(0, 200).replace(/[^.!?،؟]*$/, '').trim() || aiText.slice(0, 200) : aiText;
       const detected = detectSpeechLang(aiText);
       setTtsLang(detected);
       setIsSpeaking(true);
-      await speakText(aiText, detected);
+      await speakText(ttsText, detected);
 
     } catch (err) {
       console.error("❌ [sendMessage]", err.message);
@@ -148,7 +165,7 @@ export function useAIChat({ speakText, setIsSpeaking, detectSpeechLang, setTtsLa
       setLoading(false);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
-  }, [loading, speakText, setIsSpeaking, detectSpeechLang, setTtsLang, getErrorText, t, flatListRef]);
+  }, [loading, messages, speakText, setIsSpeaking, detectSpeechLang, setTtsLang, getErrorText, t, flatListRef]);
 
   return {
     messages,
