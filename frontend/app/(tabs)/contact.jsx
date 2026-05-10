@@ -121,6 +121,7 @@ export default function ContactAdmin() {
     }
   };
 
+
   return (
     <SafeScreen className="flex-1 bg-[#F4F6F8]">
       <BrandHeader
@@ -145,8 +146,9 @@ export default function ContactAdmin() {
           showsVerticalScrollIndicator={false}
         >
           <View
-            className="rounded-[18px] border bg-white p-4"
+            className="rounded-[18px] border p-4"
             style={{
+              backgroundColor: "#ffffff",
               borderColor: COLORS.border,
               shadowColor: "#000",
               shadowOpacity: 0.06,
@@ -156,7 +158,7 @@ export default function ContactAdmin() {
             }}
           >
             <Text
-              className="text-lg font-extrabold text-slate-900"
+              className="text-lg font-extrabold text-slate-900 "
               style={{ textAlign: isRTL ? "right" : "left" }}
             >
               {t("messages.writeToAdmin")}
@@ -168,7 +170,10 @@ export default function ContactAdmin() {
               {t("messages.subtitle")}
             </Text>
 
-            <View className="mt-3 flex-row items-center gap-2 rounded-[14px] border border-slate-100 bg-slate-50 px-3 py-2.5">
+            <View
+              className="mt-3 flex-row items-center gap-2 rounded-[14px] border border-slate-100 px-3 py-2.5"
+              style={{ backgroundColor: "#f8fafc" }}
+            >
               <Ionicons name="person-circle-outline" size={18} color={COLORS.muted} />
               {loadingProfile ? (
                 <ActivityIndicator size="small" color={COLORS.muted} />
@@ -181,7 +186,7 @@ export default function ContactAdmin() {
             </View>
 
             <Text
-              className="mb-1.5 mt-3.5 text-[13px] font-bold text-slate-900"
+              className="mb-1.5 mt-3.5 text-[13px] font-bold text-slate-900 "
               style={{ textAlign: isRTL ? "right" : "left" }}
             >
               {t("messages.subject")}
@@ -191,8 +196,9 @@ export default function ContactAdmin() {
               onChangeText={setSubject}
               placeholder={t("messages.subjectPlaceholder")}
               placeholderTextColor="#94a3b8"
-              className="rounded-[14px] border bg-white px-3 py-2.5 text-sm text-slate-900"
+              className="rounded-[14px] border px-3 py-2.5 text-sm text-slate-900 "
               style={{
+                backgroundColor: "#ffffff",
                 borderColor: COLORS.border,
                 textAlign: isRTL ? "right" : "left",
               }}
@@ -200,7 +206,7 @@ export default function ContactAdmin() {
             />
 
             <Text
-              className="mb-1.5 mt-3.5 text-[13px] font-bold text-slate-900"
+              className="mb-1.5 mt-3.5 text-[13px] font-bold text-slate-900 "
               style={{ textAlign: isRTL ? "right" : "left" }}
             >
               {t("messages.message")}
@@ -210,8 +216,9 @@ export default function ContactAdmin() {
               onChangeText={setBody}
               placeholder={t("messages.messagePlaceholder")}
               placeholderTextColor="#94a3b8"
-              className="min-h-[130px] rounded-[14px] border bg-white px-3 py-3 text-sm text-slate-900"
+              className="min-h-[130px] rounded-[14px] border px-3 py-3 text-sm text-slate-900 "
               style={{
+                backgroundColor: "#ffffff",
                 borderColor: COLORS.border,
                 textAlign: isRTL ? "right" : "left",
               }}

@@ -13,6 +13,7 @@ import { useIrrigationNotifications } from "@hooks/useNotifications";
 import { useLanguage } from "@context/LanguageContext";
 import { translateCropName } from "@utils/cropNames";
 import ETcHistory from "@components/ETcHistory";
+import DepletionCurveChart from "@components/DepletionCurveChart";
 import WeatherAlert from "@components/WeatherAlert";
 import AutoRecommendation from "@components/AutoRecommendation";
 import * as Notifications from "expo-notifications";
@@ -575,6 +576,7 @@ export default function IrrigationPage() {
 
             {isCompleted && selectedCulture && (
               <View className="bg-green-50 border-2 border-green-200 rounded-2xl p-6 mb-4 items-center">
+
                 <MaterialCommunityIcons name="check-circle" size={50} color="#4CAF50" />
                 <Text className="text-[20px] font-semibold text-green-800 mt-2">
                   {t("irrigation.completed") || "Irrigation enregistrée !"}
@@ -601,7 +603,12 @@ export default function IrrigationPage() {
             )}
 
             {selectedCulture && (
-              <View className="mb-6">
+              <>
+                <DepletionCurveChart
+                  besoins={besoins}
+                  historyItems={historyItems}
+                  selectedCulture={selectedCulture}
+                />
                 <ETcHistory
                   key={etcHistoryKey}
                   cultureId={selectedCulture._id}
@@ -610,8 +617,9 @@ export default function IrrigationPage() {
                   todayEt0={parseFloat(besoins.et0)}
                   todayKc={parseFloat(besoins.kc)}
                 />
-              </View>
+              </>
             )}
+
           </>
         )}
 

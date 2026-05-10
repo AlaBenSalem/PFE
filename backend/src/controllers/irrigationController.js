@@ -1,15 +1,11 @@
-// controllers/irrigationController.js — CORRIGÉ
-// Fix 1 : SOIL_TYPES → SOIL_PARAMS (export correct de soilData.js)
-// Fix 2 : getAllIrrigations filtre par userId si présent (isolation données)
-// Fix 3 : createIrrigation valide volumeLitres et temps avant enregistrement
+// controllers/irrigationController.js
+// ✅ MODIFIÉ : Ajout endpoint updateStockEauHoraire — mise à jour stock sol chaque 1h
 const Irrigation = require('../models/Irrigation');
 const Culture    = require('../models/Culture');
 const Weather    = require('../models/Weather');
 const { getKcForCultureAndMonth } = require('./kcController');
-const { SOIL_PARAMS, calculerRFU } = require('../data/soilData'); // ✅ FIX 1
+const { SOIL_PARAMS, calculerRFU } = require('../data/soilData');
 
-// ─── Middleware auth optionnel pour irrigations ──────────────────────────────
-// (à appeler depuis irrigationRoutes.js)
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
 
@@ -27,11 +23,9 @@ function extractUserId(req) {
 // ─── GET toutes les irrigations ───────────────────────────────────────────────
 exports.getAllIrrigations = async (req, res) => {
   try {
-    // ✅ FIX 2 : isoler les données par utilisateur
     const userId = extractUserId(req);
     let filter = {};
     if (userId) {
-      // Récupérer les cultureIds de cet utilisateur
       const userCultures = await Culture.find({ userId }).select('_id');
       const ids = userCultures.map(c => c._id);
       filter = { cultureId: { $in: ids } };
@@ -162,7 +156,6 @@ exports.createIrrigation = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Culture non trouvée' });
     }
 
-    // ✅ FIX 3 : Validation des champs requis et des valeurs
     if (eauMm === undefined || eauMm === null) {
       return res.status(400).json({ success: false, error: 'Le champ eauMm est requis' });
     }
@@ -178,7 +171,6 @@ exports.createIrrigation = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Durée invalide (doit être ≥ 1 min)' });
     }
 
-    // ✅ FIX 1 : SOIL_PARAMS utilisé correctement (via calculerRFU)
     const typeSol    = culture.typeSol || 'limoneux';
     const typeCulture = culture.type   || 'legume';
     const etcVal     = parseFloat(etc) || 3.5;
@@ -237,7 +229,8 @@ exports.createIrrigation = async (req, res) => {
     });
     culture.kcActuel = parseFloat(kc);
 
-    // Remettre le stock à la capacité au champ (W_cc) après irrigation
+    // ✅ Remettre le stock à la capacité au champ (W_cc) après irrigation
+    // + marquer le timestamp exact pour le calcul horaire
     const THETA_STD_CTRL = {
       sableux:         { cc: 0.12 }, limono_sableux: { cc: 0.23 },
       limoneux:        { cc: 0.31 }, argilo_limoneux: { cc: 0.38 }, argileux: { cc: 0.42 },
@@ -249,7 +242,9 @@ exports.createIrrigation = async (req, res) => {
     const zEff = culture.profondeurRacinaire != null
       ? culture.profondeurRacinaire
       : (Z_DEFAUT_CTRL[typeCulture] || 0.6);
+
     culture.stockEauMm        = parseFloat((thetaCcEff * zEff * 1000).toFixed(1));
+    // ✅ Timestamp exact de la mise à jour (pour calcul horaire côté frontend)
     culture.stockEauUpdatedAt = new Date();
 
     await culture.save();
@@ -285,6 +280,128 @@ exports.createIrrigation = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Erreur POST /irrigations:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─── ✅ NOUVEAU : PUT mise à jour horaire du stock sol ─────────────────────────
+// Appelé par un cron job toutes les heures (ex: node-cron dans server.js)
+// Calcule la moyenne ETc des dernières 1h et déduit du stock
+exports.updateStockEauHoraire = async (req, res) => {
+  try {
+    // Récupérer toutes les cultures actives
+    const cultures = await Culture.find({ stockEauMm: { $ne: null } });
+
+    const now     = new Date();
+    const oneHourAgo = new Date(now.getTime() - 3_600_000);
+
+    let updated = 0;
+    const results = [];
+
+    for (const culture of cultures) {
+      try {
+        const typeSol     = culture.typeSol    || 'limoneux';
+        const typeCulture = culture.type       || 'legume';
+
+        // ── Récupérer les données météo de la dernière heure ──────────────────
+        const weatherRecords = await Weather.find({
+          date: { $gte: oneHourAgo, $lte: now },
+        }).sort({ date: -1 });
+
+        // ── Calculer ET0 moyen sur la dernière 1h ─────────────────────────────
+        let et0Moyen;
+        if (weatherRecords.length > 0) {
+          const sumEt0 = weatherRecords.reduce((s, w) => s + (w.et0 || 0), 0);
+          et0Moyen = sumEt0 / weatherRecords.length;
+        } else {
+          // Fallback : utiliser le dernier enregistrement météo disponible
+          const lastWeather = await Weather.findOne().sort({ date: -1 });
+          et0Moyen = lastWeather?.et0 || 3.5;
+        }
+
+        // ── Calculer Kc du mois en cours ──────────────────────────────────────
+        let kc = culture.kcActuel || 0.65;
+        try {
+          const moisCourant = now.getMonth() + 1;
+          const { kc: kcDynamic } = await getKcForCultureAndMonth(culture.nom, moisCourant);
+          if (kcDynamic && kcDynamic > 0) kc = kcDynamic;
+        } catch (_) { /* garder kc actuel */ }
+
+        // ── ETc moyen sur 1h (mm/h) ───────────────────────────────────────────
+        const etcJournalier = et0Moyen * kc;          // mm/jour
+        const etcHoraire    = etcJournalier / 24;     // mm/heure
+
+        // ── ETc/h doit être strictement positif pour déduire ─────────────────
+        if (etcHoraire <= 0) continue;
+
+        // ── Bornes du sol ─────────────────────────────────────────────────────
+        const THETA_STD = {
+          sableux:         { cc: 0.12, pf: 0.05 },
+          limono_sableux:  { cc: 0.23, pf: 0.10 },
+          limoneux:        { cc: 0.31, pf: 0.15 },
+          argilo_limoneux: { cc: 0.38, pf: 0.22 },
+          argileux:        { cc: 0.42, pf: 0.26 },
+        };
+        const Z_DEFAUT = { agrume: 0.9, fruit: 1.0, legume: 0.5, cereale: 1.0 };
+
+        const thetaCcEff = culture.thetaCc != null
+          ? culture.thetaCc
+          : (THETA_STD[typeSol]?.cc || 0.31);
+        const thetaPfEff = culture.thetaPf != null
+          ? culture.thetaPf
+          : (THETA_STD[typeSol]?.pf || 0.15);
+        const z = culture.profondeurRacinaire != null
+          ? culture.profondeurRacinaire
+          : (Z_DEFAUT[typeCulture] || 0.6);
+
+        const W_cc    = thetaCcEff * z * 1000;
+        const W_pf_mm = thetaPfEff * z * 1000;
+
+        // ── Nouveau stock = ancien stock − ETc/h uniquement ───────────────────
+        // Règle absolue : le stock ne peut QUE DIMINUER via ETc.
+        // La pluie et les irrigations sont gérées séparément — elles ne sont
+        // jamais ajoutées ici pour éviter toute augmentation involontaire.
+        const stockActuel  = parseFloat(culture.stockEauMm);
+        const stockDeduit  = stockActuel - etcHoraire;
+        const nouveauStock = Math.min(
+          stockActuel,                          // jamais au-dessus du stock actuel
+          Math.max(W_pf_mm, stockDeduit)        // jamais en dessous du point de flétrissement
+        );
+
+        // ── Persister en base ─────────────────────────────────────────────────
+        culture.stockEauMm        = parseFloat(nouveauStock.toFixed(1));
+        culture.stockEauUpdatedAt = now;
+        await culture.save();
+
+        updated++;
+        results.push({
+          cultureId: culture._id,
+          nom: culture.nom,
+          stockAvant: stockActuel.toFixed(1),
+          etcHoraire: etcHoraire.toFixed(3),
+          stockApres: nouveauStock.toFixed(1),
+          delta: (nouveauStock - stockActuel).toFixed(3),
+          et0Moyen: et0Moyen.toFixed(2),
+          kc: kc.toFixed(2),
+        });
+
+        console.log(
+          `⏱ Stock horaire [${culture.nom}]: ${stockActuel.toFixed(1)} → ${nouveauStock.toFixed(1)} mm` +
+          ` (ETc/h=${etcHoraire.toFixed(3)} mm, ET0moy=${et0Moyen.toFixed(2)}, Kc=${kc.toFixed(2)})`
+        );
+      } catch (cultureErr) {
+        console.error(`❌ Erreur update stock [${culture.nom}]:`, cultureErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Stock sol mis à jour pour ${updated} culture(s)`,
+      updatedAt: now,
+      results,
+    });
+  } catch (error) {
+    console.error('❌ Erreur updateStockEauHoraire:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -420,7 +537,6 @@ exports.calculateIrrigationNeeds = async (req, res) => {
       ? Math.round((volumeReel / nombreArbres) * 10) / 10
       : null;
 
-    // ✅ FIX 1 : SOIL_PARAMS utilisé correctement via calculerRFU
     const typeSol    = culture.typeSol   || 'limoneux';
     const typeCulture = culture.type     || 'legume';
     const rfuData    = calculerRFU(typeSol, typeCulture, etc, culture.profondeurRacinaire);

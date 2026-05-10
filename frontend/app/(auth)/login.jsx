@@ -319,6 +319,7 @@ function LoginForm({ t, isRTL }) {
         keyboardType="email-address"
         autoCapitalize="none"
         isRTL={isRTL}
+
       />
       <FieldLabel text={t("signup.passwordLabel")} isRTL={isRTL} />
       <FieldInput
@@ -331,6 +332,7 @@ function LoginForm({ t, isRTL }) {
         showPassword={showPassword}
         onTogglePassword={() => setShowPassword((p) => !p)}
         isRTL={isRTL}
+
         extraStyle={{ marginBottom: 8 }}
       />
       <TouchableOpacity
@@ -485,6 +487,7 @@ function SignupForm({ t, isRTL }) {
             onChangeText={set("lastName")}
             icon="person-outline"
             isRTL={isRTL}
+    
           />
         </View>
         <View className="flex-1">
@@ -495,6 +498,7 @@ function SignupForm({ t, isRTL }) {
             onChangeText={set("firstName")}
             icon="person-outline"
             isRTL={isRTL}
+    
           />
         </View>
       </View>
@@ -505,6 +509,7 @@ function SignupForm({ t, isRTL }) {
         onChangeText={set("address")}
         icon="location-outline"
         isRTL={isRTL}
+
       />
       <FieldLabel text={t("signup.emailLabel")} isRTL={isRTL} />
       <FieldInput
@@ -515,6 +520,7 @@ function SignupForm({ t, isRTL }) {
         keyboardType="email-address"
         autoCapitalize="none"
         isRTL={isRTL}
+
       />
       <FieldLabel text={t("signup.passwordLabel")} isRTL={isRTL} />
       <FieldInput
@@ -527,6 +533,7 @@ function SignupForm({ t, isRTL }) {
         showPassword={showPassword}
         onTogglePassword={() => setShowPassword((p) => !p)}
         isRTL={isRTL}
+
         extraStyle={{ marginBottom: 24 }}
       />
       <SubmitButton

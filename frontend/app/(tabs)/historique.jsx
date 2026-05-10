@@ -39,7 +39,7 @@ export default function HistoriquePage() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
       <BrandHeader
         title={t("history.title")}
         right={
@@ -118,7 +118,7 @@ export default function HistoriquePage() {
                 key={stat.label}
                 style={{
                   flex: 1,
-                  backgroundColor: "#fff",
+                  backgroundColor: '#ffffff',
                   borderRadius: 12,
                   padding: 10,
                   alignItems: "center",
@@ -135,7 +135,7 @@ export default function HistoriquePage() {
                 >
                   {stat.value}
                 </Text>
-                <Text style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
+                <Text style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>
                   {stat.label}
                 </Text>
               </View>
@@ -150,18 +150,18 @@ export default function HistoriquePage() {
           <View
             style={{
               alignItems: "center",
-              backgroundColor: "#fff",
+              backgroundColor: '#ffffff',
               borderRadius: 16,
-              borderColor: "#edf1f0",
+              borderColor: '#edf1f0',
               borderWidth: 1,
               padding: 24,
             }}
           >
             <Ionicons name="water" size={36} color="#4CAF50" />
-            <Text style={{ fontWeight: "bold", fontSize: 15, color: "#1f2937", marginTop: 12 }}>
+            <Text style={{ fontWeight: "bold", fontSize: 15, color: '#1f2937', marginTop: 12 }}>
               {t("history.irrigationHistory")}
             </Text>
-            <Text style={{ color: "#6b7280", fontSize: 13, textAlign: "center", marginTop: 6 }}>
+            <Text style={{ color: '#6b7280', fontSize: 13, textAlign: "center", marginTop: 6 }}>
               {t("history.empty")}
             </Text>
           </View>

@@ -34,16 +34,20 @@ async function sendAdminMessageEmail({ senderName, senderEmail, subject, body, c
       </div>
     </div>`;
 
-  if (process.env.RESEND_API_KEY) {
+  const provider = String(process.env.EMAIL_PROVIDER || 'auto').trim().toLowerCase();
+  const useGmail = provider === 'gmail' || !process.env.RESEND_API_KEY;
+
+  if (!useGmail && process.env.RESEND_API_KEY) {
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { error } = await resend.emails.send({ from: EMAIL_FROM, to: ADMIN_NOTIFY_EMAIL, subject: `SmartIrrig — ${safeSubject}`, html });
-    if (!error) return;
+    if (!error) { console.log(`[AdminEmail] Sent via Resend to: ${ADMIN_NOTIFY_EMAIL}`); return; }
     console.warn(`[AdminEmail][Resend] Failed: ${JSON.stringify(error)}`);
   }
 
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
-    await transporter.sendMail({ from: process.env.EMAIL_USER, to: ADMIN_NOTIFY_EMAIL, subject: `SmartIrrig — ${safeSubject}`, html });
+    await transporter.sendMail({ from: `SmartIrrig <${process.env.EMAIL_USER}>`, to: ADMIN_NOTIFY_EMAIL, subject: `SmartIrrig — ${safeSubject}`, html });
+    console.log(`[AdminEmail] Sent via Gmail to: ${ADMIN_NOTIFY_EMAIL}`);
   }
 }
 

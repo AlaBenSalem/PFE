@@ -116,14 +116,14 @@ export default function CartePage() {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5", alignItems: "center", justifyContent: "center" }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5', alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator size="large" color="#16a34a" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
       <BrandHeader title={t("carte.title")} />
 
       <ScrollView
@@ -152,7 +152,7 @@ export default function CartePage() {
                     borderRadius: 14,
                     minWidth: 80,
                     alignItems: "center",
-                    backgroundColor: isSelected ? "#15803d" : "#fff",
+                    backgroundColor: isSelected ? "#15803d" : '#ffffff',
                     borderWidth: 2,
                     borderColor: isSelected ? "#15803d" : c2.color,
                     elevation: isSelected ? 4 : 1,
@@ -160,7 +160,7 @@ export default function CartePage() {
                   }}
                 >
                   <Text style={{ fontSize: 20 }}>{treeIcon(c.nom)}</Text>
-                  <Text style={{ fontSize: 11, fontWeight: "700", marginTop: 3, color: isSelected ? "#fff" : "#1f2937" }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", marginTop: 3, color: isSelected ? "#fff" : '#1f2937' }}>
                     {c.nom}
                   </Text>
                   {c.parcelle ? (

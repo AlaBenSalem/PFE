@@ -66,6 +66,7 @@ function estimateET0Fallback(tMax, tMin, humidity) {
 
 export default function CalendarScreen() {
   const { t, language } = useLanguage();
+  const s = styles;
   const today = getLocalDateString();
 
   const [selectedDate, setSelectedDate] = useState(today);
@@ -250,7 +251,7 @@ export default function CalendarScreen() {
   const isPast     = selectedDate < todayLocal;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f3f4f6" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f3f4f6' }}>
       <BrandHeader title={t("calendar.title")} />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
@@ -279,14 +280,16 @@ export default function CalendarScreen() {
           markedDates={marked}
           markingType="multi-dot"
           theme={{
+            calendarBackground: '#ffffff',
             todayTextColor: "#4CAF50",
             arrowColor: "#4CAF50",
             selectedDayBackgroundColor: "#4CAF50",
             selectedDayTextColor: "#fff",
-            monthTextColor: "#333",
+            monthTextColor: '#333',
             textMonthFontWeight: "bold",
-            dayTextColor: "#1f2937",
-            textDisabledColor: "#d1d5db",
+            dayTextColor: '#1f2937',
+            textDisabledColor: '#d1d5db',
+            backgroundColor: '#ffffff',
           }}
           style={{ marginHorizontal: 8, marginBottom: 4 }}
         />
@@ -405,43 +408,53 @@ export default function CalendarScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  locationRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginBottom: 8 },
-  locationText: { marginLeft: 4, color: "#4b5563", fontSize: 13 },
-  legendRow: { flexDirection: "row", marginHorizontal: 16, marginBottom: 10, gap: 16 },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontSize: 11, color: "#6b7280" },
-  card: {
-    backgroundColor: "#fff", marginHorizontal: 16, marginTop: 4, padding: 20,
-    borderRadius: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
-  },
-  cardHeader: {
-    flexDirection: "row", alignItems: "center", marginBottom: 16,
-    paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#f3f4f6",
-  },
-  cardTitle: { fontWeight: "700", color: "#1f2937", fontSize: 14 },
-  cardDesc:  { color: "#6b7280", fontSize: 13, textTransform: "capitalize", marginTop: 2 },
-  gridRow:   { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
-  gridCell:  {
-    backgroundColor: "#f9fafb", width: "48%", padding: 14,
-    borderRadius: 12, borderWidth: 1, borderColor: "#f3f4f6", alignItems: "center",
-  },
-  gridVal:   { fontWeight: "700", fontSize: 18, color: "#1f2937", marginTop: 6 },
-  gridLabel: { fontSize: 12, color: "#6b7280", marginTop: 2 },
-  gridSub:   { fontSize: 11, color: "#9ca3af", marginTop: 2 },
-  et0Row: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    backgroundColor: "#f0fdf4", borderRadius: 10, paddingVertical: 8, marginTop: 4,
-  },
-  et0Text: { marginLeft: 6, fontSize: 13, fontWeight: "700", color: "#16a34a" },
-  noDataCard: {
-    backgroundColor: "#fff", marginHorizontal: 16, marginTop: 8,
-    padding: 32, borderRadius: 16, alignItems: "center",
-  },
-  noDataTitle:  { marginTop: 12, fontWeight: "700", color: "#374151", fontSize: 15, textAlign: "center" },
-  noDataText:   { marginTop: 8, color: "#6b7280", fontSize: 13, textAlign: "center", lineHeight: 20 },
-  retryBtn:     { marginTop: 16, backgroundColor: "#22c55e", paddingVertical: 12, paddingHorizontal: 24, borderRadius: 99 },
-  retryBtnText: { color: "#fff", fontWeight: "700" },
-});
+const styles = StyleSheet.create((() => {
+  const card   = '#ffffff';
+  const cell   = '#f9fafb';
+  const border = '#f3f4f6';
+  const text   = '#1f2937';
+  const muted  = '#6b7280';
+  const faint  = '#9ca3af';
+  const locTxt = '#4b5563';
+
+  return {
+    locationRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginBottom: 8 },
+    locationText: { marginLeft: 4, color: locTxt, fontSize: 13 },
+    legendRow: { flexDirection: "row", marginHorizontal: 16, marginBottom: 10, gap: 16 },
+    legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+    legendDot: { width: 8, height: 8, borderRadius: 4 },
+    legendText: { fontSize: 11, color: muted },
+    card: {
+      backgroundColor: card, marginHorizontal: 16, marginTop: 4, padding: 20,
+      borderRadius: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    },
+    cardHeader: {
+      flexDirection: "row", alignItems: "center", marginBottom: 16,
+      paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: border,
+    },
+    cardTitle: { fontWeight: "700", color: text, fontSize: 14 },
+    cardDesc:  { color: muted, fontSize: 13, textTransform: "capitalize", marginTop: 2 },
+    gridRow:   { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
+    gridCell:  {
+      backgroundColor: cell, width: "48%", padding: 14,
+      borderRadius: 12, borderWidth: 1, borderColor: border, alignItems: "center",
+    },
+    gridVal:   { fontWeight: "700", fontSize: 18, color: text, marginTop: 6 },
+    gridLabel: { fontSize: 12, color: muted, marginTop: 2 },
+    gridSub:   { fontSize: 11, color: faint, marginTop: 2 },
+    et0Row: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center",
+      backgroundColor: '#f0fdf4', borderRadius: 10, paddingVertical: 8, marginTop: 4,
+    },
+    et0Text: { marginLeft: 6, fontSize: 13, fontWeight: "700", color: "#16a34a" },
+    noDataCard: {
+      backgroundColor: card, marginHorizontal: 16, marginTop: 8,
+      padding: 32, borderRadius: 16, alignItems: "center",
+    },
+    noDataTitle:  { marginTop: 12, fontWeight: "700", color: text, fontSize: 15, textAlign: "center" },
+    noDataText:   { marginTop: 8, color: muted, fontSize: 13, textAlign: "center", lineHeight: 20 },
+    retryBtn:     { marginTop: 16, backgroundColor: "#22c55e", paddingVertical: 12, paddingHorizontal: 24, borderRadius: 99 },
+    retryBtnText: { color: "#fff", fontWeight: "700" },
+  };
+})());

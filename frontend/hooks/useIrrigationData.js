@@ -1,5 +1,6 @@
 // hooks/useIrrigationData.js
 // Data hook: fetches cultures, weather, history; computes irrigation needs (FAO-56)
+// ✅ MODIFIÉ : Stock sol mis à jour chaque heure (ETc/24 par heure)
 import { useState, useEffect, useRef } from "react";
 import { Alert, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
@@ -56,8 +57,6 @@ function saxtonRawls(sablePct, argilePct, moPct) {
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
-// Note: selectedMode is NOT a hook parameter — instead calculateNeeds(mode)
-// accepts it at call time, breaking the circular dependency with useIrrigationSession.
 export function useIrrigationData() {
   const [cultures,             setCultures]             = useState([]);
   const [selectedCulture,      setSelectedCulture]      = useState(null);
@@ -73,9 +72,10 @@ export function useIrrigationData() {
   const [debitMissing,         setDebitMissing]         = useState(false);
   const [now,                  setNow]                  = useState(Date.now());
 
-  // Tick every minute (used by calculateNeeds and notification logic)
+  // ✅ Tick every HOUR (3 600 000 ms) instead of every minute
+  // This triggers re-render and ETc/24 deduction from stock every hour
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60000);
+    const timer = setInterval(() => setNow(Date.now()), 3_600_000);
     return () => clearInterval(timer);
   }, []);
 
@@ -164,7 +164,6 @@ export function useIrrigationData() {
       if (result.success) {
         setCultures(result.data ?? []);
         if (result.data?.length > 0) {
-          // Preserve currently selected culture after refresh (match by _id)
           const currentId = selectedCulture?._id?.toString();
           const next = currentId
             ? (result.data.find(c => c._id?.toString() === currentId) ?? result.data[0])
@@ -280,7 +279,6 @@ export function useIrrigationData() {
   };
 
   // ── calculateNeeds (internal + exported) ────────────────────────────────────
-  // Internal version accepts explicit culture + mode (used by notification effect)
   function _calculateNeeds(culture, mode) {
     if (!culture || !weatherData) return { ...DEFAULT_BESOINS };
     try {
@@ -295,16 +293,13 @@ export function useIrrigationData() {
       const nbGoutteursParArbre = parseFloat(culture.nbGoutteursParArbre) || 0;
       let debitLH;
       if (debitGoutteur > 0 && nbGoutteursParArbre > 0 && nbArbres) {
-        // Total flow = flow/drip × drips/tree × trees
         debitLH = debitGoutteur * nbGoutteursParArbre * nbArbres;
       } else if (debitGoutteur > 0 && nbGoutteursParArbre > 0) {
-        // Estimate nbArbres from density (arbres/ha) or from surface
         const densite = parseFloat(culture.densitePlantation) || parseFloat(culture.densite) || null;
         const nbEstime = densite ? Math.round(densite * surface / 10000) : null;
         if (nbEstime && nbEstime > 0) {
           debitLH = debitGoutteur * nbGoutteursParArbre * nbEstime;
         } else {
-          // Fallback: assume 1 drip system per m² equivalent
           debitLH = debitGoutteur * nbGoutteursParArbre;
         }
       } else {
@@ -314,6 +309,9 @@ export function useIrrigationData() {
       const perte = PERTE_PAR_MODE[mode] || 0.1;
       const eta   = 1 - perte;
       const etc   = et0 * kc;
+
+      // ✅ ETc par heure (mm/h) = ETc journalier / 24
+      const etcParHeure = etc / 24;
 
       const typeSol  = culture.typeSol || "limoneux";
       const typeCult = culture.type    || "legume";
@@ -370,28 +368,32 @@ export function useIrrigationData() {
         .filter((h) => (h.cultureId?._id || h.cultureId) === culture._id)
         .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
 
-      const refDate = lastIrrig
-        ? new Date(lastIrrig.date)
+      // ✅ Référence temporelle en millisecondes (timestamp exact)
+      const refTimestamp = lastIrrig
+        ? new Date(lastIrrig.date).getTime()
         : culture.datePlantation
-          ? new Date(culture.datePlantation)
+          ? new Date(culture.datePlantation).getTime()
           : culture.createdAt
-            ? new Date(culture.createdAt)
-            : new Date(now - 86400000);
+            ? new Date(culture.createdAt).getTime()
+            : now - 86_400_000;
+
+      // ✅ Heures écoulées depuis la dernière irrigation (granularité horaire)
+      const msEcoules     = Math.max(0, now - refTimestamp);
+      const heuresEcoulees = msEcoules / 3_600_000; // nombre décimal d'heures
 
       const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
-      const refMidnight   = new Date(refDate); refMidnight.setHours(0, 0, 0, 0);
-      const rawDays       = Math.max(0, Math.round((todayMidnight - refMidnight) / 86400000));
-
-      const roughFreq = etc > 0
-        ? Math.max(1, Math.round((pAdj * (thetaCcEff - thetaPfEff) * z * 1000) / etc))
-        : 14;
-      const joursSinceIrrig = lastIrrig ? rawDays : Math.min(rawDays, roughFreq);
+      const rawDays = Math.max(0, Math.round((todayMidnight - new Date(refTimestamp).setHours(0,0,0,0)) / 86400000));
 
       const ru  = parseFloat(((thetaCcEff - thetaPfEff) * z * 1000).toFixed(1));
       const rfu = parseFloat((pAdj * ru).toFixed(1));
       const ruSource = thetaCc != null ? "θcc−θpf (manuel)" : `FAO-56 std (${typeSol})`;
 
       const frequenceJours = etc > 0 ? Math.max(1, Math.round(rfu / etc)) : 7;
+
+      const roughFreq = etc > 0
+        ? Math.max(1, Math.round((pAdj * (thetaCcEff - thetaPfEff) * z * 1000) / etc))
+        : 14;
+      const joursSinceIrrig = lastIrrig ? rawDays : Math.min(rawDays, roughFreq);
 
       const rainRaw = parseFloat(activeWeather.precipitation?.rain) || 0;
       let peff = 0;
@@ -403,21 +405,28 @@ export function useIrrigationData() {
       const W_pf_mm = thetaPfEff * z * 1000;
       const W_seuil = W_cc - rfu;
 
-      // Use persistent stored stock if available (updated daily by cron).
-      // If the backend hasn't synced yet today (server downtime), catch up client-side.
+      // ✅ CALCUL STOCK SOL AVEC GRANULARITÉ HORAIRE
+      // Stock = stock_initial - (ETc/24) × heures_écoulées + Peff
       let W_current;
       if (culture.stockEauMm != null) {
         let stock = parseFloat(culture.stockEauMm);
+
         if (culture.stockEauUpdatedAt) {
-          const lastUpd = new Date(culture.stockEauUpdatedAt);
-          lastUpd.setHours(0, 0, 0, 0);
-          const missed = Math.max(0, Math.round((todayMidnight - lastUpd) / 86400000));
-          if (missed > 0) stock = Math.max(W_pf_mm, Math.min(W_cc, stock - etc * missed + peff));
+          // ✅ Calcul des heures manquées depuis la dernière mise à jour backend
+          const lastUpdTimestamp = new Date(culture.stockEauUpdatedAt).getTime();
+          const heuresManquees   = Math.max(0, (now - lastUpdTimestamp) / 3_600_000);
+
+          // ✅ Déduire ETc/h × heures_manquées (au lieu de ETc × jours_manqués)
+          if (heuresManquees > 0) {
+            stock = stock - etcParHeure * heuresManquees + peff;
+          }
         }
         W_current = Math.min(W_cc, Math.max(W_pf_mm, stock));
       } else {
-        W_current = Math.min(W_cc, Math.max(W_pf_mm, W_cc - etc * joursSinceIrrig + peff));
+        // ✅ Fallback sans donnée backend : utiliser les heures écoulées
+        W_current = Math.min(W_cc, Math.max(W_pf_mm, W_cc - etcParHeure * heuresEcoulees + peff));
       }
+
       const stockPct  = ru > 0 ? Math.min(100, Math.round(((W_current - W_pf_mm) / ru) * 100)) : 100;
 
       const deficitMm = Math.max(0, W_cc - W_current);
@@ -449,6 +458,10 @@ export function useIrrigationData() {
       const volumeM3Ha     = (eauMm * 10).toFixed(1);
       const kcLabel        = culture.kcManuel?.mid != null ? "Kc manuel" : "Kc (FAO-56)";
 
+      // ✅ Infos horaires pour affichage (optionnel)
+      const heuresDepuisIrrig = Math.round(heuresEcoulees);
+      const etcParHeureDisplay = etcParHeure.toFixed(3);
+
       return {
         eauMm: eauMm.toFixed(1),
         eauM3,
@@ -462,6 +475,8 @@ export function useIrrigationData() {
         et0: et0.toFixed(2),
         kc: kc.toFixed(2),
         etc: etc.toFixed(2),
+        etcParHeure: etcParHeureDisplay, // ✅ nouveau champ
+        heuresDepuisIrrig,               // ✅ nouveau champ
         mmParArbre, litresParArbre, volumeLitres, surface,
         typeSol, ru, rfu,
         pAdj: pAdj.toFixed(2), z,
@@ -487,8 +502,10 @@ export function useIrrigationData() {
     }
   }
 
-  // Public calculateNeeds — caller passes the active mode (lives in useIrrigationSession)
   const calculateNeeds = (mode = "goutte-à-goutte") => _calculateNeeds(selectedCulture, mode);
+
+  const calculateNeedsForCulture = (culture, mode = "goutte-à-goutte") =>
+    _calculateNeeds(culture, mode);
 
   // ── Select culture ───────────────────────────────────────────────────────────
   const selectCulture = (culture, { onCompleted } = {}) => {
@@ -509,7 +526,6 @@ export function useIrrigationData() {
   };
 
   return {
-    // State
     cultures,
     selectedCulture,
     loading,
@@ -523,7 +539,6 @@ export function useIrrigationData() {
     loadingKc,
     debitMissing,
     now,
-    // Actions
     fetchCultures,
     fetchWeather,
     fetchHistory,
@@ -532,7 +547,7 @@ export function useIrrigationData() {
     checkDebitMissing,
     selectCulture,
     retry,
-    // Derived
     calculateNeeds,
+    calculateNeedsForCulture,
   };
 }

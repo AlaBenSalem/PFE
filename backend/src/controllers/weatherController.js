@@ -566,7 +566,7 @@ exports.geocodeSearch = async (req, res) => {
     }
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q.trim())}&format=json&limit=${limit}&addressdetails=1&accept-language=fr`;
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'SmartIrrig/1.0 (neffatimohamed3@gmail.com)' }
+      headers: { 'User-Agent': 'SmartIrrig/1.0 (smartirrigservice@gmail.com)' }
     });
     if (!response.ok) {
       return res.status(response.status).json({ success: false, error: "Erreur geocoding" });

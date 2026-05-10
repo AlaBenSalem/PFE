@@ -26,6 +26,7 @@ const Irrigation  = require('./src/models/Irrigation');
 const Weather     = require('./src/models/Weather');
 
 const { GOOGLE_CLIENT_IDS } = require('./src/services/googleAuthService');
+const { updateStockEauHoraire } = require('./src/controllers/irrigationController');
 
 const PORT           = Number.parseInt(process.env.PORT, 10) || 5000;
 const ADMIN_EMAIL    = String(process.env.ADMIN_EMAIL    || '').trim().toLowerCase();
@@ -126,12 +127,13 @@ async function syncWaterBalance() {
           const joursSince  = lastIrrig ? days : Math.min(days, roughFreq);
           culture.stockEauMm = parseFloat(Math.max(W_pf, Math.min(W_cc, W_cc - etc * joursSince + peff)).toFixed(1));
         } else {
-          // Apply missed days since last update
+          // Apply missed days since last update — stock ne peut QUE diminuer ici
           const lastUpd    = new Date(culture.stockEauUpdatedAt || today);
           lastUpd.setHours(0, 0, 0, 0);
           const daysMissed = Math.round((today - lastUpd) / 86400000);
           if (daysMissed <= 0) continue; // already up-to-date today
-          const newStock = Math.max(W_pf, Math.min(W_cc, culture.stockEauMm - etc * daysMissed + peff));
+          const deduction = etc * daysMissed;
+          const newStock  = Math.max(W_pf, Math.min(culture.stockEauMm, culture.stockEauMm - deduction));
           culture.stockEauMm = parseFloat(newStock.toFixed(1));
         }
 
@@ -156,10 +158,32 @@ async function startServer() {
     await ensureKCData();
     await syncWaterBalance();
 
-    // Cron: every day at midnight — update soil water balance
+    // Cron: every day at midnight — update soil water balance (daily FAO-56)
     cron.schedule('0 0 * * *', () => {
       console.log('🌿 Cron bilan hydrique quotidien...');
       syncWaterBalance();
+    });
+
+    // Cron: every hour at minute 00 — update hourly soil water stock
+    cron.schedule('0 * * * *', async () => {
+      console.log(`⏰ [CRON] Mise à jour horaire stock sol — ${new Date().toISOString()}`);
+      try {
+        const fakeReq = {};
+        const fakeRes = {
+          json: (data) => {
+            console.log(`✅ [CRON] ${data.message}`);
+            if (data.results?.length) {
+              data.results.forEach(r =>
+                console.log(`   📊 ${r.nom}: ${r.stockAvant} → ${r.stockApres} mm (ETc/h=${r.etcHoraire})`)
+              );
+            }
+          },
+          status: (code) => ({ json: (data) => console.error(`❌ [CRON] HTTP ${code}:`, data) }),
+        };
+        await updateStockEauHoraire(fakeReq, fakeRes);
+      } catch (err) {
+        console.error('❌ [CRON] Erreur mise à jour stock sol:', err.message);
+      }
     });
 
     app.listen(PORT, '0.0.0.0', () => {

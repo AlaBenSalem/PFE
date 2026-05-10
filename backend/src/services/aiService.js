@@ -177,22 +177,48 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
     const irrigationNeeds = cultures.length > 0 && weather?.et0
       ? cultures.map(c => {
           if (!c.kcActuel || !weather.et0) return null;
-          const etc       = (weather.et0 * c.kcActuel).toFixed(2);
-          const cid       = c._id.toString();
-          const lastIrr   = lastIrrigByCulture[cid];
-          const mode      = lastIrr?.mode || 'goutte-à-goutte';
-          const effMap    = [['goutte', 0.9], ['aspersion', 0.7], ['gravitaire', 0.6]];
-          const eff       = effMap.find(([k]) => mode.toLowerCase().includes(k))?.[1] ?? 0.9;
-          const effPct    = Math.round(eff * 100);
-          const volumeM3  = c.surface > 0 ? ((parseFloat(etc) * c.surface) / 1000 / eff).toFixed(2) : null;
-          const volumeHa  = (parseFloat(etc) * 10 / eff).toFixed(1);
-          const soilPart  = c.typeSol ? ` | Sol: ${c.typeSol}` : '';
-          return `• ${c.nom} (${c.variete}): ET₀=${weather.et0} mm/j × Kc=${c.kcActuel} = ETc=${etc} mm/j${volumeM3 ? ` → Volume: ${volumeM3} m³/j (${c.surface} m²)` : ''} | ${volumeHa} m³/ha/j | Mode: ${mode} η=${effPct}%${soilPart}`;
+          const et0      = parseFloat(weather.et0) || 0;
+          const etc      = parseFloat((et0 * c.kcActuel).toFixed(2));
+          const cid      = c._id.toString();
+          const lastIrr  = lastIrrigByCulture[cid];
+          const mode     = lastIrr?.mode || 'goutte-à-goutte';
+          const effMap   = [['goutte', 0.9], ['aspersion', 0.7], ['gravitaire', 0.6]];
+          const eff      = effMap.find(([k]) => mode.toLowerCase().includes(k))?.[1] ?? 0.9;
+          const effPct   = Math.round(eff * 100);
+          const freqJours = lastIrr?.frequenceJours || 0;
+
+          // ── Volume: only from recorded history or ETc×freq estimation ──
+          // The irrigation page uses the full FAO-56 soil-water balance (deficit-based).
+          // We cannot replicate that here without θCC, θPF, stock courant, pluie effective.
+          // → Only provide a volume when it comes from a real recorded irrigation.
+          // → NEVER compute ETc × 1 day as a dose (it ignores the soil water balance).
+          let volumeM3 = null;
+          let volumeNote = '';
+          if (c.surface > 0) {
+            if (lastIrr?.volume > 0) {
+              volumeM3 = parseFloat((lastIrr.volume / 1000).toFixed(2));
+              volumeNote = 'dernier apport enregistré';
+            } else if (freqJours > 0) {
+              volumeM3 = parseFloat(((etc * freqJours * c.surface) / (1000 * eff)).toFixed(2));
+              volumeNote = `estimation ETc×${freqJours}j — bilan hydrique réel: voir page Irrigation`;
+            }
+            // No daily fallback — ETc×1day is NOT a valid dose and would mislead the AI
+          }
+          const soilPart = c.typeSol ? ` | Sol: ${c.typeSol}` : '';
+          const freqPart = freqJours > 0 ? ` | Fréquence: ${freqJours} j` : '';
+          const volumePart = volumeM3 !== null
+            ? ` → Volume dose: ${volumeM3} m³ (${volumeNote}, ${c.surface} m²)`
+            : ` → Volume dose: NON DISPONIBLE — bilan hydrique requis, consulter page Irrigation`;
+          return `• ${c.nom} (${c.variete}): ET₀=${et0} mm/j × Kc=${c.kcActuel} = ETc=${etc} mm/j${volumePart} | Mode: ${mode} η=${effPct}%${freqPart}${soilPart}`;
         }).filter(Boolean).join('\n')
       : 'Calcul ETc non disponible (météo manquante).';
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // ── nextIrrigLines: aligned with fmtDateIrrig() + besoins.dateProchaine logic
+    // The irrigation page computes dateProchaine as:
+    //   lastIrr.date + frequenceJours days, then advances by multiples of
+    //   frequenceJours until the result is >= today (same as fmtDateIrrig).
+    // We replicate that here so chatbot and page always agree.
+    const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
 
     const nextIrrigLines = cultures.length === 0
       ? 'Aucune culture enregistrée.'
@@ -202,33 +228,35 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
           const overrideDate = irrigationOverrides[c.nom.toLowerCase().trim()]
                             || irrigationOverrides[cid];
 
-          // Raw candidate date (override > stored prochaineDate)
-          let rawDate = overrideDate
-            ? new Date(overrideDate)
-            : last?.prochaineDate ? new Date(last.prochaineDate) : null;
+          if (!last && !overrideDate) return `• ${c.nom} (${c.variete}): aucune irrigation enregistrée`;
 
-          // ⚠️ If the stored prochaineDate is in the past, recompute from last
-          // irrigation date + frequency so the AI never surfaces a stale date.
-          if (rawDate && rawDate < today && last?.frequenceJours > 0) {
-            const lastDate = new Date(last.date);
-            // Advance by multiples of frequency until we reach a future date
-            const freq = last.frequenceJours * 86400000;
-            const diff = today - lastDate;
-            const cycles = Math.ceil(diff / freq);
-            rawDate = new Date(lastDate.getTime() + cycles * freq);
+          // Helper: advance a date by multiples of freq until >= todayMidnight
+          function advanceToFuture(baseDate, freqDays) {
+            if (!baseDate || freqDays <= 0) return baseDate;
+            const base = new Date(baseDate); base.setHours(0, 0, 0, 0);
+            if (base >= todayMidnight) return base;
+            const diff   = todayMidnight - base;
+            const cycles = Math.ceil(diff / (freqDays * 86400000));
+            return new Date(base.getTime() + cycles * freqDays * 86400000);
           }
 
-          if (!last && !overrideDate) return `• ${c.nom} (${c.variete}): aucune irrigation enregistrée`;
-          if (rawDate && rawDate >= today)
-            return `• ${c.nom} (${c.variete}): prochaine irrigation le ${formatDate(rawDate)} [${joursLabel(rawDate)}]` +
-                   (last?.frequenceJours ? ` — fréquence: ${last.frequenceJours} jours` : '');
-          if (last?.frequenceJours > 0) {
-            const lastDate = new Date(last.date);
-            const freq     = last.frequenceJours * 86400000;
-            const diff     = today - lastDate;
-            const cycles   = Math.ceil(diff / freq);
-            const next     = new Date(lastDate.getTime() + cycles * freq);
-            return `• ${c.nom} (${c.variete}): prochaine irrigation estimée le ${formatDate(next)} [${joursLabel(next)}] — fréquence: ${last.frequenceJours} jours`;
+          const freqJours = last?.frequenceJours || 0;
+
+          // Priority: override > stored prochaineDate (advanced if stale) > computed from lastDate
+          let dateProchaine = null;
+          if (overrideDate) {
+            dateProchaine = advanceToFuture(new Date(overrideDate), freqJours);
+          } else if (last?.prochaineDate) {
+            dateProchaine = advanceToFuture(new Date(last.prochaineDate), freqJours);
+          } else if (freqJours > 0 && last?.date) {
+            dateProchaine = advanceToFuture(new Date(last.date), freqJours);
+          }
+
+          if (dateProchaine) {
+            const joursAvant = Math.ceil((dateProchaine - todayMidnight) / 86400000);
+            const label = joursAvant <= 0 ? "aujourd'hui" : joursAvant === 1 ? "demain (J+1)" : `J+${joursAvant}`;
+            return `• ${c.nom} (${c.variete}): prochaine irrigation le ${formatDate(dateProchaine)} [${label}]` +
+                   (freqJours ? ` — fréquence: ${freqJours} jours` : '');
           }
           return `• ${c.nom} (${c.variete}): dernière irrigation le ${formatDate(last.date)} — fréquence non définie`;
         }).join('\n');
@@ -315,6 +343,10 @@ RULE C — NUMBERS:
 - Always use digits (2, 3.5, 120) never words (deux, ثلاثة).
 - Always include units: mm/j, m³, L, kg/ha, °C, %.
 - Round to 2 decimal places for ETc/ET₀, 0 decimals for volumes.
+- ⚠️ Volume rule: ALWAYS report "Volume dose" from context (labeled "Volume dose: X m³").
+  NEVER recalculate volume yourself from ETc × 1 day. The dose covers the full irrigation period.
+- ⚠️ Date rule: ALWAYS use the exact date from "prochaine irrigation le …" in context.
+  NEVER compute dates yourself. NEVER report a past date as the next irrigation date.
 
 RULE D — CROP REFERENCES:
 - Always name the crop when answering about irrigation, ETc, fertilisation, or Kc.
@@ -349,9 +381,6 @@ Arabic vocabulary rules (دارجة + فصحى):
 - If ET₀ is 0 or unavailable: say "ET₀ indisponible actuellement" and do not compute ETc.
 - If no crops registered: say so and guide user to add one (📍 Cultures > +).
 - Dates: always format as "lundi 5 mai 2026" (full weekday + day + month + year).
-- ⚠️ PAST DATES FORBIDDEN: If a "prochaine irrigation" or "prochaine fertilisation" date
-  is BEFORE today's date, DO NOT cite it. Instead say the date has passed and the user
-  should record a new irrigation (📍 Irrigation > Enregistrer) to recalculate.
 
 ════════════════════════════════════════
   5. AGRONOMIC REASONING
@@ -432,7 +461,6 @@ async function callGroq(userMessage, context, langHint, history = []) {
   const contextBlock = `════════════════════════════════════════
 [CONTEXTE UTILISATEUR — DONNÉES RÉELLES]
 ════════════════════════════════════════
-DATE AUJOURD'HUI : ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
 Cultures (${context.cropCount}): ${context.cropsSummary}
 Irrigation récente   : ${context.irrigationSummary}
 Besoins ETc          : ${context.irrigationNeeds}
