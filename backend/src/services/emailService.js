@@ -85,8 +85,9 @@ async function sendResetCodeEmail(email, resetCode, userName) {
     return false;
 
   } catch (err) {
-    console.warn(`[Email] Échec: ${err.message}`);
-    if (allowLogCode) console.log(`[DEV] Reset code for ${to}: ${resetCode}`);
+    // Always log email failures so they appear in Render logs
+    console.error(`[Email] ÉCHEC ENVOI to=${to} provider=${provider} error=${err.message}`);
+    console.log(`[Email] Reset code (fallback log): ${to} → ${resetCode}`);
     return false;
   }
 }
