@@ -8,18 +8,32 @@ const TOKENS = {
   adminData: "adminData",
 };
 
-// ✅ request merge correctement les headers
+// ✅ request merge correctement les headers + timeout 60s
 async function request(path, options = {}) {
   const url = `${API_BASE_URL}${path}`;
-  const { headers: extraHeaders, ...restOptions } = options;
+  const { headers: extraHeaders, timeoutMs = 60000, ...restOptions } = options;
 
-  const res = await fetch(url, {
-    ...restOptions,
-    headers: {
-      "Content-Type": "application/json",
-      ...(extraHeaders || {}),
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res;
+  try {
+    res = await fetch(url, {
+      ...restOptions,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(extraHeaders || {}),
+      },
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === "AbortError") {
+      throw new Error("Serveur en démarrage. Veuillez réessayer dans quelques instants.");
+    }
+    throw new Error("Serveur inaccessible. Vérifiez votre connexion.");
+  }
+  clearTimeout(timer);
 
   const data = await res.json();
   if (!res.ok) {

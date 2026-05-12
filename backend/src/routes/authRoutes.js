@@ -80,7 +80,8 @@ router.post('/forgot-password', forgotPasswordValidators, validate, async (req, 
       user.resetCode       = resetCode;
       user.resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000);
       await user.save();
-      await sendResetCodeEmail(email, resetCode, user.firstName);
+      sendResetCodeEmail(email, resetCode, user.firstName)
+        .catch(err => console.warn('[ForgotPassword] Email failed:', err.message));
     }
     res.json({ message: 'Si cet email est associé à un compte, vous recevrez un code.' });
   } catch (err) {
