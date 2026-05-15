@@ -1,5 +1,5 @@
 // app/(tabs)/irrigation.jsx
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator,
   Modal, FlatList, Platform,
@@ -181,15 +181,6 @@ export default function IrrigationPage() {
     setCultureModalVisible(false);
   };
 
-  // ── Sync besoins to AI chat store — re-runs when Kc or weather finishes loading
-  useEffect(() => {
-    if (!selectedCulture || loadingKc || loadingWeatherRegion) return;
-    const b = calculateNeeds(selectedMode, rainReduction);
-    if (b.eauM3 !== "0.00") {
-      updateIrrigationBesoins(selectedCulture._id, selectedCulture.nom, b);
-    }
-  }, [selectedCulture?._id, selectedMode, rainReduction, kcDynamique, loadingKc, loadingWeatherRegion]);
-
   // ── Loading / error guards ──────────────────────────────────────────────────
   if (loading)
     return (
@@ -213,6 +204,12 @@ export default function IrrigationPage() {
     );
 
   const besoins    = selectedCulture ? calculateNeeds(selectedMode, rainReduction) : DEFAULT_BESOINS;
+
+  // Synchronous render-time write: store always matches what the UI shows
+  if (selectedCulture && !loadingKc && !loadingWeatherRegion && besoins.eauM3 !== "0.00") {
+    updateIrrigationBesoins(selectedCulture._id, selectedCulture.nom, besoins);
+  }
+
   const alertTxt   = ALERT_TXT[lang] || ALERT_TXT.fr;
   const hasData    = selectedCulture && besoins.eauMm !== "0.0";
   const moisActuel = MOIS_LABELS_FR[new Date().getMonth()];
