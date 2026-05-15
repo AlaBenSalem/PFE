@@ -551,14 +551,24 @@ export default function FertilisationPage() {
 
       if (Platform.OS === "web") {
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        // Mobile browsers: use Web Share API for native save dialog
+        if (
+          typeof navigator !== "undefined" &&
+          navigator.share &&
+          navigator.canShare
+        ) {
+          const file = new File([blob], filename, { type: "text/csv" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: filename });
+            return;
+          }
+        }
+        // Desktop: standard anchor download
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        const a = Object.assign(document.createElement("a"), {
+          href: url, download: filename, style: "display:none",
+        });
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(url);
       } else {
         const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;

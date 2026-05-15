@@ -136,8 +136,21 @@ export function useIrrigationSession({
 
       if (Platform.OS === "web") {
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const url  = URL.createObjectURL(blob);
-        const a    = Object.assign(document.createElement("a"), {
+        // Mobile browsers (iOS/Android): use Web Share API for native save dialog
+        if (
+          typeof navigator !== "undefined" &&
+          navigator.share &&
+          navigator.canShare
+        ) {
+          const file = new File([blob], filename, { type: "text/csv" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: filename });
+            return;
+          }
+        }
+        // Desktop browsers: standard anchor download
+        const url = URL.createObjectURL(blob);
+        const a   = Object.assign(document.createElement("a"), {
           href: url, download: filename, style: "display:none",
         });
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
