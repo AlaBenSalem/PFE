@@ -171,6 +171,7 @@ export function useIrrigationData() {
           setSelectedCulture(next);
           fetchKcDynamique(next);
           checkDebitMissing(next);
+          if (next.region) fetchWeatherForRegion(next.region);
         }
       } else throw new Error(result.message || "Réponse API invalide");
     } catch (err) {
