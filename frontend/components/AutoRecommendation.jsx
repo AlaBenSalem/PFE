@@ -13,14 +13,11 @@ export default function AutoRecommendation({ besoins, historyItems = [], rainRed
       ? Math.round((Date.now() - new Date(lastIrrigation.date).getTime()) / 86400000)
       : null;
 
-    if (rainReduction >= 40) {
-      const adjustedM3 = besoins.eauM3
-        ? (parseFloat(besoins.eauM3) * (1 - rainReduction / 100)).toFixed(2)
-        : null;
+    if (rainReduction > 0) {
       return {
         type: "info",
         icon: "rainy",
-        text: `Pluie prévue — réduire l'irrigation de ${rainReduction}%${adjustedM3 ? ` → ${adjustedM3} m³ recommandés` : ""}`,
+        text: `Pluie prévue — volume réduit de ${rainReduction}%${besoins.eauM3 ? ` → ${besoins.eauM3} m³ à apporter` : ""}`,
       };
     }
 

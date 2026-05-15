@@ -19,6 +19,7 @@ export function useIrrigationSession({
 }) {
   const [selectedMode,        setSelectedMode]        = useState("goutte-à-goutte");
   const [isCompleted,         setIsCompleted]         = useState(false);
+  const [completedNeeds,      setCompletedNeeds]      = useState(null);
   const [etcHistoryKey,       setEtcHistoryKey]       = useState(0);
   const [cultureModalVisible, setCultureModalVisible] = useState(false);
   const [activeTab,           setActiveTab]           = useState("needs");
@@ -34,7 +35,7 @@ export function useIrrigationSession({
     }
     if (isCompleted) return;
 
-    const needs = calculateNeeds(selectedMode);
+    const needs = calculateNeeds(selectedMode, rainReduction);
 
     if (!needs.volumeLitres || needs.volumeLitres <= 0) {
       Alert.alert(
@@ -73,6 +74,7 @@ export function useIrrigationSession({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const result = await res.json();
       if (result.success) {
+        setCompletedNeeds(needs);
         await Promise.all([fetchHistory(), fetchCultures?.()]);
         setIsCompleted(true);
         setEtcHistoryKey((p) => p + 1);
@@ -183,6 +185,7 @@ export function useIrrigationSession({
   // ── Reset completion when culture changes ─────────────────────────────────
   const resetCompletion = () => {
     setIsCompleted(false);
+    setCompletedNeeds(null);
     setEtcHistoryKey((p) => p + 1);
   };
 
@@ -190,6 +193,7 @@ export function useIrrigationSession({
     // State
     selectedMode,
     isCompleted,
+    completedNeeds,
     etcHistoryKey,
     cultureModalVisible,
     activeTab,

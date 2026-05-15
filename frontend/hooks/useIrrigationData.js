@@ -279,7 +279,7 @@ export function useIrrigationData() {
   };
 
   // ── calculateNeeds (internal + exported) ────────────────────────────────────
-  function _calculateNeeds(culture, mode) {
+  function _calculateNeeds(culture, mode, rainReductionPct = 0) {
     if (!culture || !weatherData) return { ...DEFAULT_BESOINS };
     try {
       const regionKey     = culture.region?.trim().toLowerCase();
@@ -429,9 +429,10 @@ export function useIrrigationData() {
 
       const stockPct  = ru > 0 ? Math.min(100, Math.round(((W_current - W_pf_mm) / ru) * 100)) : 100;
 
-      const deficitMm = Math.max(0, W_cc - W_current);
-      const eauMm     = deficitMm / eta;
-      const perteMm   = eauMm - deficitMm;
+      const deficitMm    = Math.max(0, W_cc - W_current);
+      const rainFactor   = 1 - Math.max(0, Math.min(100, rainReductionPct)) / 100;
+      const eauMm        = (deficitMm / eta) * rainFactor;
+      const perteMm      = eauMm - deficitMm * rainFactor;
 
       const baseDate = lastIrrig ? new Date(lastIrrig.date) : new Date(now);
       const scheduledDate = new Date(baseDate);
@@ -502,7 +503,8 @@ export function useIrrigationData() {
     }
   }
 
-  const calculateNeeds = (mode = "goutte-à-goutte") => _calculateNeeds(selectedCulture, mode);
+  const calculateNeeds = (mode = "goutte-à-goutte", rainReductionPct = 0) =>
+    _calculateNeeds(selectedCulture, mode, rainReductionPct);
 
   const calculateNeedsForCulture = (culture, mode = "goutte-à-goutte") =>
     _calculateNeeds(culture, mode);

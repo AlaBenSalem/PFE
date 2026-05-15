@@ -110,6 +110,80 @@ function getNextFAOFertDate(nom) {
   return dates.find(d => d.date >= now) || dates[dates.length - 1];
 }
 
+// ── FAO-56 soil-water balance (mirrors frontend useIrrigationData) ────────────
+const THETA_STD_AI = {
+  sableux:         { cc: 0.12, pf: 0.05 },
+  limono_sableux:  { cc: 0.23, pf: 0.10 },
+  limoneux:        { cc: 0.31, pf: 0.15 },
+  argilo_limoneux: { cc: 0.38, pf: 0.22 },
+  argileux:        { cc: 0.42, pf: 0.26 },
+};
+const Z_DEFAUT_AI  = { agrume: 0.9, fruit: 1.0, legume: 0.5, cereale: 1.0 };
+const P_BASE_AI    = { agrume: 0.5, fruit: 0.5, legume: 0.4, cereale: 0.55 };
+const EFF_MODE_AI  = { 'goutte-à-goutte': 0.9, aspersion: 0.7, gravitaire: 0.6 };
+
+function computeCurrentIrrigVolume(culture, et0, lastIrrig, mode = 'goutte-à-goutte') {
+  try {
+    const surface  = parseFloat(culture.surface) || 100;
+    const kc       = parseFloat(culture.kcActuel) || 0.65;
+    const etc      = et0 * kc;
+    const typeSol  = culture.typeSol || 'limoneux';
+    const typeCult = culture.type    || 'legume';
+
+    const z = culture.profondeurRacinaire != null
+      ? parseFloat(culture.profondeurRacinaire)
+      : (Z_DEFAUT_AI[typeCult] || 0.6);
+
+    const pAdj = culture.p != null
+      ? parseFloat(culture.p)
+      : Math.min(0.8, Math.max(0.1, (P_BASE_AI[typeCult] || 0.5) + 0.04 * (5 - etc)));
+
+    let thetaCcEff, thetaPfEff;
+    if (culture.thetaCc != null && culture.thetaPf != null) {
+      thetaCcEff = parseFloat(culture.thetaCc);
+      thetaPfEff = parseFloat(culture.thetaPf);
+    } else {
+      const std  = THETA_STD_AI[typeSol] || THETA_STD_AI.limoneux;
+      thetaCcEff = std.cc;
+      thetaPfEff = std.pf;
+    }
+
+    const W_cc       = thetaCcEff * z * 1000;
+    const W_pf       = thetaPfEff * z * 1000;
+    const etcParHeure = etc / 24;
+    const now         = Date.now();
+
+    let W_current;
+    if (culture.stockEauMm != null) {
+      let stock = parseFloat(culture.stockEauMm);
+      if (culture.stockEauUpdatedAt) {
+        const heuresManquees = Math.max(0, (now - new Date(culture.stockEauUpdatedAt).getTime()) / 3_600_000);
+        if (heuresManquees > 0) stock -= etcParHeure * heuresManquees;
+      }
+      W_current = Math.min(W_cc, Math.max(W_pf, stock));
+    } else {
+      const refTs = lastIrrig
+        ? new Date(lastIrrig.date).getTime()
+        : culture.datePlantation
+          ? new Date(culture.datePlantation).getTime()
+          : now - 86_400_000;
+      const heuresEcoulees = Math.max(0, now - refTs) / 3_600_000;
+      W_current = Math.min(W_cc, Math.max(W_pf, W_cc - etcParHeure * heuresEcoulees));
+    }
+
+    const deficitMm = Math.max(0, W_cc - W_current);
+    if (deficitMm < 0.1) return { volumeM3: 0, eauMm: 0, note: 'réserve suffisante — pas d\'irrigation requise' };
+
+    const eta    = EFF_MODE_AI[mode] || 0.9;
+    const eauMm  = deficitMm / eta;
+    const volumeM3 = parseFloat(((eauMm * surface) / 1000).toFixed(2));
+    return { volumeM3, eauMm: parseFloat(eauMm.toFixed(1)), note: `bilan hydrique FAO-56 (déficit=${deficitMm.toFixed(1)} mm, η=${Math.round(eta*100)}%)` };
+  } catch (e) {
+    console.error('computeCurrentIrrigVolume:', e.message);
+    return null;
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function normalizeNumerals(text) {
   const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
@@ -187,23 +261,10 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
           const effPct   = Math.round(eff * 100);
           const freqJours = lastIrr?.frequenceJours || 0;
 
-          // ── Volume: only from recorded history or ETc×freq estimation ──
-          // The irrigation page uses the full FAO-56 soil-water balance (deficit-based).
-          // We cannot replicate that here without θCC, θPF, stock courant, pluie effective.
-          // → Only provide a volume when it comes from a real recorded irrigation.
-          // → NEVER compute ETc × 1 day as a dose (it ignores the soil water balance).
-          let volumeM3 = null;
-          let volumeNote = '';
-          if (c.surface > 0) {
-            if (lastIrr?.volume > 0) {
-              volumeM3 = parseFloat((lastIrr.volume / 1000).toFixed(2));
-              volumeNote = 'dernier apport enregistré';
-            } else if (freqJours > 0) {
-              volumeM3 = parseFloat(((etc * freqJours * c.surface) / (1000 * eff)).toFixed(2));
-              volumeNote = `estimation ETc×${freqJours}j — bilan hydrique réel: voir page Irrigation`;
-            }
-            // No daily fallback — ETc×1day is NOT a valid dose and would mislead the AI
-          }
+          // ── Volume: FAO-56 soil-water balance (same logic as frontend) ──
+          const volResult  = et0 > 0 ? computeCurrentIrrigVolume(c, et0, lastIrr, mode) : null;
+          let volumeM3     = volResult?.volumeM3 ?? null;
+          let volumeNote   = volResult ? volResult.note : 'ET₀ manquant';
           const soilPart = c.typeSol ? ` | Sol: ${c.typeSol}` : '';
           const freqPart = freqJours > 0 ? ` | Fréquence: ${freqJours} j` : '';
           const volumePart = volumeM3 !== null

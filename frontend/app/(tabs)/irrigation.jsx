@@ -133,6 +133,7 @@ export default function IrrigationPage() {
   const {
     selectedMode,
     isCompleted,
+    completedNeeds,
     etcHistoryKey,
     cultureModalVisible,
     activeTab,
@@ -201,7 +202,7 @@ export default function IrrigationPage() {
       </SafeAreaView>
     );
 
-  const besoins    = selectedCulture ? calculateNeeds(selectedMode) : DEFAULT_BESOINS;
+  const besoins    = selectedCulture ? calculateNeeds(selectedMode, rainReduction) : DEFAULT_BESOINS;
   const alertTxt   = ALERT_TXT[lang] || ALERT_TXT.fr;
   const hasData    = selectedCulture && besoins.eauMm !== "0.0";
   const moisActuel = MOIS_LABELS_FR[new Date().getMonth()];
@@ -574,33 +575,35 @@ export default function IrrigationPage() {
               </View>
             )}
 
-            {isCompleted && selectedCulture && (
-              <View className="bg-green-50 border-2 border-green-200 rounded-2xl p-6 mb-4 items-center">
-
-                <MaterialCommunityIcons name="check-circle" size={50} color="#4CAF50" />
-                <Text className="text-[20px] font-semibold text-green-800 mt-2">
-                  {t("irrigation.completed") || "Irrigation enregistrée !"}
-                </Text>
-                <Text className="text-[22px] font-bold text-gray-900 mt-1.5">
-                  {translateCropName(selectedCulture.nom, language)}
-                </Text>
-                <Text className="text-[42px] font-bold text-green-600 leading-[46px] mt-2">
-                  {besoins.eauM3}{" "}<Text className="text-[20px] font-semibold">m³</Text>
-                </Text>
-                <Text className="text-[15px] text-green-600 mt-1">
-                  {t("irrigation.onSurface") || "sur"} {selectedCulture.surface} m²
-                </Text>
-                {besoins.litresParArbre && (
-                  <Text className="text-[15px] text-green-600 mt-1">≈ {besoins.litresParArbre} L/{plantUnit}</Text>
-                )}
-                <Text className="text-[15px] text-green-600 mt-1">
-                  {besoins.debitM3h} m³/h · {fmtTemps(besoins.temps)}
-                </Text>
-                <Text className="text-[13px] text-gray-500 mt-1 text-center">
-                  Déficit : {besoins.deficitMm} mm · ETc = {besoins.etc} mm/j · ET₀ {besoins.et0} × Kc {besoins.kc} · η = {besoins.eta}%
-                </Text>
-              </View>
-            )}
+            {isCompleted && selectedCulture && (() => {
+              const done = completedNeeds || besoins;
+              return (
+                <View className="bg-green-50 border-2 border-green-200 rounded-2xl p-6 mb-4 items-center">
+                  <MaterialCommunityIcons name="check-circle" size={50} color="#4CAF50" />
+                  <Text className="text-[20px] font-semibold text-green-800 mt-2">
+                    {t("irrigation.completed") || "Irrigation enregistrée !"}
+                  </Text>
+                  <Text className="text-[22px] font-bold text-gray-900 mt-1.5">
+                    {translateCropName(selectedCulture.nom, language)}
+                  </Text>
+                  <Text className="text-[42px] font-bold text-green-600 leading-[46px] mt-2">
+                    {done.eauM3}{" "}<Text className="text-[20px] font-semibold">m³</Text>
+                  </Text>
+                  <Text className="text-[15px] text-green-600 mt-1">
+                    {t("irrigation.onSurface") || "sur"} {done.surface} m²
+                  </Text>
+                  {done.litresParArbre && (
+                    <Text className="text-[15px] text-green-600 mt-1">≈ {done.litresParArbre} L/{plantUnit}</Text>
+                  )}
+                  <Text className="text-[15px] text-green-600 mt-1">
+                    {done.debitM3h} m³/h · {fmtTemps(done.temps)}
+                  </Text>
+                  <Text className="text-[13px] text-gray-500 mt-1 text-center">
+                    Déficit : {done.deficitMm} mm · ETc = {done.etc} mm/j · ET₀ {done.et0} × Kc {done.kc} · η = {done.eta}%
+                  </Text>
+                </View>
+              );
+            })()}
 
             {selectedCulture && (
               <>
