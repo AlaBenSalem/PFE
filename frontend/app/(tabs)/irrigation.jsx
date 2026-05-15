@@ -181,14 +181,14 @@ export default function IrrigationPage() {
     setCultureModalVisible(false);
   };
 
-  // ── Sync besoins to AI chat store (runs before early returns — hooks rule) ──
+  // ── Sync besoins to AI chat store — re-runs when Kc or weather finishes loading
   useEffect(() => {
-    if (!selectedCulture) return;
+    if (!selectedCulture || loadingKc || loadingWeatherRegion) return;
     const b = calculateNeeds(selectedMode, rainReduction);
     if (b.eauM3 !== "0.00") {
       updateIrrigationBesoins(selectedCulture._id, selectedCulture.nom, b);
     }
-  }, [selectedCulture?._id, selectedMode, rainReduction]);
+  }, [selectedCulture?._id, selectedMode, rainReduction, kcDynamique, loadingKc, loadingWeatherRegion]);
 
   // ── Loading / error guards ──────────────────────────────────────────────────
   if (loading)

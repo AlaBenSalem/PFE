@@ -4,6 +4,7 @@ const Culture        = require('../models/Culture');
 const Irrigation     = require('../models/Irrigation');
 const Fertilisation  = require('../models/Fertilisation');
 const weatherService = require('./weatherService');
+const { getKcForCultureAndMonth } = require('../controllers/kcController');
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_BASE    = 'https://api.groq.com/openai/v1';
@@ -122,10 +123,10 @@ const Z_DEFAUT_AI  = { agrume: 0.9, fruit: 1.0, legume: 0.5, cereale: 1.0 };
 const P_BASE_AI    = { agrume: 0.5, fruit: 0.5, legume: 0.4, cereale: 0.55 };
 const EFF_MODE_AI  = { 'goutte-à-goutte': 0.9, aspersion: 0.7, gravitaire: 0.6 };
 
-function computeCurrentIrrigVolume(culture, et0, lastIrrig, mode = 'goutte-à-goutte') {
+function computeCurrentIrrigVolume(culture, et0, lastIrrig, mode = 'goutte-à-goutte', kcOverride = null) {
   try {
     const surface  = parseFloat(culture.surface) || 100;
-    const kc       = parseFloat(culture.kcActuel) || 0.65;
+    const kc       = kcOverride ?? parseFloat(culture.kcActuel) ?? 0.65;
     const etc      = et0 * kc;
     const typeSol  = culture.typeSol || 'limoneux';
     const typeCult = culture.type    || 'legume';
@@ -254,12 +255,28 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
       if (d?.nom) liveDataMap[d.nom.toLowerCase().trim()] = d;
     }
 
+    // Pre-fetch dynamic Kc (same API the frontend uses) for cultures missing live data
+    const currentMonth = new Date().getMonth() + 1;
+    const kcCache = {};
+    await Promise.all(cultures.map(async c => {
+      const liveKey = c.nom.toLowerCase().trim();
+      if (!liveDataMap[liveKey]) {
+        try {
+          const kcResult = await getKcForCultureAndMonth(
+            c.nom, currentMonth,
+            (c.kcManuel?.mid != null || c.kcManuel?.ini != null) ? c.kcManuel : null
+          );
+          kcCache[c._id.toString()] = kcResult.kc;
+        } catch { kcCache[c._id.toString()] = parseFloat(c.kcActuel) || 0.65; }
+      }
+    }));
+
     const irrigationNeeds = cultures.length > 0
       ? cultures.map(c => {
           const liveKey  = c.nom.toLowerCase().trim();
           const live     = liveDataMap[liveKey];
 
-          // ── Priority: use frontend real-time values when available ──
+          // ── Priority: use frontend real-time values (exact same as page) ──
           if (live && parseFloat(live.volumeM3) >= 0) {
             const cid      = c._id.toString();
             const lastIrr  = lastIrrigByCulture[cid];
@@ -274,10 +291,10 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
             return `• ${c.nom} (${c.variete}): ET₀=${live.et0} mm/j × Kc=${live.kc} = ETc=${live.etc} mm/j${volPart} | Mode: ${mode} η=${live.eta}%${freqPart}${soilPart}`;
           }
 
-          // ── Fallback: compute from backend FAO-56 balance ──
+          // ── Fallback: FAO-56 balance with dynamic Kc from same source as frontend ──
           if (!weather?.et0) return null;
           const et0      = parseFloat(weather.et0) || 0;
-          const kc       = parseFloat(c.kcActuel) || 0.65;
+          const kc       = kcCache[c._id.toString()] || parseFloat(c.kcActuel) || 0.65;
           const etc      = parseFloat((et0 * kc).toFixed(2));
           const cid      = c._id.toString();
           const lastIrr  = lastIrrigByCulture[cid];
@@ -285,7 +302,7 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
           const effMap   = [['goutte', 0.9], ['aspersion', 0.7], ['gravitaire', 0.6]];
           const effPct   = Math.round((effMap.find(([k]) => mode.toLowerCase().includes(k))?.[1] ?? 0.9) * 100);
           const freqJours = lastIrr?.frequenceJours || 0;
-          const volResult = et0 > 0 ? computeCurrentIrrigVolume(c, et0, lastIrr, mode) : null;
+          const volResult = et0 > 0 ? computeCurrentIrrigVolume(c, et0, lastIrr, mode, kc) : null;
           const volumeM3  = volResult?.volumeM3 ?? null;
           const soilPart  = c.typeSol ? ` | Sol: ${c.typeSol}` : '';
           const freqPart  = freqJours > 0 ? ` | Fréquence: ${freqJours} j` : '';
