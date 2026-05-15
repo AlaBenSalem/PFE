@@ -346,13 +346,31 @@ export default function FertilisationPage() {
   const moisCourts = MOIS_COURTS[lang] || MOIS_COURTS.fr;
 
   useEffect(() => {
-    apiFetch(API_ENDPOINTS.cultures.base)
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success) setCultures(res.data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const loadData = async () => {
+      try {
+        const [cultRes, fertRes] = await Promise.all([
+          apiFetch(API_ENDPOINTS.cultures.base).then((r) => r.json()),
+          apiFetch(`${API_ENDPOINTS.fertilisations.base}?limit=500`).then((r) => r.json()),
+        ]);
+
+        if (cultRes.success) setCultures(cultRes.data);
+
+        if (fertRes.success && Array.isArray(fertRes.data)) {
+          const keys = new Set(
+            fertRes.data.map((f) => {
+              const d = new Date(f.date);
+              const mois = d.getMonth() + 1;
+              const jour = d.getDate();
+              const cid = f.cultureId?._id || f.cultureId;
+              return `${cid}_${mois}_${jour}`;
+            })
+          );
+          setConfirmedEvents(keys);
+        }
+      } catch {}
+      finally { setLoading(false); }
+    };
+    loadData();
   }, []);
 
   const culturesToShow = selected ? [selected] : cultures;
