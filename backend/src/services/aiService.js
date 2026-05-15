@@ -204,7 +204,7 @@ function joursLabel(prochaineDate) {
 }
 
 // ── Contexte utilisateur ──────────────────────────────────────────────────────
-async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides = {}) {
+async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides = {}, irrigationData = []) {
   try {
     const cultures   = await Culture.find({ userId }).sort({ createdAt: -1 });
     const cultureIds = cultures.map(c => c._id);
@@ -248,29 +248,51 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
           return `${name}: ${irr.volume}L ${date} ETc=${irr.etc}`;
         }).join(' | ');
 
-    const irrigationNeeds = cultures.length > 0 && weather?.et0
+    // Build a lookup from culture name → frontend real-time besoins
+    const liveDataMap = {};
+    for (const d of (Array.isArray(irrigationData) ? irrigationData : [])) {
+      if (d?.nom) liveDataMap[d.nom.toLowerCase().trim()] = d;
+    }
+
+    const irrigationNeeds = cultures.length > 0
       ? cultures.map(c => {
-          if (!c.kcActuel || !weather.et0) return null;
+          const liveKey  = c.nom.toLowerCase().trim();
+          const live     = liveDataMap[liveKey];
+
+          // ── Priority: use frontend real-time values when available ──
+          if (live && parseFloat(live.volumeM3) >= 0) {
+            const cid      = c._id.toString();
+            const lastIrr  = lastIrrigByCulture[cid];
+            const mode     = lastIrr?.mode || 'goutte-à-goutte';
+            const freqJours = lastIrr?.frequenceJours || 0;
+            const soilPart = c.typeSol ? ` | Sol: ${c.typeSol}` : '';
+            const freqPart = freqJours > 0 ? ` | Fréquence: ${freqJours} j` : '';
+            const vol      = parseFloat(live.volumeM3);
+            const volPart  = vol > 0
+              ? ` → Volume dose: ${vol} m³ (temps réel app, ${live.surface} m²)`
+              : ` → Volume dose: 0 m³ (réserve sol suffisante)`;
+            return `• ${c.nom} (${c.variete}): ET₀=${live.et0} mm/j × Kc=${live.kc} = ETc=${live.etc} mm/j${volPart} | Mode: ${mode} η=${live.eta}%${freqPart}${soilPart}`;
+          }
+
+          // ── Fallback: compute from backend FAO-56 balance ──
+          if (!weather?.et0) return null;
           const et0      = parseFloat(weather.et0) || 0;
-          const etc      = parseFloat((et0 * c.kcActuel).toFixed(2));
+          const kc       = parseFloat(c.kcActuel) || 0.65;
+          const etc      = parseFloat((et0 * kc).toFixed(2));
           const cid      = c._id.toString();
           const lastIrr  = lastIrrigByCulture[cid];
           const mode     = lastIrr?.mode || 'goutte-à-goutte';
           const effMap   = [['goutte', 0.9], ['aspersion', 0.7], ['gravitaire', 0.6]];
-          const eff      = effMap.find(([k]) => mode.toLowerCase().includes(k))?.[1] ?? 0.9;
-          const effPct   = Math.round(eff * 100);
+          const effPct   = Math.round((effMap.find(([k]) => mode.toLowerCase().includes(k))?.[1] ?? 0.9) * 100);
           const freqJours = lastIrr?.frequenceJours || 0;
-
-          // ── Volume: FAO-56 soil-water balance (same logic as frontend) ──
-          const volResult  = et0 > 0 ? computeCurrentIrrigVolume(c, et0, lastIrr, mode) : null;
-          let volumeM3     = volResult?.volumeM3 ?? null;
-          let volumeNote   = volResult ? volResult.note : 'ET₀ manquant';
-          const soilPart = c.typeSol ? ` | Sol: ${c.typeSol}` : '';
-          const freqPart = freqJours > 0 ? ` | Fréquence: ${freqJours} j` : '';
+          const volResult = et0 > 0 ? computeCurrentIrrigVolume(c, et0, lastIrr, mode) : null;
+          const volumeM3  = volResult?.volumeM3 ?? null;
+          const soilPart  = c.typeSol ? ` | Sol: ${c.typeSol}` : '';
+          const freqPart  = freqJours > 0 ? ` | Fréquence: ${freqJours} j` : '';
           const volumePart = volumeM3 !== null
-            ? ` → Volume dose: ${volumeM3} m³ (${volumeNote}, ${c.surface} m²)`
-            : ` → Volume dose: NON DISPONIBLE — bilan hydrique requis, consulter page Irrigation`;
-          return `• ${c.nom} (${c.variete}): ET₀=${et0} mm/j × Kc=${c.kcActuel} = ETc=${etc} mm/j${volumePart} | Mode: ${mode} η=${effPct}%${freqPart}${soilPart}`;
+            ? ` → Volume dose: ${volumeM3} m³ (bilan hydrique FAO-56, ${c.surface} m²)`
+            : ` → Volume dose: NON DISPONIBLE — consulter page Irrigation`;
+          return `• ${c.nom} (${c.variete}): ET₀=${et0} mm/j × Kc=${kc} = ETc=${etc} mm/j${volumePart} | Mode: ${mode} η=${effPct}%${freqPart}${soilPart}`;
         }).filter(Boolean).join('\n')
       : 'Calcul ETc non disponible (météo manquante).';
 

@@ -7,6 +7,7 @@ import { Platform } from "react-native";
 import { apiFetch, API_ENDPOINTS } from "@api/client";
 import { useLanguage } from "@context/LanguageContext";
 import { getWebAudioCtx } from "./useAIVoice";
+import { getIrrigationBesoinsSnapshot } from "@utils/irrigationBesoinsStore";
 
 const INITIAL_MESSAGES = {
   fr: "🌿 Bonjour! Comment puis-je vous aider?",
@@ -116,6 +117,21 @@ export function useAIChat({ speakText, setIsSpeaking, detectSpeechLang, setTtsLa
 
     try {
 
+      const snap = getIrrigationBesoinsSnapshot();
+      const irrigationData = Object.values(snap).map(({ nom, besoins: b }) => ({
+        nom,
+        volumeM3:  b.eauM3,
+        eauMm:     b.eauMm,
+        etc:       b.etc,
+        et0:       b.et0,
+        kc:        b.kc,
+        surface:   b.surface,
+        debitM3h:  b.debitM3h,
+        temps:     b.temps,
+        eta:       b.eta,
+        deficitMm: b.deficitMm,
+      }));
+
       const res = await apiFetch(API_ENDPOINTS.ai?.chat || "/ai/chat", {
         method: "POST",
         body: JSON.stringify({
@@ -123,6 +139,7 @@ export function useAIChat({ speakText, setIsSpeaking, detectSpeechLang, setTtsLa
           conversationId: conversationIdRef.current || "",
           city:           "Tunis",
           history,
+          irrigationData: irrigationData.length > 0 ? irrigationData : undefined,
         }),
         timeoutMs: 90000,
       });

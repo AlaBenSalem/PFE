@@ -27,7 +27,7 @@ function getGreetingLang(langHint) {
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
 exports.chat = async (req, res) => {
-  const { message, city, history = [], irrigationOverrides = {} } = req.body;
+  const { message, city, history = [], irrigationOverrides = {}, irrigationData = [] } = req.body;
   if (!message?.trim())
     return res.status(400).json({ success: false, error: 'Message requis.' });
 
@@ -47,7 +47,7 @@ exports.chat = async (req, res) => {
   }
 
   try {
-    const context  = await buildUserContext(req.userId, city || 'Tunis', irrigationOverrides);
+    const context  = await buildUserContext(req.userId, city || 'Tunis', irrigationOverrides, irrigationData);
     const langHint = detectMessageLanguage(trimmed);
     const answer   = await callGroq(trimmed, context, langHint, history);
     return res.json({

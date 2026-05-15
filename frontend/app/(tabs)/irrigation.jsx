@@ -1,5 +1,5 @@
 // app/(tabs)/irrigation.jsx
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator,
   Modal, FlatList, Platform,
@@ -19,6 +19,7 @@ import AutoRecommendation from "@components/AutoRecommendation";
 import * as Notifications from "expo-notifications";
 import { useIrrigationData, PERTE_PAR_MODE, DEFAULT_BESOINS } from "@hooks/useIrrigationData";
 import { useIrrigationSession } from "@hooks/useIrrigationSession";
+import { updateIrrigationBesoins } from "@utils/irrigationBesoinsStore";
 
 if (Platform.OS !== "web") {
   Notifications.setNotificationHandler({
@@ -179,6 +180,15 @@ export default function IrrigationPage() {
     resetCompletion();
     setCultureModalVisible(false);
   };
+
+  // ── Sync besoins to AI chat store (runs before early returns — hooks rule) ──
+  useEffect(() => {
+    if (!selectedCulture) return;
+    const b = calculateNeeds(selectedMode, rainReduction);
+    if (b.eauM3 !== "0.00") {
+      updateIrrigationBesoins(selectedCulture._id, selectedCulture.nom, b);
+    }
+  }, [selectedCulture?._id, selectedMode, rainReduction]);
 
   // ── Loading / error guards ──────────────────────────────────────────────────
   if (loading)
