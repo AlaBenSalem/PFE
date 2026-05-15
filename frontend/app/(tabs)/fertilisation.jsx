@@ -926,44 +926,31 @@ export default function FertilisationPage() {
                           // Show button only on the exact day, or if already confirmed
                           if (isPast || (!done && diff !== 0)) return null;
                           return (
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                              <TouchableOpacity
-                                onPress={() => handleConfirmFert(ev)}
-                                disabled={done || loading2}
-                                style={{
-                                  flexDirection: "row", alignItems: "center", gap: 3,
-                                  backgroundColor: done ? "#f0fdf4" : "#16a34a",
-                                  borderRadius: 20,
-                                  paddingHorizontal: 10, paddingVertical: 4,
-                                  opacity: done ? 0.8 : 1,
-                                }}
-                              >
-                                {loading2 ? (
-                                  <ActivityIndicator size="small" color="#fff" />
-                                ) : (
-                                  <Ionicons
-                                    name={done ? "checkmark-circle" : "checkmark"}
-                                    size={12}
-                                    color={done ? "#16a34a" : "#fff"}
-                                  />
-                                )}
-                                <Text style={{ fontSize: 11, fontWeight: "700", color: done ? "#16a34a" : "#fff" }}>
-                                  {done ? "Fait ✓" : "Confirmer"}
-                                </Text>
-                              </TouchableOpacity>
-                              {done && (
-                                <TouchableOpacity
-                                  onPress={() => handleUndoFert(key)}
-                                  style={{
-                                    backgroundColor: "#fee2e2",
-                                    borderRadius: 20,
-                                    paddingHorizontal: 8, paddingVertical: 4,
-                                  }}
-                                >
-                                  <Ionicons name="close" size={12} color="#dc2626" />
-                                </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleConfirmFert(ev)}
+                              disabled={done || loading2}
+                              style={{
+                                flexDirection: "row", alignItems: "center", gap: 3,
+                                backgroundColor: done ? "#f0fdf4" : "#16a34a",
+                                borderRadius: 20,
+                                paddingHorizontal: 10, paddingVertical: 4,
+                                marginTop: 2,
+                                opacity: done ? 0.8 : 1,
+                              }}
+                            >
+                              {loading2 ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                              ) : (
+                                <Ionicons
+                                  name={done ? "checkmark-circle" : "checkmark"}
+                                  size={12}
+                                  color={done ? "#16a34a" : "#fff"}
+                                />
                               )}
-                            </View>
+                              <Text style={{ fontSize: 11, fontWeight: "700", color: done ? "#16a34a" : "#fff" }}>
+                                {done ? "Fait ✓" : "Confirmer"}
+                              </Text>
+                            </TouchableOpacity>
                           );
                         })()}
                       </View>
