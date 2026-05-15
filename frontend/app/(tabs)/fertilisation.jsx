@@ -339,7 +339,7 @@ export default function FertilisationPage() {
   const [activeTab, setActiveTab] = useState("calendar");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [confirmedEvents, setConfirmedEvents] = useState(new Set());
+  const [confirmedEvents, setConfirmedEvents] = useState(new Map()); // key → recordId
   const [confirmingKey, setConfirmingKey] = useState(null);
 
   const year = new Date().getFullYear();
@@ -356,16 +356,16 @@ export default function FertilisationPage() {
         if (cultRes.success) setCultures(cultRes.data);
 
         if (fertRes.success && Array.isArray(fertRes.data)) {
-          const keys = new Set(
+          const map = new Map(
             fertRes.data.map((f) => {
               const d = new Date(f.date);
               const mois = d.getMonth() + 1;
               const jour = d.getDate();
               const cid = f.cultureId?._id || f.cultureId;
-              return `${cid}_${mois}_${jour}`;
+              return [`${cid}_${mois}_${jour}`, f._id];
             })
           );
-          setConfirmedEvents(keys);
+          setConfirmedEvents(map);
         }
       } catch {}
       finally { setLoading(false); }
@@ -447,7 +447,9 @@ export default function FertilisationPage() {
         }),
       });
       if (res.ok) {
-        setConfirmedEvents((prev) => new Set([...prev, key]));
+        const data = await res.json();
+        const recordId = data?.data?._id;
+        setConfirmedEvents((prev) => new Map([...prev, [key, recordId]]));
       } else {
         Alert.alert(t("common.error"), t("fertilisation.saveFailed"));
       }
@@ -457,6 +459,36 @@ export default function FertilisationPage() {
     } finally {
       setConfirmingKey(null);
     }
+  };
+
+  const handleUndoFert = (key) => {
+    const recordId = confirmedEvents.get(key);
+    Alert.alert(
+      t("fertilisation.undoTitle") || "Annuler la confirmation",
+      t("fertilisation.undoMsg") || "Voulez-vous annuler cette fertilisation confirmée ?",
+      [
+        { text: t("common.cancel") || "Non", style: "cancel" },
+        {
+          text: t("common.confirm") || "Oui, annuler",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              if (recordId) {
+                await apiFetch(API_ENDPOINTS.fertilisations.byId(recordId), { method: "DELETE" });
+              }
+              setConfirmedEvents((prev) => {
+                const next = new Map(prev);
+                next.delete(key);
+                return next;
+              });
+            } catch (e) {
+              console.error("handleUndoFert:", e.message);
+              Alert.alert(t("common.error"), t("errors.network"));
+            }
+          },
+        },
+      ]
+    );
   };
 
   const exportFertilisation = async () => {
@@ -894,34 +926,44 @@ export default function FertilisationPage() {
                           // Show button only on the exact day, or if already confirmed
                           if (isPast || (!done && diff !== 0)) return null;
                           return (
-                            <TouchableOpacity
-                              onPress={() => handleConfirmFert(ev)}
-                              disabled={done || loading2}
-                              style={{
-                                flexDirection: "row", alignItems: "center", gap: 3,
-                                backgroundColor: done ? "#f0fdf4" : "#16a34a",
-                                borderRadius: 20,
-                                paddingHorizontal: 10, paddingVertical: 4,
-                                marginTop: 2,
-                                opacity: done ? 0.8 : 1,
-                              }}
-                            >
-                              {loading2 ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                              ) : (
-                                <Ionicons
-                                  name={done ? "checkmark-circle" : "checkmark"}
-                                  size={12}
-                                  color={done ? "#16a34a" : "#fff"}
-                                />
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                              <TouchableOpacity
+                                onPress={() => handleConfirmFert(ev)}
+                                disabled={done || loading2}
+                                style={{
+                                  flexDirection: "row", alignItems: "center", gap: 3,
+                                  backgroundColor: done ? "#f0fdf4" : "#16a34a",
+                                  borderRadius: 20,
+                                  paddingHorizontal: 10, paddingVertical: 4,
+                                  opacity: done ? 0.8 : 1,
+                                }}
+                              >
+                                {loading2 ? (
+                                  <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                  <Ionicons
+                                    name={done ? "checkmark-circle" : "checkmark"}
+                                    size={12}
+                                    color={done ? "#16a34a" : "#fff"}
+                                  />
+                                )}
+                                <Text style={{ fontSize: 11, fontWeight: "700", color: done ? "#16a34a" : "#fff" }}>
+                                  {done ? "Fait ✓" : "Confirmer"}
+                                </Text>
+                              </TouchableOpacity>
+                              {done && (
+                                <TouchableOpacity
+                                  onPress={() => handleUndoFert(key)}
+                                  style={{
+                                    backgroundColor: "#fee2e2",
+                                    borderRadius: 20,
+                                    paddingHorizontal: 8, paddingVertical: 4,
+                                  }}
+                                >
+                                  <Ionicons name="close" size={12} color="#dc2626" />
+                                </TouchableOpacity>
                               )}
-                              <Text style={{
-                                fontSize: 11, fontWeight: "700",
-                                color: done ? "#16a34a" : "#fff",
-                              }}>
-                                {done ? "Fait ✓" : "Confirmer"}
-                              </Text>
-                            </TouchableOpacity>
+                            </View>
                           );
                         })()}
                       </View>
