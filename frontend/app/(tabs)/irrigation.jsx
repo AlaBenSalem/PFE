@@ -644,10 +644,13 @@ export default function IrrigationPage() {
               </View>
             ) : (
               historyItems.map((item, idx) => {
-                const surface     = item.surface || 100;
-                const eauMmVal    = item.eauMm != null ? Number(item.eauMm) : (item.volume / surface);
-                const eauM3Val    = ((eauMmVal * surface) / 1000).toFixed(2);
-                const debitLhVal  = item.debit || 1000;
+                const surface     = item.surface || selectedCulture?.surface || 100;
+                const eauM3Val    = item.volume != null
+                  ? (item.volume / 1000).toFixed(2)
+                  : item.eauMm != null
+                    ? ((Number(item.eauMm) * surface) / 1000).toFixed(2)
+                    : "0.00";
+                const debitLhVal  = item.debit || (item.debitMmh ? item.debitMmh * surface : 1000);
                 const debitM3hVal = (debitLhVal / 1000).toFixed(3);
                 return (
                   <View key={item._id}>

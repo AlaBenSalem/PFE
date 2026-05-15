@@ -47,6 +47,8 @@ exports.getAllIrrigations = async (req, res) => {
       kc: irr.kc,
       eauMm: irr.eauMm,
       debitMmh: irr.debitMmh,
+      debit: irr.debit,
+      surface: irr.surface,
       typeSol: irr.typeSol,
       rfu: irr.rfu,
       ru: irr.ru,

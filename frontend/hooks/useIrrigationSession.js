@@ -101,9 +101,12 @@ export function useIrrigationSession({
       const rows = historyItems.map((item) => {
         const culture    = cultures.find((c) => c._id === (item.cultureId?._id || item.cultureId));
         const surface    = item.surface || culture?.surface || 100;
-        const eauMmVal   = item.eauMm != null ? Number(item.eauMm) : (item.volume / surface);
-        const eauM3Val   = ((eauMmVal * surface) / 1000).toFixed(2);
-        const debitLhVal  = item.debit || 1000;
+        const eauM3Val   = item.volume != null
+          ? (item.volume / 1000).toFixed(2)
+          : item.eauMm != null
+            ? ((Number(item.eauMm) * surface) / 1000).toFixed(2)
+            : "0.00";
+        const debitLhVal  = item.debit || (item.debitMmh ? item.debitMmh * surface : 1000);
         const debitM3hVal = (debitLhVal / 1000).toFixed(3);
         return [
           new Date(item.date).toLocaleDateString("fr-FR"),
