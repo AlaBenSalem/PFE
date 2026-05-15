@@ -450,6 +450,9 @@ export default function FertilisationPage() {
         const data = await res.json();
         const recordId = data?.data?._id;
         setConfirmedEvents((prev) => new Map([...prev, [key, recordId]]));
+        // Dismiss the matching notification
+        const notifId = `${ev.culture?._id || ev.cultureName}|${ev.mois}|${ev.jour}|${ev.produit}`;
+        markRead(notifId);
       } else {
         Alert.alert(t("common.error"), t("fertilisation.saveFailed"));
       }
