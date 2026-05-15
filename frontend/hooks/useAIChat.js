@@ -7,7 +7,7 @@ import { Platform } from "react-native";
 import { apiFetch, API_ENDPOINTS } from "@api/client";
 import { useLanguage } from "@context/LanguageContext";
 import { getWebAudioCtx } from "./useAIVoice";
-import { getIrrigationBesoinsSnapshot } from "@utils/irrigationBesoinsStore";
+import { getIrrigationBesoinsSnapshot, loadBesoinsFromStorage } from "@utils/irrigationBesoinsStore";
 
 const INITIAL_MESSAGES = {
   fr: "🌿 Bonjour! Comment puis-je vous aider?",
@@ -117,6 +117,7 @@ export function useAIChat({ speakText, setIsSpeaking, detectSpeechLang, setTtsLa
 
     try {
 
+      await loadBesoinsFromStorage();
       const snap = getIrrigationBesoinsSnapshot();
       const irrigationData = Object.values(snap).map(({ nom, besoins: b }) => ({
         nom,
