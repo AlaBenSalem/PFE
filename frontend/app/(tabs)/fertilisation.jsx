@@ -887,10 +887,12 @@ export default function FertilisationPage() {
                             {t("fertilisation.inDays").replace("{{count}}", String(diff))}
                           </Text>
                         )}
-                        {!isPast && (() => {
+                        {(() => {
                           const key = `${ev.culture?._id}_${ev.mois}_${ev.jour}`;
                           const done = confirmedEvents.has(key);
                           const loading2 = confirmingKey === key;
+                          // Show button only on the exact day, or if already confirmed
+                          if (isPast || (!done && diff !== 0)) return null;
                           return (
                             <TouchableOpacity
                               onPress={() => handleConfirmFert(ev)}
