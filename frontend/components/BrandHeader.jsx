@@ -38,16 +38,13 @@ export function BrandHeader({
             </TouchableOpacity>
           ) : null}
 
-          <View className="min-w-0 shrink flex-row items-center gap-2">
+          <View className="flex-row items-center gap-2">
             <Image
               source={logoImage}
               style={{ height: 25, width: 30 }}
               resizeMode="contain"
             />
-            <Text
-              className="text-[19px] font-extrabold text-slate-900"
-              numberOfLines={1}
-            >
+            <Text className="text-[19px] font-extrabold text-slate-900">
               <Text className="text-green-500">Smart</Text>
               <Text className="text-blue-500">Irrig</Text>
             </Text>
@@ -55,7 +52,7 @@ export function BrandHeader({
         </View>
 
         {right ? (
-          <View className="ml-3 shrink-0 items-center justify-center">
+          <View className="ml-2 shrink items-center justify-center">
             {right}
           </View>
         ) : null}
