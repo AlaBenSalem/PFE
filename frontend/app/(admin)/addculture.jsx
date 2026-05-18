@@ -407,7 +407,7 @@ export default function AddCulturePage() {
         showToast(`"${item.culture}" ${t("admin.deleteKcSuccess")}`, "success");
       } else {
         showToast(
-          data?.error || data?.message || `Erreur HTTP ${res.status}`,
+          data?.error || data?.message || `HTTP ${res.status}`,
           "error",
         );
       }

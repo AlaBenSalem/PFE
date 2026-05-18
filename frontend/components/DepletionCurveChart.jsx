@@ -2,6 +2,7 @@
 // Zones colorées + courbe passé/futur + repères internationaux
 import React, { useState, useMemo } from "react";
 import { View, Text } from "react-native";
+import { useLanguage } from "@context/LanguageContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Geometry constants
@@ -85,6 +86,7 @@ function HLine({ y, color, width, dashed = false, w = 1.5 }) {
 //  Main chart
 // ─────────────────────────────────────────────────────────────────────────────
 export default function DepletionCurveChart({ besoins, historyItems = [], selectedCulture }) {
+  const { t } = useLanguage();
   const [containerWidth, setContainerWidth] = useState(320);
   const innerW = Math.max(60, containerWidth - PAD_LEFT - PAD_RIGHT);
 
@@ -197,7 +199,7 @@ export default function DepletionCurveChart({ besoins, historyItems = [], select
   const isCrit = besoins.stockAlert === "critical";
   const statusColor = isCrit ? "#dc2626" : isWarn ? "#ea580c" : "#0369a1";
   const statusBg    = isCrit ? "#fef2f2" : isWarn ? "#fff7ed" : "#eff6ff";
-  const statusLabel = isCrit ? "Critique" : isWarn ? "Seuil RFU atteint" : "Réserve suffisante";
+  const statusLabel = isCrit ? t("irrigation.chartStatusCrit") : isWarn ? t("irrigation.chartStatusWarn") : t("irrigation.chartStatusOk");
 
   // ── Current value (today's last point) ────────────────────────────────────
   const todayPt = past[past.length - 1];
@@ -207,7 +209,7 @@ export default function DepletionCurveChart({ besoins, historyItems = [], select
   const step = Math.max(1, Math.ceil(totalDays / 5));
   const xLabels = [];
   for (let d = 0; d <= totalDays; d += step) {
-    xLabels.push({ d, label: d === pastDays ? "Auj." : `J${d - pastDays > 0 ? "+" : ""}${d - pastDays}` });
+    xLabels.push({ d, label: d === pastDays ? t("irrigation.chartToday") : `J${d - pastDays > 0 ? "+" : ""}${d - pastDays}` });
   }
   if (xLabels[xLabels.length - 1]?.d !== totalDays) {
     xLabels.push({ d: totalDays, label: `J+${totalDays - pastDays}` });
@@ -235,10 +237,10 @@ export default function DepletionCurveChart({ besoins, historyItems = [], select
       }}>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 13, fontWeight: "700", color: "#0f172a", letterSpacing: 0.2 }}>
-            Réserve en eau du sol
+            {t("irrigation.chartTitle")}
           </Text>
           <Text style={{ fontSize: 10, color: "#94a3b8", marginTop: 1 }}>
-            Évolution en temps réel — FAO-56
+            {t("irrigation.chartSubtitle")}
           </Text>
         </View>
         {/* Status badge */}
@@ -514,10 +516,10 @@ export default function DepletionCurveChart({ besoins, historyItems = [], select
           paddingHorizontal: 4,
         }}>
           {[
-            { color: "#0369a1", label: `FC = ${W_cc.toFixed(0)} mm`,    sub: "Capacité au champ", dash: false },
-            { color: "#d97706", label: `RAW = ${W_seuil.toFixed(0)} mm`, sub: "Seuil d'irrigation", dash: true  },
-            { color: "#ef4444", label: `PWP = ${W_pf_mm.toFixed(0)} mm`, sub: "Flétrissement",     dash: true  },
-            { color: "#94a3b8", label: "Projection",                     sub: "Évol. prévue",      dash: true  },
+            { color: "#0369a1", label: `FC = ${W_cc.toFixed(0)} mm`,    sub: t("irrigation.chartFC"),         dash: false },
+            { color: "#d97706", label: `RAW = ${W_seuil.toFixed(0)} mm`, sub: t("irrigation.chartRAW"),       dash: true  },
+            { color: "#ef4444", label: `PWP = ${W_pf_mm.toFixed(0)} mm`, sub: t("irrigation.chartPWP"),      dash: true  },
+            { color: "#94a3b8", label: t("irrigation.chartProjection"),  sub: t("irrigation.chartProjSub"),   dash: true  },
           ].map((item) => (
             <View key={item.label} style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, minWidth: "44%" }}>
               <View style={{ marginTop: 4 }}>

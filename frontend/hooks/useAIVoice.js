@@ -198,7 +198,7 @@ async function getVoiceForLanguage(language) {
  * @param {{ onTranscriptReady: (text: string) => void, onInterimTranscript: (text: string) => void }} callbacks
  */
 export function useAIVoice({ onTranscriptReady, onInterimTranscript } = {}) {
-  const { language } = useLanguage();
+  const { t, language } = useLanguage();
 
   const [isSpeaking,     setIsSpeaking]     = useState(false);
   const [ttsLang,        setTtsLang]        = useState("fr-FR");
@@ -452,17 +452,17 @@ export function useAIVoice({ onTranscriptReady, onInterimTranscript } = {}) {
         if (!result?.granted) {
           if (result?.canAskAgain === false) {
             Alert.alert(
-              "Permission microphone",
-              "L'accès au microphone a été refusé. Activez-le dans les paramètres de l'application.",
+              t("common.micPermissionTitle"),
+              t("common.micPermissionDenied"),
               [
-                { text: "Annuler", style: "cancel" },
-                { text: "Paramètres", onPress: () => Linking.openSettings() },
+                { text: t("common.cancel"), style: "cancel" },
+                { text: t("common.settings"), onPress: () => Linking.openSettings() },
               ]
             );
           } else {
             Alert.alert(
-              "Permission microphone",
-              "SmartIrrig a besoin du microphone pour enregistrer votre voix.",
+              t("common.micPermissionTitle"),
+              t("common.micPermissionNeeded"),
               [{ text: "OK" }]
             );
           }
@@ -490,7 +490,7 @@ export function useAIVoice({ onTranscriptReady, onInterimTranscript } = {}) {
       console.error("❌ [Voice]", e.message);
       stopRecordTimer();
       setIsListening(false);
-      Alert.alert("Microphone", "Impossible de démarrer la reconnaissance vocale. Réessayez.");
+      Alert.alert(t("common.micPermissionTitle"), t("common.micError"));
     }
   }, [
     speechRecognitionAvailable, isListening, isSpeaking,

@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { Alert, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { API_ENDPOINTS, apiFetch } from "@api/client";
+import { useLanguage } from "@context/LanguageContext";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 export const PERTE_PAR_MODE = {
@@ -58,6 +59,7 @@ function saxtonRawls(sablePct, argilePct, moPct) {
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 export function useIrrigationData() {
+  const { t } = useLanguage();
   const [cultures,             setCultures]             = useState([]);
   const [selectedCulture,      setSelectedCulture]      = useState(null);
   const [loading,              setLoading]              = useState(true);
@@ -117,8 +119,8 @@ export function useIrrigationData() {
 
       Notifications.scheduleNotificationAsync({
         content: {
-          title: `🚨 Irriguer maintenant — ${selectedCulture.nom}`,
-          body: `Stock = ${besoins.W_current.toFixed(1)} mm ≤ seuil RFU. Ouvrez la vanne.`,
+          title: `🚨 ${t("irrigation.irrigateNow")} — ${selectedCulture.nom}`,
+          body: `${t("irrigation.stockSoil")} = ${besoins.W_current.toFixed(1)} mm ≤ RFU. ${t("irrigation.openValve")}`,
           sound: true,
         },
         trigger: null,
@@ -134,8 +136,8 @@ export function useIrrigationData() {
 
     Notifications.scheduleNotificationAsync({
       content: {
-        title: `⚠️ Irrigation requise — ${selectedCulture.nom}`,
-        body: `Dans ~${Math.round(hoursUntilAlert)}h le stock atteindra le seuil RFU. Préparez-vous.`,
+        title: `⚠️ ${t("irrigation.irrigationRequired")} — ${selectedCulture.nom}`,
+        body: `${t("irrigation.inAbout")} ~${Math.round(hoursUntilAlert)}h ${t("irrigation.stockWillReachRFU")}`,
         sound: true,
       },
       trigger: { date: new Date(Date.now() + hoursUntilAlert * 3_600_000) },
@@ -149,7 +151,7 @@ export function useIrrigationData() {
         await Promise.all([fetchCultures(), fetchWeather(), fetchHistory()]);
       } catch (err) {
         console.error("useIrrigationData.init:", err.message);
-        setError("Erreur lors du chargement initial");
+        setError(t("errors.unknown"));
       }
     };
     init();
@@ -176,8 +178,8 @@ export function useIrrigationData() {
       } else throw new Error(result.message || "Réponse API invalide");
     } catch (err) {
       console.error("useIrrigationData.fetchCultures:", err.message);
-      setError("Impossible de charger les cultures.");
-      Alert.alert("Erreur", "Impossible de charger les cultures. Veuillez réessayer.");
+      setError(t("cultures.errors.addError"));
+      Alert.alert(t("common.error"), t("irrigation.loadError"));
     } finally {
       setLoading(false);
     }
@@ -233,13 +235,13 @@ export function useIrrigationData() {
     if (culture?.kcManuel?.mid != null) {
       const mois = new Date().getMonth() + 1;
       let kcVal = parseFloat(culture.kcManuel.mid);
-      let stade = "mi-saison";
+      let stade = t("cultures.modal.stadeMid");
       if (mois <= 3 && culture.kcManuel.ini != null) {
         kcVal = parseFloat(culture.kcManuel.ini);
-        stade = "initial";
+        stade = t("cultures.modal.stadeIni");
       } else if (mois >= 10 && culture.kcManuel.end != null) {
         kcVal = parseFloat(culture.kcManuel.end);
-        stade = "fin saison";
+        stade = t("cultures.modal.stadeLate");
       }
       setKcDynamique(kcVal);
       setKcStade(stade);
@@ -458,7 +460,7 @@ export function useIrrigationData() {
       const eauM3          = mmToM3(eauMm, surface);
       const debitM3h       = lhToM3h(debitLH);
       const volumeM3Ha     = (eauMm * 10).toFixed(1);
-      const kcLabel        = culture.kcManuel?.mid != null ? "Kc manuel" : "Kc (FAO-56)";
+      const kcLabel        = culture.kcManuel?.mid != null ? t("irrigation.kcManuel") : t("irrigation.kcFao");
 
       // ✅ Infos horaires pour affichage (optionnel)
       const heuresDepuisIrrig = Math.round(heuresEcoulees);

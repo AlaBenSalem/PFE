@@ -2,8 +2,10 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { getOpenWeatherBundle } from "@api/weather";
+import { useLanguage } from "@context/LanguageContext";
 
 export default function WeatherAlert({ city = "Tunis", onReductionChange }) {
+  const { t } = useLanguage();
   const [alertData, setAlertData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -52,7 +54,7 @@ export default function WeatherAlert({ city = "Tunis", onReductionChange }) {
       <View style={{ flexDirection: "row", alignItems: "center", padding: 10, marginBottom: 8 }}>
         <ActivityIndicator size="small" color="#2563eb" />
         <Text style={{ marginLeft: 8, color: "#6b7280", fontSize: 12 }}>
-          Vérification météo 48h...
+          {t("irrigation.weatherCheck48h")}
         </Text>
       </View>
     );
@@ -77,12 +79,12 @@ export default function WeatherAlert({ city = "Tunis", onReductionChange }) {
       <Ionicons name="rainy" size={22} color="#1d4ed8" />
       <View style={{ flex: 1 }}>
         <Text style={{ fontWeight: "bold", color: "#1e40af", fontSize: 13, marginBottom: 2 }}>
-          Pluie prévue dans les 48h — {alertData.rain} mm ({alertData.pop}%)
+          {t("irrigation.rainAlert48h")
+            .replace("{rain}", alertData.rain)
+            .replace("{pop}", alertData.pop)}
         </Text>
         <Text style={{ color: "#2563eb", fontSize: 12 }}>
-          Dose d'irrigation recommandée réduite de{" "}
-          <Text style={{ fontWeight: "bold" }}>{alertData.reduction}%</Text>{" "}
-          automatiquement
+          {t("irrigation.doseReduced").replace("{pct}", alertData.reduction)}
         </Text>
       </View>
       <TouchableOpacity

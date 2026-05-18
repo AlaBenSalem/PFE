@@ -336,7 +336,7 @@ function UserDetailModal({ user, visible, onClose, onEdit, onDelete, onToggle, a
                   {!irrigStats && (
                     <View style={{ alignItems:"center", paddingVertical:24 }}>
                       <Ionicons name="water-outline" size={40} color="#d1d5db" />
-                      <Text style={{ fontSize:14, color:C.muted, marginTop:8 }}>Aucune donnée disponible</Text>
+                      <Text style={{ fontSize:14, color:C.muted, marginTop:8 }}>{t("calendar.noData")}</Text>
                     </View>
                   )}
                 </View>

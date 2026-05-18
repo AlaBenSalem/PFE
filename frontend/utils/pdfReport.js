@@ -26,11 +26,12 @@ function buildHtml({ irrigations = [], fertilisations = [], cultureName = "" }) 
 
   const fertRows = fertilisations.slice(0, 30).map((f) => `
     <tr>
-      <td>${fmtDate(f.date || f.datePrevisionnelle)}</td>
-      <td>${f.culture || f.nom || "—"}</td>
-      <td>${f.produit || f.type || "—"}</td>
-      <td>${f.dose || "—"}</td>
-      <td>${f.statut || "Planifié"}</td>
+      <td>${fmtDate(f.date)}</td>
+      <td>${f.cultureId?.nom || f.nom || "—"}</td>
+      <td>${f.produit || "—"}</td>
+      <td>${f.typeProduit || "—"}</td>
+      <td>${f.dose != null ? `${f.dose} ${f.uniteDose || ""}`.trim() : "—"}</td>
+      <td>${f.modeApplication || "—"}</td>
     </tr>
   `).join("");
 
@@ -90,12 +91,12 @@ function buildHtml({ irrigations = [], fertilisations = [], cultureName = "" }) 
       <tbody>${irrigRows}</tbody>
     </table>`}
 
-  <h2>🌿 Fertilisations planifiées</h2>
+  <h2>🌿 Historique de fertilisation</h2>
   ${fertilisations.length === 0
     ? `<p class="empty">Aucune fertilisation enregistrée.</p>`
     : `<table>
       <thead>
-        <tr><th>Date</th><th>Culture</th><th>Produit</th><th>Dose</th><th>Statut</th></tr>
+        <tr><th>Date</th><th>Culture</th><th>Produit</th><th>Type</th><th>Dose</th><th>Mode</th></tr>
       </thead>
       <tbody>${fertRows}</tbody>
     </table>`}

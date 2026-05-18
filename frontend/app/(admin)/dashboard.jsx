@@ -159,7 +159,7 @@ export default function AdminDashboard() {
             <View className="flex-row items-center gap-1">
               <View className="h-1.5 w-1.5 rounded-full bg-blue-400" />
               <Text className="text-[10px] text-slate-500">
-                {stats?.culturesByAdmin ?? 0} ajoutées par l'admin
+                {stats?.culturesByAdmin ?? 0} {t("admin.addedByAdmin")}
               </Text>
             </View>
           </View>

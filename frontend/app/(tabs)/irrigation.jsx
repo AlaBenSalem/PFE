@@ -37,24 +37,17 @@ const MODE_EMOJI = {
   aspersion: "💦",
   gravitaire: "🌊",
 };
-const SOL_LABELS = {
-  sableux: "Sableux 🏖️",
-  limono_sableux: "Limono-sableux 🌾",
-  limoneux: "Limoneux 🌱",
-  argilo_limoneux: "Argilo-limoneux 🏔️",
-  argileux: "Argileux 🪨",
+const SOL_EMOJIS = {
+  sableux: "🏖️", limono_sableux: "🌾", limoneux: "🌱",
+  argilo_limoneux: "🏔️", argileux: "🪨",
 };
-const TAB_LABELS = {
-  needs:   { fr: "Besoins",    en: "Needs",   ar: "الاحتياجات", tr: "İhtiyaçlar" },
-  history: { fr: "Historique", en: "History", ar: "السجل",      tr: "Geçmiş" },
-};
+const LOCALE_MAP = { fr: "fr-FR", en: "en-US", ar: "ar", tr: "tr-TR" };
 const ALERT_TXT = {
   fr: { count: "alerte(s) en cours", tap: "Appuyez sur 🔔 pour les détails" },
   en: { count: "active alert(s)",    tap: "Tap 🔔 for details" },
   ar: { count: "تنبيهات نشطة",       tap: "اضغط على 🔔 للتفاصيل" },
   tr: { count: "aktif uyarı",        tap: "Detaylar için 🔔 ye dokunun" },
 };
-const MOIS_LABELS_FR = ["Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
 
 // ── Pure UI helpers ───────────────────────────────────────────────────────────
 const fmtTemps = (minutes) =>
@@ -62,42 +55,35 @@ const fmtTemps = (minutes) =>
     ? `${Math.floor(minutes / 60)}h${minutes % 60 > 0 ? String(minutes % 60).padStart(2, "0") : ""}`
     : `${minutes} min`;
 
-const fmtDate = (date) => {
+const fmtDate = (date, t, lang) => {
   try {
     const diff = (Date.now() - new Date(date).getTime()) / 60000;
-    if (diff < 1)    return "À l'instant";
+    if (diff < 1)    return t("irrigation.justNow");
     if (diff < 60)   return `${Math.floor(diff)} min`;
     if (diff < 1440) return `${Math.floor(diff / 60)} h`;
-    return new Date(date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
-  } catch { return "Date inconnue"; }
+    return new Date(date).toLocaleDateString(LOCALE_MAP[lang] || "fr-FR", { day: "2-digit", month: "2-digit" });
+  } catch { return t("irrigation.unknownDate"); }
 };
 
-const fmtAujourdhui = () =>
-  new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+const fmtAujourdhui = (lang) =>
+  new Date().toLocaleDateString(LOCALE_MAP[lang] || "fr-FR", { weekday: "long", day: "numeric", month: "long" });
 
-const fmtDateIrrig = (date) => {
-  if (!date) return fmtAujourdhui();
+const fmtDateIrrig = (date, lang) => {
+  if (!date) return fmtAujourdhui(lang);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const d = new Date(date); d.setHours(0, 0, 0, 0);
   const diff = Math.ceil((d - today) / 86400000);
-  if (diff <= 0) return fmtAujourdhui();
-  return d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  if (diff <= 0) return fmtAujourdhui(lang);
+  return d.toLocaleDateString(LOCALE_MAP[lang] || "fr-FR", { weekday: "long", day: "numeric", month: "long" });
 };
 
-function getPlantUnit(cropName) {
-  if (!cropName) return "arbre";
-  const n = cropName.toLowerCase();
-  const HERBS = [
-    "tomate","poivron","piment","aubergine","concombre","courgette",
-    "laitue","salade","melon","pastèque","fraise","haricot","pois",
-    "carotte","oignon","ail","épinard","chou","brocoli","céleri",
-    "fenouil","basilic","menthe","persil","coriandre","poireau",
-    "navet","radis","betterave","artichaut","asperge","courge",
-  ];
-  if (HERBS.some((h) => n.includes(h))) return "plant";
-  if (n.includes("vigne") || n.includes("raisin")) return "pied";
-  return "arbre";
-}
+const PLANT_HERBS = [
+  "tomate","poivron","piment","aubergine","concombre","courgette",
+  "laitue","salade","melon","pastèque","fraise","haricot","pois",
+  "carotte","oignon","ail","épinard","chou","brocoli","céleri",
+  "fenouil","basilic","menthe","persil","coriandre","poireau",
+  "navet","radis","betterave","artichaut","asperge","courge",
+];
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 export default function IrrigationPage() {
@@ -159,6 +145,7 @@ export default function IrrigationPage() {
     historyItems,
     cultures,
     t,
+    lang,
   });
 
   // ── Notifications ───────────────────────────────────────────────────────────
@@ -173,6 +160,21 @@ export default function IrrigationPage() {
     if (mode === "goutte-à-goutte") return t("irrigation.drip") || "Goutte-à-goutte";
     if (mode === "aspersion")       return t("irrigation.sprinkler") || "Aspersion";
     return t("irrigation.gravity") || "Gravitaire";
+  };
+
+  const getPlantUnit = (cropName) => {
+    if (!cropName) return t("irrigation.plantTree");
+    const n = cropName.toLowerCase();
+    if (PLANT_HERBS.some((h) => n.includes(h))) return t("irrigation.plantPlant");
+    if (n.includes("vigne") || n.includes("raisin")) return t("irrigation.plantVine");
+    return t("irrigation.plantTree");
+  };
+
+  const getSolLabel = (typeSol) => {
+    if (!typeSol) return "";
+    const nom = t(`cultures.modal.soilTypes.${typeSol}.nom`);
+    const emoji = SOL_EMOJIS[typeSol] || "";
+    return nom ? `${nom} ${emoji}` : typeSol;
   };
 
   const handleSelectCulture = (culture) => {
@@ -198,7 +200,7 @@ export default function IrrigationPage() {
           className="mt-5 bg-green-500 px-5 py-3 rounded-xl"
           onPress={retry}
         >
-          <Text className="text-white font-semibold">Réessayer</Text>
+          <Text className="text-white font-semibold">{t("common.retry")}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -212,7 +214,7 @@ export default function IrrigationPage() {
 
   const alertTxt   = ALERT_TXT[lang] || ALERT_TXT.fr;
   const hasData    = selectedCulture && besoins.eauMm !== "0.0";
-  const moisActuel = MOIS_LABELS_FR[new Date().getMonth()];
+  const moisActuel = new Date().toLocaleDateString(LOCALE_MAP[lang] || "fr-FR", { month: "short" });
   const plantUnit  = getPlantUnit(selectedCulture?.nom);
 
   return (
@@ -273,10 +275,9 @@ export default function IrrigationPage() {
           <View className="flex-row items-start gap-2 bg-amber-50 border border-amber-300 rounded-2xl px-3.5 py-3 mb-4">
             <Ionicons name="warning-outline" size={16} color="#d97706" />
             <View className="flex-1">
-              <Text className="text-[13px] font-bold text-amber-700">Débit non configuré</Text>
+              <Text className="text-[13px] font-bold text-amber-700">{t("irrigation.flowNotConfigured")}</Text>
               <Text className="text-[11px] text-amber-600 mt-0.5">
-                La culture "{selectedCulture.nom}" n'a pas de débit défini. Le calcul utilise 1000 L/h par défaut.
-                Configurez le débit dans "Mes cultures" pour un résultat précis.
+                {translateCropName(selectedCulture.nom, language)} {t("irrigation.flowNotConfiguredDesc")}
               </Text>
             </View>
           </View>
@@ -300,7 +301,7 @@ export default function IrrigationPage() {
           onPress={() => setCultureModalVisible(true)}
         >
           <View className="flex-1">
-            <Text className="text-[13px] text-gray-500 mb-1">Culture</Text>
+            <Text className="text-[13px] text-gray-500 mb-1">{t("irrigation.cultureLabel")}</Text>
             {selectedCulture ? (
               <>
                 <Text className="text-[20px] font-semibold text-gray-900">
@@ -314,7 +315,7 @@ export default function IrrigationPage() {
               </>
             ) : (
               <Text className="text-[20px] text-gray-400 italic font-normal">
-                {cultures.length === 0 ? "Aucune culture disponible" : "Sélectionner une culture"}
+                {cultures.length === 0 ? t("irrigation.noCulture") : t("irrigation.selectCulture")}
               </Text>
             )}
           </View>
@@ -329,7 +330,7 @@ export default function IrrigationPage() {
               onPress={() => setActiveTab(tab)}
             >
               <Text className={`text-[14px] ${activeTab === tab ? "font-bold text-gray-900" : "font-medium text-gray-400"}`}>
-                {(TAB_LABELS[tab] || {})[lang] || TAB_LABELS[tab].fr}
+                {t(tab === "needs" ? "irrigation.tab_needs" : "irrigation.tab_history")}
               </Text>
             </TouchableOpacity>
           ))}
@@ -376,7 +377,7 @@ export default function IrrigationPage() {
                   <Text className="font-bold text-gray-900">
                     {translateCropName(selectedCulture.nom, language)} ({selectedCulture.variete})
                   </Text>
-                  {" · "}{SOL_LABELS[besoins.typeSol] || besoins.typeSol}
+                  {" · "}{getSolLabel(besoins.typeSol)}
                   {selectedCulture.region ? ` · 🌍 ${selectedCulture.region}` : ""}
                 </Text>
 
@@ -438,7 +439,7 @@ export default function IrrigationPage() {
                     </Text>
                     {besoins.debitGoutteur > 0 && (
                       <Text className="text-[10px] text-gray-400 mt-0.5">
-                        {besoins.debitGoutteur} L/h × {besoins.nbGoutteursParArbre} goutteurs/{plantUnit}
+                        {besoins.debitGoutteur} L/h × {besoins.nbGoutteursParArbre} {t("irrigation.goutteur")}s/{plantUnit}
                       </Text>
                     )}
                   </View>
@@ -492,11 +493,11 @@ export default function IrrigationPage() {
                       <View className="flex-row items-center gap-1.5 mb-1">
                         <Ionicons name={icon} size={13} color={iconClr} />
                         <Text className={`text-[11px] font-bold flex-1 ${txtClr}`}>
-                          Stock sol : {besoins.W_current?.toFixed(1)} mm / {besoins.W_cc?.toFixed(0)} mm
+                          {t("irrigation.stockSoil")} : {besoins.W_current?.toFixed(1)} mm / {besoins.W_cc?.toFixed(0)} mm
                           {besoins.peff > 0 ? `  🌧 Peff=${besoins.peff?.toFixed(1)} mm` : ""}
-                          {isCrit ? "  ⚠ Critique — sol proche du flétrissement"
-                          : isWarn ? "  ⚠ Seuil RFU atteint — irrigation requise"
-                          : "  ✓ Réserve suffisante"}
+                          {isCrit ? `  ⚠ ${t("irrigation.criticalStock")}`
+                          : isWarn ? `  ⚠ ${t("irrigation.warnStock")}`
+                          : `  ✓ ${t("irrigation.sufficientReserve")}`}
                         </Text>
                       </View>
                       <View className="h-2 bg-gray-200 rounded-full overflow-hidden mb-1">
@@ -516,15 +517,15 @@ export default function IrrigationPage() {
                   <View className="flex-row items-center gap-1.5 mb-1">
                     <Ionicons name="calendar" size={13} color={besoins.isIrrigationDue ? "#1d4ed8" : "#64748b"} />
                     <Text className={`text-[12px] font-bold capitalize flex-1 ${besoins.isIrrigationDue ? "text-blue-700" : "text-slate-600"}`}>
-                      {fmtDateIrrig(besoins.dateProchaine)}
+                      {fmtDateIrrig(besoins.dateProchaine, lang)}
                     </Text>
                     {besoins.isIrrigationDue ? (
                       <View className="bg-red-100 rounded-full px-2 py-0.5">
-                        <Text className="text-[10px] font-bold text-red-600">À irriguer</Text>
+                        <Text className="text-[10px] font-bold text-red-600">{t("irrigation.toIrrigate")}</Text>
                       </View>
                     ) : (
                       <View className="bg-slate-100 rounded-full px-2 py-0.5">
-                        <Text className="text-[10px] font-semibold text-slate-500">dans {besoins.joursAvantIrrig} j</Text>
+                        <Text className="text-[10px] font-semibold text-slate-500">{t("irrigation.inXDays")} {besoins.joursAvantIrrig} {t("irrigation.daysShort")}</Text>
                       </View>
                     )}
                   </View>
@@ -538,20 +539,20 @@ export default function IrrigationPage() {
                     {besoins.isIrrigationDue ? (
                       <Text className="flex-1 text-[13px] leading-5 text-blue-800">
                         {besoins.stockDue
-                          ? "Irriguer aujourd'hui pour revenir à la capacité au champ — "
-                          : "Ouvrez la vanne pendant "}
+                          ? `${t("irrigation.irrigateToday")} — `
+                          : `${t("irrigation.openValve")} `}
                         <Text className="font-bold">{fmtTemps(besoins.temps)}</Text>
-                        {" à "}
+                        {` ${t("irrigation.atFlow")} `}
                         <Text className="font-bold">{besoins.debitM3h} m³/h</Text>
-                        {` (${besoins.eta}% eff.) · `}
+                        {` (${besoins.eta}% ${t("irrigation.effShort")}) · `}
                         <Text className="font-bold">{besoins.eauM3} m³</Text>
-                        {" sur "}
-                        <Text className="font-bold">{besoins.surface.toLocaleString("fr-FR")} m²</Text>
+                        {` ${t("irrigation.onSurface")} `}
+                        <Text className="font-bold">{besoins.surface.toLocaleString(LOCALE_MAP[lang] || "fr-FR")} m²</Text>
                       </Text>
                     ) : (
                       <Text className="flex-1 text-[13px] leading-5 text-green-700 font-semibold">
-                        Pas d'irrigation à l'instant — prochain apport dans{" "}
-                        <Text className="font-bold">{besoins.joursAvantIrrig} j</Text>
+                        {t("irrigation.noIrrigationNow")} — {t("irrigation.nextIn")}{" "}
+                        <Text className="font-bold">{besoins.joursAvantIrrig} {t("irrigation.daysShort")}</Text>
                       </Text>
                     )}
                   </View>
@@ -561,13 +562,13 @@ export default function IrrigationPage() {
                 <View className="flex-row items-start gap-2 bg-violet-50 border border-violet-300 p-2.5 rounded-xl mb-2">
                   <Ionicons name="calendar-outline" size={15} color="#7c3aed" />
                   <Text className="flex-1 text-[13px] leading-5 text-violet-700">
-                    RU = {besoins.ru} mm · RFU = {besoins.rfu} mm (p={besoins.pAdj}, z={besoins.z} m) · déficit = {besoins.deficitMm} mm.{" "}
+                    RU = {besoins.ru} mm · RFU = {besoins.rfu} mm (p={besoins.pAdj}, z={besoins.z} m) · {t("irrigation.deficitLabel")} = {besoins.deficitMm} mm.{" "}
                     <Text className="font-bold">
-                      Fréquence : tous les {besoins.frequenceJours} j
+                      {t("irrigation.frequency")} : {t("irrigation.everyDays")} {besoins.frequenceJours} {t("irrigation.daysShort")}
                     </Text>
-                    {" · Prochaine : "}
-                    <Text className="font-bold">{fmtDateIrrig(besoins.dateProchaine)}</Text>
-                    {besoins.joursAvantIrrig > 0 ? ` (J+${besoins.joursAvantIrrig}).` : " (aujourd'hui)."}
+                    {` · ${t("irrigation.next")} : `}
+                    <Text className="font-bold">{fmtDateIrrig(besoins.dateProchaine, lang)}</Text>
+                    {besoins.joursAvantIrrig > 0 ? ` (J+${besoins.joursAvantIrrig}).` : ` (${t("common.today").toLowerCase()}).`}
                   </Text>
                 </View>
 
@@ -606,7 +607,7 @@ export default function IrrigationPage() {
                     {done.debitM3h} m³/h · {fmtTemps(done.temps)}
                   </Text>
                   <Text className="text-[13px] text-gray-500 mt-1 text-center">
-                    Déficit : {done.deficitMm} mm · ETc = {done.etc} mm/j · ET₀ {done.et0} × Kc {done.kc} · η = {done.eta}%
+                    {t("irrigation.deficitLabel")} : {done.deficitMm} mm · ETc = {done.etc} mm/j · ET₀ {done.et0} × Kc {done.kc} · η = {done.eta}%
                   </Text>
                 </View>
               );
@@ -658,7 +659,7 @@ export default function IrrigationPage() {
                       <Text className="text-[14px] font-semibold text-orange-500">
                         {translateCropName(item.nom || item.cultureId?.nom, language)}
                       </Text>
-                      <Text className="text-[13px] text-gray-400">{fmtDate(item.date)}</Text>
+                      <Text className="text-[13px] text-gray-400">{fmtDate(item.date, t, lang)}</Text>
                     </View>
                     <View className="bg-gray-100 px-3 py-1 rounded-full self-start mb-1">
                       <Text className="text-[12px] text-gray-600">{MODE_EMOJI[item.mode]} {getModeLabel(item.mode)}</Text>

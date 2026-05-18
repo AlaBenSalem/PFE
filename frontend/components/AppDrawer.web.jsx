@@ -52,7 +52,7 @@ export function AppDrawer({ children }) {
     const userId   = userData?._id || userData?.id;
     const token    = await authAPI.getUserToken();
 
-    if (!userId || !token) throw new Error("Session expirée. Reconnectez-vous.");
+    if (!userId || !token) throw new Error(t("errors.unauthorized"));
 
     const { apiFetch, API_ENDPOINTS } = await import("@api/client");
     const res = await apiFetch(API_ENDPOINTS.users.byId(userId), {
@@ -62,7 +62,7 @@ export function AppDrawer({ children }) {
     });
 
     const json = await res.json();
-    if (!res.ok) throw new Error(json?.error || json?.message || "Erreur serveur.");
+    if (!res.ok) throw new Error(json?.error || json?.message || t("admin.userErrServer"));
 
     // Persister dans AsyncStorage pour survivre au ctrl+R
     const updated = { ...userData, firstName, lastName };

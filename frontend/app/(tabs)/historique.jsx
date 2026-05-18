@@ -64,7 +64,7 @@ export default function HistoriquePage() {
               <>
                 <Ionicons name="document-text-outline" size={15} color="#d97706" />
                 <Text style={{ fontSize: 12, fontWeight: "700", color: "#d97706" }}>
-                  Rapport PDF
+                  PDF
                 </Text>
               </>
             )}
@@ -96,19 +96,19 @@ export default function HistoriquePage() {
           >
             {[
               {
-                label: "Irrigations",
+                label: t("admin.cardIrrigations"),
                 value: irrigations.length,
                 icon: "water",
                 color: "#2563eb",
               },
               {
-                label: "Volume total",
+                label: t("admin.cardVolumeTotal"),
                 value: `${(irrigations.reduce((s, i) => s + (parseFloat(i.volume) || 0), 0) / 1000).toFixed(1)} m³`,
                 icon: "cube-outline",
                 color: "#16a34a",
               },
               {
-                label: "Fertilisations",
+                label: t("fertilisation.title"),
                 value: fertilisations.length,
                 icon: "leaf",
                 color: "#7c3aed",

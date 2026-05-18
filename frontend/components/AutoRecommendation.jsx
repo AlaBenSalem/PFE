@@ -1,8 +1,11 @@
 import React, { useMemo } from "react";
 import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useLanguage } from "@context/LanguageContext";
 
 export default function AutoRecommendation({ besoins, historyItems = [], rainReduction = 0 }) {
+  const { t } = useLanguage();
+
   const recommendation = useMemo(() => {
     if (!besoins?.etc || besoins.etc === "0.00") return null;
 
@@ -14,27 +17,25 @@ export default function AutoRecommendation({ besoins, historyItems = [], rainRed
       : null;
 
     if (rainReduction > 0) {
-      return {
-        type: "info",
-        icon: "rainy",
-        text: `Pluie prévue — volume réduit de ${rainReduction}%${besoins.eauM3 ? ` → ${besoins.eauM3} m³ à apporter` : ""}`,
-      };
+      const rainText = t("irrigation.recoRain").replace("{pct}", rainReduction);
+      const volumePart = besoins.eauM3
+        ? ` ${t("irrigation.recoRainVolume").replace("{vol}", besoins.eauM3)}`
+        : "";
+      return { type: "info", icon: "rainy", text: rainText + volumePart };
     }
 
     if (daysSinceLast !== null && daysSinceLast > frequenceJours + 2) {
       return {
         type: "danger",
         icon: "alert-circle",
-        text: `Dernière irrigation il y a ${daysSinceLast}j — irrigation urgente (fréquence conseillée : ${frequenceJours}j)`,
+        text: t("irrigation.recoUrgent")
+          .replace("{days}", daysSinceLast)
+          .replace("{freq}", frequenceJours),
       };
     }
 
     if (daysSinceLast !== null && daysSinceLast >= frequenceJours) {
-      return {
-        type: "warning",
-        icon: "water",
-        text: `Irrigation à planifier — arrosez aujourd'hui ou demain selon la météo`,
-      };
+      return { type: "warning", icon: "water", text: t("irrigation.recoPlan") };
     }
 
     const avgEtc =
@@ -44,7 +45,9 @@ export default function AutoRecommendation({ besoins, historyItems = [], rainRed
       return {
         type: "warning",
         icon: "thermometer",
-        text: `ETc actuelle ${etc} mm/j (+${Math.round((etc / avgEtc - 1) * 100)}% vs moyenne) — surveillez le stress hydrique`,
+        text: t("irrigation.recoStress")
+          .replace("{etc}", etc)
+          .replace("{pct}", Math.round((etc / avgEtc - 1) * 100)),
       };
     }
 
@@ -53,12 +56,14 @@ export default function AutoRecommendation({ besoins, historyItems = [], rainRed
       return {
         type: "success",
         icon: "checkmark-circle",
-        text: `Irrigation normale — prochain arrosage dans ${daysLeft}j · ETc = ${etc} mm/j`,
+        text: t("irrigation.recoNormal")
+          .replace("{days}", daysLeft)
+          .replace("{etc}", etc),
       };
     }
 
     return null;
-  }, [besoins, historyItems, rainReduction]);
+  }, [besoins, historyItems, rainReduction, t]);
 
   if (!recommendation) return null;
 
@@ -87,7 +92,7 @@ export default function AutoRecommendation({ besoins, historyItems = [], rainRed
       <Ionicons name={recommendation.icon} size={20} color={c.icon} />
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 11, fontWeight: "700", color: c.text, marginBottom: 2 }}>
-          Recommandation auto
+          {t("irrigation.autoReco")}
         </Text>
         <Text style={{ fontSize: 12, color: c.text, lineHeight: 17 }}>
           {recommendation.text}

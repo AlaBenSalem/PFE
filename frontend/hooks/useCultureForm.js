@@ -26,8 +26,8 @@ const INITIAL_FORM = {
   argilePct: "",
   om: "",
   // FAO-56 depletion / root depth
-  p: "0.5",
-  z: "0.6",
+  p: "",
+  z: "",
   // Initial water stock
   stockInitial: "",
   // Kc mode
@@ -117,19 +117,17 @@ export function useCultureForm({ onSuccess }) {
     if (newCulture.densitePlantation.trim()) {
       const dp = parseFloat(newCulture.densitePlantation);
       if (isNaN(dp) || dp <= 0 || dp > 10000)
-        errs.densitePlantation =
-          t("cultures.modal.density_invalid") ||
-          "Densité invalide (1–10 000 arbres/ha)";
+        errs.densitePlantation = t("cultures.modal.density_invalid");
     }
     if (newCulture.kcMode === "manuel") {
       const checkKc = (v, key) => {
         if (!v.trim()) return;
         const n = parseFloat(v);
         if (isNaN(n) || n < 0.1 || n > 1.5)
-          errs[key] = "Kc invalide (0.10–1.50)";
+          errs[key] = t("cultures.modal.kc_invalid");
       };
       if (!newCulture.kcMid.trim()) {
-        errs.kcMid = "Kc mi-saison requis";
+        errs.kcMid = t("cultures.modal.kc_mid_required");
       } else {
         checkKc(newCulture.kcMid, "kcMid");
       }
@@ -144,26 +142,18 @@ export function useCultureForm({ onSuccess }) {
   const validateStep2 = useCallback(() => {
     const errs = {};
     if (!newCulture.debitGoutteur.trim()) {
-      errs.debitGoutteur =
-        t("cultures.modal.drip_flow_required") ||
-        "Débit du goutteur requis (L/h)";
+      errs.debitGoutteur = t("cultures.modal.drip_flow_required");
     } else {
       const dg = parseFloat(newCulture.debitGoutteur);
       if (isNaN(dg) || dg <= 0 || dg > 20)
-        errs.debitGoutteur =
-          t("cultures.modal.drip_flow_invalid") ||
-          "Débit invalide (plage FAO-56 : 0.5–20 L/h)";
+        errs.debitGoutteur = t("cultures.modal.drip_flow_invalid");
     }
     if (!newCulture.nbGoutteursParArbre.trim()) {
-      errs.nbGoutteursParArbre =
-        t("cultures.modal.drip_nb_required") ||
-        "Nombre de goutteurs par arbre requis";
+      errs.nbGoutteursParArbre = t("cultures.modal.drip_nb_required");
     } else {
       const ng = parseInt(newCulture.nbGoutteursParArbre);
       if (isNaN(ng) || ng <= 0 || ng > 20)
-        errs.nbGoutteursParArbre =
-          t("cultures.modal.drip_nb_invalid") ||
-          "Valeur invalide (1–20 goutteurs/arbre)";
+        errs.nbGoutteursParArbre = t("cultures.modal.drip_nb_invalid");
     }
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
@@ -195,69 +185,51 @@ export function useCultureForm({ onSuccess }) {
         errs.nombreArbres = t("cultures.modal.treesInvalid");
     }
     if (!newCulture.debitGoutteur.trim()) {
-      errs.debitGoutteur =
-        t("cultures.modal.drip_flow_required") ||
-        "Débit du goutteur requis (L/h)";
+      errs.debitGoutteur = t("cultures.modal.drip_flow_required");
     } else {
       const dg = parseFloat(newCulture.debitGoutteur);
       if (isNaN(dg) || dg <= 0 || dg > 20)
-        errs.debitGoutteur =
-          t("cultures.modal.drip_flow_invalid") ||
-          "Débit invalide (plage FAO-56 : 0.5–20 L/h)";
+        errs.debitGoutteur = t("cultures.modal.drip_flow_invalid");
     }
     if (!newCulture.nbGoutteursParArbre.trim()) {
-      errs.nbGoutteursParArbre =
-        t("cultures.modal.drip_nb_required") ||
-        "Nombre de goutteurs par arbre requis";
+      errs.nbGoutteursParArbre = t("cultures.modal.drip_nb_required");
     } else {
       const ng = parseInt(newCulture.nbGoutteursParArbre);
       if (isNaN(ng) || ng <= 0 || ng > 20)
-        errs.nbGoutteursParArbre =
-          t("cultures.modal.drip_nb_invalid") ||
-          "Valeur invalide (1–20 goutteurs/arbre)";
+        errs.nbGoutteursParArbre = t("cultures.modal.drip_nb_invalid");
     }
     if (!newCulture.densitePlantation.trim()) {
-      errs.densitePlantation =
-        t("cultures.modal.density_required") ||
-        "Densité de plantation requise (arbres/ha)";
+      errs.densitePlantation = t("cultures.modal.density_required");
     } else {
       const dp = parseFloat(newCulture.densitePlantation);
       if (isNaN(dp) || dp <= 0 || dp > 10000)
-        errs.densitePlantation =
-          t("cultures.modal.density_invalid") ||
-          "Densité invalide (1–10 000 arbres/ha)";
+        errs.densitePlantation = t("cultures.modal.density_invalid");
     }
     if (newCulture.thetaCc.trim()) {
       const cc = parseFloat(newCulture.thetaCc);
       if (isNaN(cc) || cc <= 0 || cc > 0.6)
-        errs.thetaCc =
-          t("cultures.modal.thetaCc_invalid") ||
-          "θcc invalide (0.05–0.60 cm³/cm³)";
+        errs.thetaCc = t("cultures.modal.thetaCc_invalid");
     }
     if (newCulture.thetaPf.trim()) {
       const pf = parseFloat(newCulture.thetaPf);
       if (isNaN(pf) || pf <= 0 || pf > 0.4)
-        errs.thetaPf =
-          t("cultures.modal.thetaPf_invalid") ||
-          "θpf invalide (0.02–0.40 cm³/cm³)";
+        errs.thetaPf = t("cultures.modal.thetaPf_invalid");
     }
     if (newCulture.thetaCc.trim() && newCulture.thetaPf.trim()) {
       const cc = parseFloat(newCulture.thetaCc);
       const pf = parseFloat(newCulture.thetaPf);
       if (!isNaN(cc) && !isNaN(pf) && pf >= cc)
-        errs.thetaPf =
-          t("cultures.modal.thetaPf_lt_cc") ||
-          "θpf doit être inférieur à θcc";
+        errs.thetaPf = t("cultures.modal.thetaPf_lt_cc");
     }
     if (newCulture.kcMode === "manuel") {
       const checkKc = (v, key) => {
         if (!v.trim()) return;
         const n = parseFloat(v);
         if (isNaN(n) || n < 0.1 || n > 1.5)
-          errs[key] = "Kc invalide (0.10–1.50)";
+          errs[key] = t("cultures.modal.kc_invalid");
       };
       if (!newCulture.kcMid.trim()) {
-        errs.kcMid = "Kc mi-saison requis";
+        errs.kcMid = t("cultures.modal.kc_mid_required");
       } else {
         checkKc(newCulture.kcMid, "kcMid");
       }
@@ -355,7 +327,7 @@ export function useCultureForm({ onSuccess }) {
       Alert.alert(
         t("common.errorTitle"),
         isTimeout
-          ? "Serveur en démarrage. Veuillez réessayer dans quelques instants."
+          ? t("calendar.serverStarting")
           : err.message || t("cultures.modal.errorServer"),
       );
     } finally {

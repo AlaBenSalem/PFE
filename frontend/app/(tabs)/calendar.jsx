@@ -298,11 +298,11 @@ export default function CalendarScreen() {
         <View style={s.legendRow}>
           <View style={s.legendItem}>
             <View style={[s.legendDot, { backgroundColor: "#4CAF50" }]} />
-            <Text style={s.legendText}>Aujourd'hui</Text>
+            <Text style={s.legendText}>{t("calendar.today")}</Text>
           </View>
           <View style={s.legendItem}>
             <View style={[s.legendDot, { backgroundColor: "#3b82f6" }]} />
-            <Text style={s.legendText}>Prévisions</Text>
+            <Text style={s.legendText}>{t("calendar.forecast")}</Text>
           </View>
         </View>
 
@@ -318,10 +318,7 @@ export default function CalendarScreen() {
           <View style={s.noDataCard}>
             <Ionicons name="time-outline" size={48} color="#d1d5db" />
             <Text style={s.noDataTitle}>{formatDate(selectedDate)}</Text>
-            <Text style={s.noDataText}>
-              Les données météo historiques ne sont pas disponibles.{"\n"}
-              Sélectionnez aujourd'hui ou un jour futur.
-            </Text>
+            <Text style={s.noDataText}>{t("calendar.noPastData")}</Text>
           </View>
 
         ) : dayWeather ? (
@@ -387,10 +384,10 @@ export default function CalendarScreen() {
             />
             <Text style={s.noDataText}>
               {fetchError === "city"
-                ? "Ville non trouvée.\nVérifiez le nom et réessayez."
+                ? t("calendar.cityNotFound")
                 : fetchError === "server"
-                ? "Serveur en démarrage...\nRéessai automatique dans quelques instants."
-                : t("calendar.noData") || "Aucune donnée"}
+                ? t("calendar.serverStarting")
+                : t("calendar.noData")}
             </Text>
             {fetchError === "server" && (
               <ActivityIndicator size="small" color="#22c55e" style={{ marginTop: 10 }} />

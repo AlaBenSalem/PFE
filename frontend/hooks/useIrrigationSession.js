@@ -16,6 +16,7 @@ export function useIrrigationSession({
   historyItems,
   cultures,
   t,
+  lang,
 }) {
   const [selectedMode,        setSelectedMode]        = useState("goutte-à-goutte");
   const [isCompleted,         setIsCompleted]         = useState(false);
@@ -30,7 +31,7 @@ export function useIrrigationSession({
   // ── Save completed irrigation ─────────────────────────────────────────────
   const handleFaitPress = async () => {
     if (!selectedCulture) {
-      Alert.alert("Erreur", "Veuillez sélectionner une culture");
+      Alert.alert(t("common.error"), t("irrigation.selectFirst"));
       return;
     }
     if (isCompleted) return;
@@ -38,17 +39,11 @@ export function useIrrigationSession({
     const needs = calculateNeeds(selectedMode, rainReduction);
 
     if (!needs.volumeLitres || needs.volumeLitres <= 0) {
-      Alert.alert(
-        "Configuration incomplète",
-        "Le volume calculé est 0. Vérifiez que la culture a un débit et une surface configurés."
-      );
+      Alert.alert(t("irrigation.incompleteConfig"), t("irrigation.zeroVolumeAlert"));
       return;
     }
     if (!needs.temps || needs.temps < 1) {
-      Alert.alert(
-        "Configuration incomplète",
-        "La durée calculée est nulle. Vérifiez le débit de la culture."
-      );
+      Alert.alert(t("irrigation.incompleteConfig"), t("irrigation.zeroDurationAlert"));
       return;
     }
 
@@ -78,11 +73,11 @@ export function useIrrigationSession({
         await Promise.all([fetchHistory(), fetchCultures?.()]);
         setIsCompleted(true);
         setEtcHistoryKey((p) => p + 1);
-        Alert.alert("Succès", "Irrigation enregistrée avec succès");
-      } else throw new Error(result.message || "Échec de l'enregistrement");
+        Alert.alert(t("common.success"), t("irrigation.saveSuccess"));
+      } else throw new Error(result.message || t("irrigation.saveFailed"));
     } catch (err) {
       console.error("useIrrigationSession.handleFaitPress:", err.message);
-      Alert.alert("Erreur", "Impossible d'enregistrer l'irrigation.");
+      Alert.alert(t("common.error"), t("irrigation.saveFailed"));
     }
   };
 
@@ -96,8 +91,21 @@ export function useIrrigationSession({
   const exportIrrigation = async () => {
     try {
       setExporting(true);
-      if (!historyItems?.length) { Alert.alert("Information", "Aucune donnée à exporter"); return; }
-      const headers = ["Date","Culture","Parcelle","Mode","Eau (m³)","Durée (min)","Débit (m³/h)","ET₀ (mm/j)","ETc (mm/j)","Kc","Surface (m²)","Efficacité (%)"];
+      if (!historyItems?.length) { Alert.alert(t("common.information"), t("irrigation.noDataToExport")); return; }
+      const headers = [
+        "Date",
+        t("irrigation.cultureLabel"),
+        t("admin.tableParcel"),
+        t("admin.tableMode"),
+        `${t("irrigation.volume")} (m³)`,
+        `${t("irrigation.duration")} (min)`,
+        `${t("irrigation.flowRate")} (m³/h)`,
+        "ET₀ (mm/j)",
+        "ETc (mm/j)",
+        "Kc",
+        `${t("irrigation.surface")} (m²)`,
+        `${t("irrigation.efficiency")} (%)`,
+      ];
       const rows = historyItems.map((item) => {
         const culture    = cultures.find((c) => c._id === (item.cultureId?._id || item.cultureId));
         const surface    = item.surface || culture?.surface || 100;
@@ -109,7 +117,7 @@ export function useIrrigationSession({
         const debitLhVal  = item.debit || (item.debitMmh ? item.debitMmh * surface : 1000);
         const debitM3hVal = (debitLhVal / 1000).toFixed(3);
         return [
-          new Date(item.date).toLocaleDateString("fr-FR"),
+          new Date(item.date).toLocaleDateString({ fr: "fr-FR", en: "en-US", ar: "ar", tr: "tr-TR" }[lang] || "fr-FR"),
           item.nom || culture?.nom || item.cultureId?.nom || "—",
           culture?.parcelle || "—",
           item.mode || "—",
@@ -158,7 +166,7 @@ export function useIrrigationSession({
       } else {
         const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
         if (!baseDir) {
-          Alert.alert("Erreur", "Stockage inaccessible. Redémarrez l'application et réessayez.");
+          Alert.alert(t("common.error"), t("irrigation.storageError"));
           return;
         }
         const fileUri = baseDir + filename;
@@ -171,12 +179,12 @@ export function useIrrigationSession({
             UTI: "public.comma-separated-values-text",
           });
         } else {
-          Alert.alert("Information", `Fichier sauvegardé : ${filename}`);
+          Alert.alert(t("common.information"), t("irrigation.fileSaved").replace("{filename}", filename));
         }
       }
     } catch (err) {
       console.error("useIrrigationSession.exportIrrigation:", err.message);
-      Alert.alert("Erreur", "Impossible d'exporter les données");
+      Alert.alert(t("common.error"), t("irrigation.exportFailed"));
     } finally {
       setExporting(false);
     }
@@ -186,13 +194,21 @@ export function useIrrigationSession({
   const handleExportPDF = async () => {
     try {
       setExportingPDF(true);
+      let fertilisations = [];
+      try {
+        const url = selectedCulture?._id
+          ? `${API_ENDPOINTS.fertilisations.base}?cultureId=${selectedCulture._id}&limit=50`
+          : `${API_ENDPOINTS.fertilisations.base}?limit=50`;
+        const fData = await apiFetch(url).then((r) => r.json());
+        if (fData.success) fertilisations = fData.data ?? [];
+      } catch (_) {}
       await exportPDFReport({
         irrigations: historyItems,
-        fertilisations: [],
+        fertilisations,
         cultureName: selectedCulture?.nom || "",
       });
     } catch (e) {
-      Alert.alert("Erreur", "Impossible de générer le rapport PDF.");
+      Alert.alert(t("common.error"), t("history.pdfError"));
     } finally {
       setExportingPDF(false);
     }

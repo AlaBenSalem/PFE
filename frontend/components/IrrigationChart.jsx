@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useLanguage } from "@context/LanguageContext";
+
+const LOCALE_MAP = { fr: "fr-FR", en: "en-US", ar: "ar", tr: "tr-TR" };
 
 function getWeekLabel(d) {
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -11,16 +14,14 @@ function getWeekLabel(d) {
   return `S${weekNum}`;
 }
 
-const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
-
-function groupData(items, period) {
+function groupData(items, period, locale) {
   const groups = {};
   items.forEach((item) => {
     const d = new Date(item.date);
     const key =
       period === "week"
-        ? `${getWeekLabel(d)}`
-        : `${MONTHS[d.getMonth()]}`;
+        ? getWeekLabel(d)
+        : d.toLocaleDateString(locale, { month: "short" });
     const vol = parseFloat(item.volume) || 0;
     groups[key] = (groups[key] || 0) + vol;
   });
@@ -31,9 +32,11 @@ function groupData(items, period) {
 }
 
 export default function IrrigationChart({ items = [] }) {
+  const { t, language } = useLanguage();
+  const locale = LOCALE_MAP[language] || "fr-FR";
   const [period, setPeriod] = useState("week");
 
-  const data = useMemo(() => groupData(items, period), [items, period]);
+  const data = useMemo(() => groupData(items, period, locale), [items, period, locale]);
   const maxVal = Math.max(...data.map((d) => d.value), 1);
   const total = data.reduce((s, d) => s + d.value, 0);
   const avg = data.length > 0 ? Math.round(total / data.length) : 0;
@@ -56,7 +59,7 @@ export default function IrrigationChart({ items = [] }) {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Ionicons name="bar-chart" size={18} color="#16a34a" />
           <Text style={{ fontWeight: "bold", fontSize: 15, color: "#1f2937" }}>
-            Consommation eau
+            {t("irrigation.waterConsumption")}
           </Text>
         </View>
         <View
@@ -79,7 +82,7 @@ export default function IrrigationChart({ items = [] }) {
               }}
             >
               <Text style={{ fontSize: 12, fontWeight: "600", color: period === p ? "#fff" : "#6b7280" }}>
-                {p === "week" ? "Semaine" : "Mois"}
+                {p === "week" ? t("calendar.week") : t("calendar.month")}
               </Text>
             </TouchableOpacity>
           ))}
@@ -88,15 +91,15 @@ export default function IrrigationChart({ items = [] }) {
 
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 12 }}>
         <Text style={{ fontSize: 12, color: "#6b7280" }}>
-          Total :{" "}
+          {t("irrigation.total")} :{" "}
           <Text style={{ fontWeight: "bold", color: "#16a34a" }}>
-            {total.toLocaleString("fr-FR")} L
+            {total.toLocaleString(locale)} L
           </Text>
         </Text>
         <Text style={{ fontSize: 12, color: "#6b7280" }}>
-          Moy :{" "}
+          {t("irrigation.avg")} :{" "}
           <Text style={{ fontWeight: "bold" }}>
-            {avg.toLocaleString("fr-FR")} L/{period === "week" ? "sem." : "mois"}
+            {avg.toLocaleString(locale)} L/{period === "week" ? t("irrigation.perWeek") : t("irrigation.perMonth")}
           </Text>
         </Text>
       </View>
@@ -105,7 +108,7 @@ export default function IrrigationChart({ items = [] }) {
         <View style={{ alignItems: "center", paddingVertical: 24 }}>
           <Ionicons name="water-outline" size={32} color="#d1d5db" />
           <Text style={{ color: "#9ca3af", marginTop: 8, fontSize: 13 }}>
-            Aucune donnée disponible
+            {t("calendar.noData")}
           </Text>
         </View>
       ) : (

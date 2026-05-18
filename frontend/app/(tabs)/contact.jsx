@@ -113,8 +113,8 @@ export default function ContactAdmin() {
       Alert.alert(
         t("common.error"),
         isTimeout
-          ? "Serveur en démarrage. Veuillez réessayer dans quelques instants."
-          : error.message || "Erreur envoi."
+          ? t("calendar.serverStarting")
+          : error.message || t("errors.unknown")
       );
     } finally {
       setSending(false);

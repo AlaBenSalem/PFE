@@ -29,15 +29,15 @@ async function request(path, options = {}) {
   } catch (err) {
     clearTimeout(timer);
     if (err.name === "AbortError") {
-      throw new Error("Serveur en démarrage. Veuillez réessayer dans quelques instants.");
+      throw new Error("Server starting. Please retry in a moment.");
     }
-    throw new Error("Serveur inaccessible. Vérifiez votre connexion.");
+    throw new Error("Server unreachable. Check your connection.");
   }
   clearTimeout(timer);
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data?.message || data?.error || "Erreur réseau");
+    throw new Error(data?.message || data?.error || "Network error");
   }
   return data;
 }
@@ -131,7 +131,7 @@ export const authAPI = {
 
   async adminUsers() {
     const token = await this.getAdminToken();
-    if (!token) throw new Error("Token admin manquant — reconnectez-vous");
+    if (!token) throw new Error("Admin token missing — please sign in again");
     return request("/admin/users", {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -139,7 +139,7 @@ export const authAPI = {
 
   async adminDeleteUser(id) {
     const token = await this.getAdminToken();
-    if (!token) throw new Error("Token admin manquant — reconnectez-vous");
+    if (!token) throw new Error("Admin token missing — please sign in again");
     return request(`/admin/users/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
