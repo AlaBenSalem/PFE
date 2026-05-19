@@ -121,16 +121,22 @@ export function useAIChat({ speakText, setIsSpeaking, detectSpeechLang, setTtsLa
       const snap = getIrrigationBesoinsSnapshot();
       const irrigationData = Object.values(snap).map(({ nom, besoins: b }) => ({
         nom,
-        volumeM3:  b.eauM3,
-        eauMm:     b.eauMm,
-        etc:       b.etc,
-        et0:       b.et0,
-        kc:        b.kc,
-        surface:   b.surface,
-        debitM3h:  b.debitM3h,
-        temps:     b.temps,
-        eta:       b.eta,
-        deficitMm: b.deficitMm,
+        volumeM3:       b.eauM3,
+        eauMm:          b.eauMm,
+        etc:            b.etc,
+        et0:            b.et0,
+        kc:             b.kc,
+        surface:        b.surface,
+        debitM3h:       b.debitM3h,
+        temps:          b.temps,
+        eta:            b.eta,
+        deficitMm:      b.deficitMm,
+        dateProchaine:  b.dateProchaine ? (() => {
+          const d = new Date(b.dateProchaine);
+          return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        })() : undefined,
+        joursAvantIrrig: b.joursAvantIrrig,
+        isIrrigationDue: b.isIrrigationDue,
       }));
 
       const res = await apiFetch(API_ENDPOINTS.ai?.chat || "/ai/chat", {

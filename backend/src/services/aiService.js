@@ -328,7 +328,8 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
           const overrideDate = irrigationOverrides[c.nom.toLowerCase().trim()]
                             || irrigationOverrides[cid];
 
-          if (!last && !overrideDate) return `• ${c.nom} (${c.variete}): aucune irrigation enregistrée`;
+          if (!last && !overrideDate && !liveDataMap[c.nom.toLowerCase().trim()]?.dateProchaine)
+            return `• ${c.nom} (${c.variete}): aucune irrigation enregistrée`;
 
           // Helper: advance a date by multiples of freq until >= todayMidnight
           function advanceToFuture(baseDate, freqDays) {
@@ -341,8 +342,23 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
           }
 
           const freqJours = last?.frequenceJours || 0;
+          const liveKey   = c.nom.toLowerCase().trim();
+          const live      = liveDataMap[liveKey];
 
-          // Priority: override > stored prochaineDate (advanced if stale) > computed from lastDate
+          // Priority: live frontend date (exact same calc as page) > override > DB prochaineDate
+          // dateProchaine is sent as YYYY-MM-DD (local date) to avoid UTC timezone shift
+          if (live?.dateProchaine) {
+            const [yr, mo, dy] = live.dateProchaine.split('-').map(Number);
+            const dateProchaine = new Date(yr, mo - 1, dy); // local midnight, no TZ ambiguity
+            const joursAvant = typeof live.joursAvantIrrig === 'number'
+              ? live.joursAvantIrrig
+              : Math.ceil((dateProchaine - todayMidnight) / 86400000);
+            const label = joursAvant <= 0 ? "aujourd'hui" : joursAvant === 1 ? "demain (J+1)" : `J+${joursAvant}`;
+            return `• ${c.nom} (${c.variete}): prochaine irrigation le ${formatDate(dateProchaine)} [${label}]` +
+                   (freqJours ? ` — fréquence: ${freqJours} jours` : '');
+          }
+
+          // Fallback: override > stored prochaineDate (advanced if stale) > computed from lastDate
           let dateProchaine = null;
           if (overrideDate) {
             dateProchaine = advanceToFuture(new Date(overrideDate), freqJours);
