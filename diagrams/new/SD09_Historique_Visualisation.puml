@@ -1,0 +1,59 @@
+@startuml SD09_Historique_Visualisation
+
+title SD09 — Historique & Visualisation
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontSize 15
+skinparam sequenceParticipantFontSize 15
+skinparam sequenceActorFontSize 15
+skinparam sequenceMessageFontSize 13
+skinparam sequenceParticipantPadding 15
+skinparam sequenceActorPadding 10
+skinparam ArrowThickness 2
+
+actor "Utilisateur" as U
+participant "App Mobile" as App
+participant "irrigationRoutes\n(Express)" as IR
+participant "fertilisationRoutes\n(Express)" as FR
+database "MongoDB" as DB
+
+== Chargement ==
+
+U -> App : Ouvre onglet "Historique"
+App -> IR : GET /api/irrigation/history?limit=50
+IR -> DB : Irrigation.find({ userId })\n.populate('cultureId').sort({ date: -1 })
+DB --> IR : liste irrigations
+IR --> App : { data: [...irrigations] }
+App -> FR : GET /api/fertilisation
+FR -> DB : Fertilisation.find({ cultureId: $in })
+DB --> FR : liste fertilisations
+FR --> App : { data: [...fertilisations] }
+App --> U : Liste chronologique\n(date, culture, volume, mode)
+
+== Filtrage ==
+
+U -> App : Selectionne une culture
+App -> App : Filtre local par cultureId
+App --> U : Historique filtre
+
+U -> App : Selectionne periode (7j / 30j / 3 mois)
+App -> IR : GET /api/irrigation/history?from={date}
+IR -> DB : Irrigation.find({ date: { $gte: dateDebut } })
+DB --> IR : irrigations filtrees
+IR --> App : { data: [...irrigations] }
+App --> U : Historique sur la periode
+
+== Visualisation ==
+
+U -> App : Consulte graphique volumes
+App -> App : Agregation locale\n(volumes par jour, ETc moyen)
+App --> U : Graphique courbe\n(dates / volumes par culture)
+
+== Export ==
+
+U -> App : Appuie "Exporter"
+App -> App : Genere CSV\n(date, culture, volume, mode, et0)
+App --> U : Partage via Share API
+
+@enduml

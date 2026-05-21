@@ -1,99 +1,63 @@
-@startuml SD06 — Admin Dashboard
+@startuml SD06_Admin_Dashboard
 
 skinparam monochrome true
 skinparam shadowing false
-title SD06 — Connexion Admin & Dashboard (Statistiques + Graphiques)
+skinparam defaultFontSize 15
+skinparam sequenceParticipantFontSize 15
+skinparam sequenceActorFontSize 15
+skinparam sequenceMessageFontSize 13
+skinparam sequenceParticipantPadding 15
+skinparam sequenceActorPadding 10
+skinparam ArrowThickness 2
+
+title SD06 — Admin Dashboard
 
 actor "Administrateur" as A
-participant "App Web/Mobile\n(AdminShell)" as App
+participant "App Admin" as App
 participant "adminRoutes\n(Express)" as API
+participant "MailService" as Mail
 database "MongoDB" as DB
 
-== Connexion Admin ==
+== Connexion ==
 
-A -> App : Saisit email + mot de passe admin
-App -> API : POST /api/admin/login\n{ email, password }
+A -> App : Saisit email + mot de passe
+App -> API : POST /api/admin/login
 API -> DB : Admin.findOne({ email })
-DB --> API : document Admin
-API -> API : bcrypt.compare(password)
 alt Identifiants corrects
-  API -> API : jwt.sign({ id, role:"admin" })
   API --> App : 200 { token, admin }
-  App -> App : AsyncStorage.setItem("adminToken")\nAsyncStorage.setItem("adminData")
-  App --> A : Redirection Dashboard ✅
+  App --> A : Redirection Dashboard
 else Mauvais identifiants
-  API --> App : 401 "Identifiants incorrects"
-  App --> A : Message d'erreur
+  API --> App : 401 Identifiants incorrects
 end
 
-== Chargement Dashboard ==
+== Dashboard ==
 
-A -> App : Accède au Dashboard
-App -> API : GET /api/kc\nAuthorization: Bearer {adminToken}
-API -> DB : KC.countDocuments()
-DB --> API : totalKcCount (ex: 28)
+A -> App : Accede au Dashboard
+App -> API : GET /api/kc + GET /api/admin/users\n+ GET /api/admin/irrigations/volume-by-day
+API -> DB : KC.count + User.find + Irrigation.aggregate
+API --> App : totaux + volumes par jour
+App --> A : Cartes stats + graphique 30 jours
 
-App -> API : GET /api/admin/users
-API -> DB : User.find()\n.select('-password')
-DB --> API : liste utilisateurs
+== Filtrer par utilisateur ==
 
-App -> API : GET /api/admin/irrigations/volume-by-day\n?days=30
-API -> DB : Irrigation.aggregate([\n  { $match: { date: { $gte: -30j } } },\n  { $group: {\n    _id: { $dateToString: "%Y-%m-%d" },\n    total: { $sum: "$volume" }\n  }}\n])
-DB --> API : volumes par jour
+A -> App : Recherche et selectionne un utilisateur
+App -> API : GET /api/admin/irrigations/volume-by-day?userId={id}
+API -> DB : Irrigation.aggregate({ userId })
+API --> App : donnees filtrees
+App --> A : Graphique mis a jour
 
-API --> App : { labels: [...dates],\n  datasets: [{ data: [...volumes] }] }
-App --> A : Affiche :\n• Carte "Cultures" = 28 (KC total)\n• Carte "Utilisateurs" = N\n• Graphique courbe 30 jours
+== Messages ==
 
-== Filtrer le graphique par utilisateur ==
-
-A -> App : Saisit nom dans la barre de recherche
-App -> App : useMemo → filteredUsers\n(filtre par nom ou email)
-App --> A : Liste filtrée en temps réel
-
-A -> App : Clique sur un utilisateur
-App -> API : GET /api/admin/irrigations/volume-by-day\n?days=30&userId={id}
-API -> DB : Irrigation.aggregate([\n  { $match: {\n    userId: ObjectId(id),\n    date: { $gte: -30j }\n  }},\n  { $group: { ... } }\n])
-DB --> API : volumes pour cet utilisateur
-API --> App : données filtrées
-App --> A : Graphique mis à jour\npour l'utilisateur sélectionné ✅
-
-== Modifier son propre nom (Admin) ==
-
-A -> App : Clique sur ✏️ dans la sidebar
-App --> A : Modal "Modifier le nom"
-A -> App : Saisit nouveau nom + valide
-App -> API : PATCH /api/admin/profile\n{ fullName: "Nouveau Nom" }\nAuthorization: Bearer {adminToken}
-API -> DB : Admin.findByIdAndUpdate\n({ fullName })
-DB --> API : admin mis à jour
-API --> App : 200 { success, fullName }
-App -> App : AsyncStorage.setItem("adminData")
-App --> A : ✅ Nom mis à jour dans la sidebar
-
-== Gestion des Messages ==
-
-A -> App : Accède à "Messages"
-App -> API : GET /api/admin/messages\n?limit=20&unreadOnly=false\nAuthorization: Bearer {adminToken}
-API -> DB : Message.find()\n.sort({ createdAt: -1 })\n.limit(20)
-DB --> API : liste des messages
-API --> App : { data: [...messages] }
-App --> A : Liste des messages\n(sujet, expéditeur, date, statut lu/non lu)
-
-A -> App : Clique sur un message non lu
+A -> App : Accede a "Messages"
+App -> API : GET /api/admin/messages
+API -> DB : Message.find().sort({ createdAt: -1 })
+API --> App : liste messages
+A -> App : Lit et repond a un message
 App -> API : PATCH /api/admin/messages/:id/read
-API -> DB : Message.findByIdAndUpdate(:id,\n{ isRead: true })
-DB --> API : message mis à jour
+App -> API : POST /api/admin/messages/:id/reply { reply }
+API -> Mail : Envoie email a l'expediteur
+API -> DB : Message.update({ reply, isRead: true })
 API --> App : 200 { success }
-App --> A : Message marqué comme lu ✅
-
-A -> App : Saisit une réponse et valide
-App -> API : POST /api/admin/messages/:id/reply\n{ reply: "Bonjour, voici ma réponse..." }
-API -> DB : Message.findById(:id)
-DB --> API : message + senderEmail
-API -> Mail : Envoyer email de réponse\n(HTML template)\nDest: senderEmail
-Mail --> A : Email envoyé ✅
-API -> DB : Message.findByIdAndUpdate(:id,\n{ reply, isRead: true })
-DB --> API : message mis à jour
-API --> App : 200 { success }
-App --> A : ✅ Réponse envoyée
+App --> A : Reponse envoyee
 
 @enduml

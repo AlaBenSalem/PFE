@@ -1,0 +1,48 @@
+@startuml ArchitectureComposants
+
+title Diagramme d'Architecture — Services & APIs externes
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam defaultFontSize 14
+skinparam ArrowFontSize 13
+skinparam ArrowThickness 2
+skinparam componentBorderThickness 2
+skinparam nodesep 60
+skinparam ranksep 70
+
+package "Routes Express (Backend)" {
+  component "weatherRoutes"       as WR
+  component "aiRoutes"            as AIR
+  component "irrigationRoutes"    as IR
+  component "fertilisationRoutes" as FR
+  component "authRoutes"          as AR
+}
+
+package "Services" {
+  component "WeatherService\n+ getLatestWeather(city)\n+ calculateET0(data)" as WS
+  component "AIService\n+ chat(message, convId)\n+ buildUserContext(userId)" as AIS
+  component "TTSService\n+ synthesize(text)" as TTSS
+}
+
+package "APIs Externes" {
+  component "OpenWeather API" as OW
+  component "Groq API\n(Llama 3.3-70B)" as GROQ
+  component "ElevenLabs TTS" as EL
+  component "Google OAuth 2.0" as GOA
+  component "Nodemailer" as MAIL
+}
+
+WR  --> WS
+AIR --> AIS
+AIR --> TTSS
+
+WS   --> OW
+AIS  --> GROQ
+AIS  --> WS : utilise ET0 + meteo
+TTSS --> EL
+AR   --> GOA
+AR   --> MAIL
+
+@enduml

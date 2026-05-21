@@ -1,58 +1,51 @@
-@startuml SD04 — Fertilisation FAO-56
+@startuml SD04_Fertilisation_FAO56
 
 skinparam monochrome true
 skinparam shadowing false
+skinparam defaultFontSize 15
+skinparam sequenceParticipantFontSize 15
+skinparam sequenceActorFontSize 15
+skinparam sequenceMessageFontSize 13
+skinparam sequenceParticipantPadding 15
+skinparam sequenceActorPadding 10
+skinparam ArrowThickness 2
+
 title SD04 — Calendrier de Fertilisation (FAO-56)
 
 actor "Utilisateur" as U
-participant "App Mobile\n(fertilisation.jsx)" as App
+participant "App Mobile" as App
 participant "fertilisationRoutes\n(Express)" as API
 database "MongoDB" as DB
 
-== Chargement du calendrier ==
+== Chargement ==
 
-U -> App : Ouvre onglet "التسميد"
-App -> API : GET /api/cultures\nAuthorization: Bearer {token}
+U -> App : Ouvre onglet "Fertilisation"
+App -> API : GET /api/cultures
 API -> DB : Culture.find({ userId })
-DB --> API : liste des cultures
-API --> App : cultures de l'utilisateur
+API --> App : liste cultures
+App -> API : GET /api/fertilisation
+API -> DB : Fertilisation.find({ cultureId: $in })
+API --> App : historique fertilisations
+App -> App : Charge recommandations FAO-56\npour cultures sans historique
+App --> U : Calendrier mensuel
 
-App -> API : GET /api/fertilisation\nAuthorization: Bearer {token}
-API -> DB : Fertilisation.find({ cultureId: { $in: cultureIds } })\n.populate('cultureId', 'nom variete')\n.sort({ date: -1 })
-DB --> API : historique fertilisations
+== Consultation ==
 
-App -> App : Pour chaque culture sans fertilisation récente\n→ charge données FAO-56 embarquées\n(FERT_FAO : Orange, Citron, Tomate, Blé, Olivier...)
-note right of App
-  Données FAO-56 embarquées dans l'IA :
-  - Orange : KNO₃ janv, Urée mars,
-    NPK mai, K₂SO₄ sept
-  - Tomate : DAP mars, Urée avr,
-    NPK mai, Ca(NO₃)₂ juin
-  - Blé : DAP nov, Urée×1 fév,
-    Urée×2 mars
-end note
+U -> App : Selectionne une culture
+App --> U : Produit, dose (kg/ha), prochaine date
 
-App --> U : Affiche calendrier mensuel\navec points colorés par mois
+== Enregistrement ==
 
-== Sélection d'une culture ==
+U -> App : Valide une application
+App -> API : POST /api/fertilisation\n{ cultureId, produit, quantite, date }
+API -> DB : Fertilisation.create({ ...data })
+API --> App : 201 { success }
+App --> U : Calendrier mis a jour
 
-U -> App : Sélectionne une culture
-App --> U : Affiche programme complet :\n• Produit (NPK, Urée, K₂SO₄...)\n• Dose (kg/ha)\n• Prochaine date\n• Jours restants
+== Export ==
 
-== Enregistrement d'une fertilisation ==
-
-U -> App : Valide une application de fertilisant
-App -> API : POST /api/fertilisation\n{ cultureId, produit, typeProduit,\n  quantite, date, frequenceJours,\n  prochaineDate, notes? }
-API -> API : requireUser()
-API -> DB : Fertilisation.create({ ...data, cultureId })
-DB --> API : fertilisation créée
-API --> App : 201 { success, data }
-App --> U : ✅ Fertilisation enregistrée\nCalendrier mis à jour
-
-== Export du programme ==
-
-U -> App : Appuie sur "تصدير" (Exporter)
-App -> App : Génère fichier texte/CSV\ndu programme annuel
-App --> U : Partage via système natif\n(Share API)
+U -> App : Appuie sur "Exporter"
+App -> App : Genere CSV programme annuel
+App --> U : Partage via Share API
 
 @enduml

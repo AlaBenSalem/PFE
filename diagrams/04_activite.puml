@@ -2,20 +2,20 @@
 
 skinparam monochrome true
 skinparam shadowing false
-skinparam defaultFontName Arial
-skinparam defaultFontSize 12
-skinparam ArrowColor #333333
-skinparam ActivityBorderColor #333333
-skinparam ActivityBackgroundColor #f5f5f5
-skinparam ActivityDiamondBackgroundColor #eeeeee
+skinparam defaultFontSize 14
+skinparam ArrowFontSize 13
+skinparam ArrowThickness 2
+skinparam ActivityBorderThickness 2
+skinparam nodesep 50
+skinparam ranksep 60
 
-title SmartIrrig — Diagramme d'Activités
+title SmartIrrig — Diagramme d'Activites
 
 start
 
-:Ouvrir l'application SmartIrrig;
+:Ouvrir l'application;
 
-if (Possède un compte ?) then (Non)
+if (Possede un compte ?) then (Non)
   :S'inscrire;
 endif
 
@@ -25,57 +25,48 @@ else (Non)
   :Saisir email et mot de passe;
   if (Identifiants valides ?) then (Non)
     :Afficher erreur;
-    if (Mot de passe oublié ?) then (Oui)
-      :Saisir email de récupération;
+    if (Mot de passe oublie ?) then (Oui)
       :Recevoir code par email;
-      :Vérifier le code;
-      :Saisir nouveau mot de passe;
-      :Mot de passe réinitialisé;
+      :Reinitialiser le mot de passe;
     else (Non)
       stop
     endif
   endif
 endif
 
-:Accéder au tableau de bord;
+:Acceder au tableau de bord;
 
 if (Profil Administrateur ?) then (Oui)
 
-  :Consulter les statistiques globales;
-
   fork
-    :Gérer les utilisateurs;
+    :Gerer les utilisateurs;
   fork again
-    :Gérer la base de données Kc;
+    :Gerer la base Kc FAO-56;
   fork again
-    :Gérer les messages\n(lire, répondre, marquer lu);
+    :Gerer les messages;
   end fork
 
-else (Non — Utilisateur)
+else (Non)
 
-  if (Aucune culture enregistrée ?) then (Oui)
-    :Ajouter une culture\n(nom, sol, surface, système d'irrigation);
+  if (Aucune culture enregistree ?) then (Oui)
+    :Ajouter une culture;
   endif
 
-  :Choisir une fonctionnalité;
-
   fork
-    :Irrigation\n(consulter besoins, enregistrer);
+    :Consulter et enregistrer\nune irrigation;
   fork again
-    :Fertilisation\n(consulter calendrier, enregistrer);
+    :Consulter et enregistrer\nune fertilisation;
   fork again
-    :Météo & Prévisions\n(consulter météo, chercher ville);
+    :Consulter la meteo;
   fork again
-    :Assistant IA\n(poser une question par texte ou voix);
+    :Interroger l'assistant IA;
   fork again
-    :Contacter l'administrateur\n(envoyer un message);
+    :Contacter l'administrateur;
   end fork
-
-  :Consulter / Modifier son profil;
 
 endif
 
-:Se déconnecter;
+:Se deconnecter;
 
 stop
 

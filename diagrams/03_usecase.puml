@@ -3,11 +3,22 @@
 skinparam monochrome true
 skinparam shadowing false
 skinparam defaultFontName Arial
-skinparam defaultFontSize 11
 skinparam packageStyle rectangle
-skinparam usecaseBorderThickness 1.5
-skinparam actorBorderThickness 1.5
-skinparam ArrowThickness 1.2
+
+' ── Taille pour impression ──────────────
+
+skinparam defaultFontSize 16
+skinparam usecaseFontSize 16
+skinparam actorFontSize 18
+skinparam packageFontSize 18
+skinparam noteFontSize 14
+skinparam ArrowFontSize 14
+skinparam usecaseBorderThickness 2
+skinparam actorBorderThickness 2.5
+skinparam ArrowThickness 2
+skinparam nodesep 60
+skinparam ranksep 80
+
 
 left to right direction
 title SmartIrrig — Diagramme de Cas d'Utilisation

@@ -1,107 +1,62 @@
-@startuml SD05 — Assistant IA (Groq + ElevenLabs)
+@startuml SD05_Assistant_IA
 
 skinparam monochrome true
 skinparam shadowing false
-title SD05 — Assistant IA SmartIrrig\n(Groq Llama 3.3-70B + ElevenLabs TTS + Reconnaissance Vocale)
+skinparam defaultFontSize 15
+skinparam sequenceParticipantFontSize 15
+skinparam sequenceActorFontSize 15
+skinparam sequenceMessageFontSize 13
+skinparam sequenceParticipantPadding 15
+skinparam sequenceActorPadding 10
+skinparam ArrowThickness 2
+
+title SD05 — Assistant IA (Groq + ElevenLabs TTS)
 
 actor "Utilisateur" as U
-participant "AIChatScreen\n(React Native)" as App
+participant "App Mobile" as App
 participant "aiRoutes\n(Express)" as API
 participant "weatherService" as WS
 database "MongoDB" as DB
-participant "Groq API\n(Llama 3.3-70B)" as Groq
-participant "ElevenLabs\nTTS" as EL
+participant "Groq API" as Groq
+participant "ElevenLabs TTS" as EL
 
-== Ouverture du chat ==
-
-U -> App : Appuie sur FAB 🤖
-App --> U : Panneau de chat s'ouvre (slide)
-App -> API : GET /api/ai/status
-API --> App : { provider: "Groq", configured: true }
-App --> U : Serveur prêt ✅
-
-== Envoi d'un message (texte ou vocal) ==
+== Envoi d'un message ==
 
 alt Message texte
   U -> App : Tape son message
 else Message vocal
-  U -> App : Appuie sur micro 🎤
-  App -> App : ExpoSpeechRecognitionModule.start()\nlang: arabe/français/anglais/turc
-  U -> App : Parle
-  App -> App : Transcript en temps réel (interimResults)
-  U -> App : Appuie à nouveau → stop
-  App -> App : sendMessage(transcript)
+  U -> App : Appuie sur le micro
+  App -> App : Reconnaissance vocale multilingue
 end
 
-App -> API : POST /api/ai/chat\n{ message, conversationId, city }
-note right of App
-  conversationId :
-  • "" pour 1ère question
-  • id conservé pour la suite
-  (useRef → pas de re-render)
-end note
-
-API -> API : requireUser() — vérifie JWT
-
-' ── Construction du contexte ──
-API -> DB : Culture.find({ userId })\n.sort({ createdAt: -1 })
-DB --> API : cultures utilisateur
-API -> DB : Irrigation.find({ cultureId: $in })\n.limit(20).populate('cultureId')
-DB --> API : irrigations récentes
-API -> DB : Fertilisation.find({ cultureId: $in })\n.limit(20)
-DB --> API : fertilisations récentes
+App -> API : POST /api/ai/chat { message, conversationId, city }
+API -> DB : Culture.find + Irrigation.find + Fertilisation.find
+DB --> API : contexte utilisateur
 API -> WS : getLiveWeather(city)
-WS --> API : { et0, temperature, humidity,\n  wind, description }
+WS --> API : { et0, temperature, humidity }
+API -> API : buildUserContext() + detectLanguage()
+API -> Groq : POST /openai/v1/chat/completions\n{ systemPrompt + contexte + historique }
+Groq --> API : reponse texte
+API --> App : { answer, conversationId }
+App --> U : Reponse affichee
 
-API -> API : buildUserContext() :\n• Résumé cultures (nom, variete,\n  surface, Kc, nb arbres)\n• Irrigations récentes (volume, date)\n• Besoins ETc = ET₀ × Kc par culture\n• Prochaines irrigations\n• Prochaines fertilisations\n• Météo du jour
-API -> API : detectMessageLanguage(message)\n→ TUNISIAN_ARABIC | MODERN_ARABIC\n  | FRENCH | ENGLISH | TURKISH
+== Synthese vocale ==
 
-' ── Appel Groq ──
-alt 1ère question (conversationId vide)
-  API -> Groq : POST /openai/v1/chat/completions\n{\n  model: "llama-3.3-70b-versatile",\n  messages: [\n    { role: "system", content: systemPrompt },\n    { role: "user", content:\n      "[CONTEXTE]\\nCultures(N): ...\\n"\n      + "ETc: ...\\nMétéo: ...\\n"\n      + "[LANGUE] FRENCH\\n"\n      + "[MESSAGE] {message}" }\n  ]\n}
-  note right of Groq
-    Groq retourne une réponse directe
-    (pas de gestion de session côté Groq)
-  end note
-else Suite de conversation
-  API -> Groq : POST /openai/v1/chat/completions\n{\n  model: "llama-3.3-70b-versatile",\n  messages: [\n    { role: "system", ... },\n    ...historique,\n    { role: "user", content: message }\n  ]\n}
-  note right of Groq
-    L'historique est géré
-    côté serveur (tableau messages)
-  end note
-end
-
-Groq --> API : { choices: [{ message: { content: "..." } }] }
-API -> API : normalizeNumerals(answer)\n(١٢٣ → 123)
-API --> App : { success, answer, conversationId }
-App --> U : Réponse affichée dans le chat 💬
-
-== Synthèse Vocale (TTS) ==
-
-App -> App : detectSpeechLang(answer)\n→ "ar-SA"
-
-alt Langue arabe + mobile
-  App -> API : POST /api/ai/tts\n{ text: answer }\nAuthorization: Bearer {token}
-  API -> EL : POST /text-to-speech/{voiceId}\n{\n  text: answer,\n  model_id: "eleven_multilingual_v2",\n  voice_settings: { stability:0.55,\n    similarity_boost:0.8 }\n}
-  note right of EL
-    Voice ID: pCKbQ4EPGE06zpEPGNvS
-    (voix arabe naturelle)
-  end note
-  EL --> API : audio/mpeg (buffer)
+alt Langue arabe
+  App -> API : POST /api/ai/tts { text }
+  API -> EL : POST /text-to-speech { eleven_multilingual_v2 }
+  EL --> API : audio MP3
   API --> App : Buffer MP3
-  App -> App : FileSystem.writeAsStringAsync()\n(cache local)
-  App -> App : Audio.Sound.createAsync()\n+ shouldPlay: true
-  App --> U : 🔊 Réponse lue en arabe\n(voix ElevenLabs)
-else Autres langues / Web
-  App -> App : webSpeak() → SpeechSynthesis\nou expo-speech (natif)
-  App --> U : 🔊 Réponse lue\n(voix système)
+  App --> U : Reponse lue (ElevenLabs)
+else Autres langues
+  App -> App : SpeechSynthesis natif
+  App --> U : Reponse lue (voix systeme)
 end
 
 == Changement de langue ==
 
-U -> App : Change la langue de l'app\n(AR → FR → EN → TR)
-App -> App : conversationId = ""\n(réinitialise la conversation)
-App -> App : messages = [message d'accueil\ndans la nouvelle langue]
-App --> U : Nouveau fil de conversation\ndans la langue choisie
+U -> App : Change langue (AR/FR/EN/TR)
+App -> App : Reset conversation
+App --> U : Nouveau fil dans la langue choisie
 
 @enduml
