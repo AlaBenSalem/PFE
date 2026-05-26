@@ -12,6 +12,19 @@ function hasGmailConfig() {
   return Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS);
 }
 
+function hasBrevoConfig() {
+  return Boolean(process.env.BREVO_USER && process.env.BREVO_PASS);
+}
+
+function createBrevoTransport() {
+  return nodemailer.createTransport({
+    host: 'smtp-relay.brevo.com',
+    port: 587,
+    secure: false,
+    auth: { user: process.env.BREVO_USER, pass: process.env.BREVO_PASS },
+  });
+}
+
 function createGmailTransport() {
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
@@ -56,39 +69,39 @@ async function sendResetCodeEmail(email, resetCode, userName) {
   const subject = 'SmartIrrig — Code de réinitialisation de mot de passe';
 
   try {
-    // Force Gmail when EMAIL_PROVIDER=gmail, even if RESEND_API_KEY is present
-    if (provider === 'gmail' || !process.env.RESEND_API_KEY) {
-      if (hasGmailConfig()) {
-        await createGmailTransport().sendMail({
-          from: `SmartIrrig <${process.env.EMAIL_USER}>`, to, subject, html,
-        });
-        console.log(`Email sent via Gmail to: ${to}`);
-        return true;
-      }
-      if (allowLogCode) console.log(`[DEV] Reset code for ${to}: ${resetCode}`);
-      else console.warn('[Email] Gmail not configured.');
-      return false;
+    // ── Brevo SMTP (recommended for cloud hosting — works on Render free tier) ──
+    if (provider === 'brevo') {
+      if (!hasBrevoConfig()) throw new Error('BREVO_USER / BREVO_PASS non configurés');
+      const from = process.env.EMAIL_FROM || `SmartIrrig <${process.env.BREVO_USER}>`;
+      await createBrevoTransport().sendMail({ from, to, subject, html });
+      console.log(`Email sent via Brevo to: ${to}`);
+      return true;
     }
 
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const { error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'SmartIrrig <onboarding@resend.dev>', to, subject, html,
-    });
+    // ── Resend API ────────────────────────────────────────────────────────────
+    if (provider === 'resend' && process.env.RESEND_API_KEY) {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const { error } = await resend.emails.send({
+        from: process.env.EMAIL_FROM || 'SmartIrrig <onboarding@resend.dev>', to, subject, html,
+      });
+      if (!error) { console.log(`Email sent via Resend to: ${to}`); return true; }
+      console.warn(`[Resend] Erreur: ${JSON.stringify(error)}`);
+      // fall through to Gmail
+    }
 
-    if (!error) { console.log(`Email sent via Resend to: ${to}`); return true; }
-
-    console.warn(`[Resend] Erreur: ${JSON.stringify(error)}`);
+    // ── Gmail SMTP (may be blocked on cloud IPs) ──────────────────────────────
     if (hasGmailConfig()) {
       await createGmailTransport().sendMail({
         from: `SmartIrrig <${process.env.EMAIL_USER}>`, to, subject, html,
       });
+      console.log(`Email sent via Gmail to: ${to}`);
       return true;
     }
+
     if (allowLogCode) console.log(`[DEV] Reset code for ${to}: ${resetCode}`);
     return false;
 
   } catch (err) {
-    // Always log email failures so they appear in Render logs
     console.error(`[Email] ÉCHEC ENVOI to=${to} provider=${provider} error=${err.message}`);
     console.log(`[Email] Reset code (fallback log): ${to} → ${resetCode}`);
     return false;
