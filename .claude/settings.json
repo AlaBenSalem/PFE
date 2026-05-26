@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"[àâäéèêëïîôöùûüœæçÀÂÄÉÈÊËÏÎÔÖÙÛÜŒÆÇ]\" \"c:\\\\Users\\\\HAMA\\\\OneDrive\\\\Desktop\\\\PFE-main\\\\frontend\" --include=\"*.jsx\" --include=\"*.js\" --include=\"*.ts\" --include=\"*.tsx\" ! -path \"*/node_modules/*\" ! -path \"*/constants/translations.js\" ! -path \"*/constants/authTranslations.js\")",
+      "Bash(grep -r \"Erreur\\\\|Succès\\\\|Chargement\\\\|goutte-à-goutte\\\\|méteo\\\\|Connexion\" \"c:\\\\Users\\\\HAMA\\\\OneDrive\\\\Desktop\\\\PFE-main\\\\frontend\" --include=\"*.jsx\" --include=\"*.js\" --include=\"*.ts\" --include=\"*.tsx\" ! -path \"*/node_modules/*\" ! -path \"*/constants/translations.js\" ! -path \"*/constants/authTranslations.js\")",
+      "Bash(grep -rn \"Session expirée\\\\|Erreur serveur\\\\|Reconnectez-vous\" \"c:\\\\Users\\\\HAMA\\\\OneDrive\\\\Desktop\\\\PFE-main\\\\frontend\" --include=\"*.jsx\" --include=\"*.js\" --include=\"*.ts\" --include=\"*.tsx\" ! -path \"*/node_modules/*\")",
+      "Bash(powershell -Command \"Select-String -Path 'c:\\\\Users\\\\HAMA\\\\OneDrive\\\\Desktop\\\\PFE-main\\\\frontend\\\\app\\\\\\(tabs\\)\\\\cultures.jsx' -Pattern 'racinaire|kcMode|dépletion|Saisie' | Select-Object -First 20\")",
+      "Bash(powershell -Command \"Select-String -Path 'c:\\\\Users\\\\HAMA\\\\OneDrive\\\\Desktop\\\\PFE-main\\\\frontend\\\\constants\\\\translations.js' -Pattern 'irrigationSection|sol_label_hint|sol_determines|stockInitial|waterStock|saxtonTitle|sandLabel|clayLabel|omLabel|optional' | Select-Object LineNumber, Line\")",
+      "Bash(powershell -Command \"Select-String -Path 'c:\\\\Users\\\\HAMA\\\\OneDrive\\\\Desktop\\\\PFE-main\\\\frontend\\\\constants\\\\translations.js' -Pattern 'zLabel|pLabel|zHint|pHint|zPlaceholder|pPlaceholder|saxtonTitle|saxtonDesc|waterStock|sandLabel|clayLabel|omLabel|densityCalc|densityStep|kcModeManuel|kcManuelOv|kcSectionTitle' | Select-Object LineNumber, Line\")",
+      "Bash(powershell -Command \"Select-String -Path 'c:\\\\Users\\\\HAMA\\\\OneDrive\\\\Desktop\\\\PFE-main\\\\frontend\\\\constants\\\\translations.js' -Pattern 'ru_formula' | Select-Object LineNumber, Line\")",
+      "Bash(powershell -Command \"Select-String -Path 'c:\\\\Users\\\\HAMA\\\\OneDrive\\\\Desktop\\\\PFE-main\\\\frontend\\\\app\\\\\\(tabs\\)\\\\cultures.jsx' -Pattern 'racinaire|dépletion|défaut:|Densité|Coefficient|optionnel|manuelle|Saisie|Calculé|Mi-saison|Fin saison|Stade initial|remplacer|Argile|Sable|MO \\\\\\(%\\\\\\)|entrez θ|Valeurs copi|Stock initial|actuel du sol|Système d.irr' | Select-Object LineNumber, Line\")",
+      "Bash(xargs sed -i \"s/skinparam dpi [0-9]*//\")",
+      "Bash(grep -rn \"skinparam dpi\\\\|skinparam padding\\\\|<style>\\\\|@startuml\\\\s*$\\\\|classFontSize\\\\|classAttributeFontSize\\\\|componentFontSize\\\\|activityFontSize\" --include=\"*.puml\" .)",
+      "Bash(git rm *)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\HAMA\\\\OneDrive\\\\Desktop\\\\PFE-main\\\\frontend\\\\app\\\\\\(tabs\\)\\\\carte.jsx\")",
+      "Bash(rm \"c:/Users/HAMA/OneDrive/Desktop/PFE-main/frontend/app/\\(tabs\\)/carte.jsx\")",
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "Bash(git stash *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\HAMA\\OneDrive\\Desktop\\PFE-main\\frontend\\app\\(tabs)"
+    ]
+  }
+}

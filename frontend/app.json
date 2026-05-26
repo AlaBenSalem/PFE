@@ -42,6 +42,7 @@
       "favicon": "./assets/icon.png",
       "bundler": "metro"
     },
+    "platforms": ["ios", "android", "web"],
     "scheme": "smartirrig",
     "extra": {
       "eas": {
@@ -50,27 +51,29 @@
     },
     "owner": "mohamed9543",
     "plugins": [
-  [
-    "@react-native-google-signin/google-signin",
-    {
-      "googleServicesFile": "./google-services.json",
-      "iosUrlScheme": "com.googleusercontent.apps.861346189775-jt0kp72jduhpgkjnnupjboosdchu11td"
-    }
-  ],
-  [
-    "expo-speech-recognition",
-    {
-      "microphonePermission": "Autoriser SmartIrrig à utiliser le microphone pour la reconnaissance vocale.",
-      "speechRecognitionPermission": "Autoriser SmartIrrig à reconnaître votre voix.",
-      "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
-    }
-  ],
-  [
-    "expo-notifications",
-    {
-      "color": "#16a34a"
-    }
-  ]
-]
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "googleServicesFile": "./google-services.json",
+          "iosUrlScheme": "com.googleusercontent.apps.861346189775-jt0kp72jduhpgkjnnupjboosdchu11td"
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Autoriser SmartIrrig à utiliser le microphone pour la reconnaissance vocale.",
+          "speechRecognitionPermission": "Autoriser SmartIrrig à reconnaître votre voix.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#16a34a"
+        }
+      ]
+    ]
   }
 }
