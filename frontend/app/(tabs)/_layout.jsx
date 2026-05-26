@@ -131,13 +131,6 @@ export default function TabsLayout() {
             }}
           />
           <Tabs.Screen
-            name="carte"
-            options={{
-              href: null,
-              title: "Carte",
-            }}
-          />
-          <Tabs.Screen
             name="historique"
             options={{
               href: null,
