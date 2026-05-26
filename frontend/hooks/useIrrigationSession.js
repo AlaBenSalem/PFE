@@ -1,7 +1,7 @@
 // hooks/useIrrigationSession.js
 // Session hook: manages irrigation mode, save-session, export (CSV + PDF)
 import { useState } from "react";
-import { Alert, Platform } from "react-native";
+import { Alert, Platform, Share } from "react-native";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { API_ENDPOINTS, apiFetch } from "@api/client";
@@ -164,13 +164,18 @@ export function useIrrigationSession({
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(url);
       } else {
-        const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+        const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
         if (!baseDir) {
-          Alert.alert(t("common.error"), t("irrigation.storageError"));
+          await Share.share({ message: csv, title: filename });
           return;
         }
         const fileUri = baseDir + filename;
-        await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+        try {
+          await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+        } catch {
+          await Share.share({ message: csv, title: filename });
+          return;
+        }
         const sharingAvailable = await Sharing.isAvailableAsync();
         if (sharingAvailable) {
           await Sharing.shareAsync(fileUri, {

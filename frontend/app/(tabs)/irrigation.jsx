@@ -231,7 +231,9 @@ export default function IrrigationPage() {
                 {exporting ? <ActivityIndicator size="small" color="#16a34a" /> : (
                   <>
                     <Ionicons name="download-outline" size={15} color="#16a34a" />
-                    <Text className="text-[12px] font-bold text-green-600">{t("irrigation.exporter")}</Text>
+                    {Platform.OS === "web" && (
+                      <Text className="text-[12px] font-bold text-green-600">{t("irrigation.exporter")}</Text>
+                    )}
                   </>
                 )}
               </TouchableOpacity>

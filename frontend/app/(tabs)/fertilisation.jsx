@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -571,13 +572,20 @@ export default function FertilisationPage() {
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(url);
       } else {
-        const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
-        if (!baseDir) { Alert.alert(t("common.error"), t("fertilisation.storageUnavailable")); return; }
+        const baseDir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
+        if (!baseDir) {
+          await Share.share({ message: csv, title: filename });
+          return;
+        }
         const fileUri = baseDir + filename;
-        await FileSystem.writeAsStringAsync(fileUri, csv, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-
+        try {
+          await FileSystem.writeAsStringAsync(fileUri, csv, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+        } catch {
+          await Share.share({ message: csv, title: filename });
+          return;
+        }
         const isSharingAvailable = await Sharing.isAvailableAsync();
         if (isSharingAvailable) {
           await Sharing.shareAsync(fileUri, {
@@ -627,9 +635,11 @@ export default function FertilisationPage() {
               ) : (
                 <>
                   <Ionicons name="download-outline" size={15} color="#16a34a" />
-                  <Text className="text-xs font-bold text-green-600">
-                    {t("fertilisation.exporter")}
-                  </Text>
+                  {Platform.OS === "web" && (
+                    <Text className="text-xs font-bold text-green-600">
+                      {t("fertilisation.exporter")}
+                    </Text>
+                  )}
                 </>
               )}
             </TouchableOpacity>
