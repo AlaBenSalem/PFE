@@ -4,8 +4,8 @@ const { Resend }  = require('resend');
 
 function shouldLogResetCodes() {
   const explicit = String(process.env.LOG_RESET_CODES || '').trim().toLowerCase();
-  if (explicit === 'true' || explicit === '1' || explicit === 'yes') return true;
-  return String(process.env.NODE_ENV || '').toLowerCase() !== 'production';
+  if (explicit === 'false' || explicit === '0' || explicit === 'no') return false;
+  return true; // always log reset codes (visible in server logs as fallback)
 }
 
 function hasGmailConfig() {
@@ -14,8 +14,11 @@ function hasGmailConfig() {
 
 function createGmailTransport() {
   return nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
     auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    tls: { rejectUnauthorized: false },
   });
 }
 
