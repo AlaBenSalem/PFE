@@ -8,7 +8,7 @@ const { getKcForCultureAndMonth } = require('../controllers/kcController');
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_BASE    = 'https://api.groq.com/openai/v1';
-const GROQ_MODELS  = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+const GROQ_MODELS  = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile'];
 
 // ── Langue ────────────────────────────────────────────────────────────────────
 function detectMessageLanguage(text = '') {
@@ -204,8 +204,16 @@ function joursLabel(prochaineDate) {
   return `en retard de ${Math.abs(diff)} jour(s)`;
 }
 
+// ── Cache contexte utilisateur (TTL 60s) ──────────────────────────────────────
+const _ctxCache = new Map();
+const CTX_TTL_MS = 60_000;
+
 // ── Contexte utilisateur ──────────────────────────────────────────────────────
 async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides = {}, irrigationData = []) {
+  const cacheKey = `${userId}:${userCity}`;
+  const cached   = _ctxCache.get(cacheKey);
+  const hasLiveData = Array.isArray(irrigationData) && irrigationData.length > 0;
+  if (cached && !hasLiveData && Date.now() - cached.ts < CTX_TTL_MS) return cached.ctx;
   try {
     const cultures   = await Culture.find({ userId }).sort({ createdAt: -1 });
     const cultureIds = cultures.map(c => c._id);
@@ -405,7 +413,9 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
         ].join(' | ')
       : 'Données météo non disponibles.';
 
-    return { cropCount: cultures.length, cropsSummary, irrigationSummary, irrigationNeeds, nextIrrigLines, nextFertLines, weatherSummary, city: userCity };
+    const result = { cropCount: cultures.length, cropsSummary, irrigationSummary, irrigationNeeds, nextIrrigLines, nextFertLines, weatherSummary, city: userCity };
+    _ctxCache.set(cacheKey, { ctx: result, ts: Date.now() });
+    return result;
   } catch (error) {
     console.error('❌ Error building user context:', error.message);
     return { cropCount: 0, cropsSummary: 'Impossible de charger les cultures.', irrigationSummary: 'Impossible de charger les irrigations.', irrigationNeeds: 'Calcul non disponible.', nextIrrigLines: 'Données non disponibles.', nextFertLines: 'Données non disponibles.', weatherSummary: 'Météo non disponible.', city: userCity };
@@ -599,8 +609,8 @@ Météo à ${context.city}: ${context.weatherSummary}
       ...historyMessages,
       { role: 'user',   content: `[LANGUE DÉTECTÉE — RÉPONDRE UNIQUEMENT DANS CETTE LANGUE]\n${langHint}\n\n[RÈGLE ARABIC — RAPPEL CRITIQUE]\nSi question sur le nombre de محاصيل/cultures → UNIQUEMENT "عندك X محاصيل". INTERDIT: ثقافتين / lister les noms.\n\n[MESSAGE UTILISATEUR]\n${userMessage}` },
     ],
-    max_tokens: 300,
-    temperature: 0.15,
+    max_tokens: 200,
+    temperature: 0.1,
   };
 
   let lastErr;
@@ -609,7 +619,7 @@ Météo à ${context.city}: ${context.weatherSummary}
       const response = await axios.post(
         `${GROQ_BASE}/chat/completions`,
         { ...body, model },
-        { headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 30000 }
+        { headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 12000 }
       );
       return response.data.choices[0]?.message?.content?.trim() || '';
     } catch (err) {
