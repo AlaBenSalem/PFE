@@ -491,6 +491,7 @@ Météo à ${context.city}: ${context.weatherSummary}
     } catch (err) {
       const status = err.response?.status;
       lastErr = err;
+      if (status === 401) throw err; // bad key — no point retrying
       if (status === 429 || status === 503) {
         console.warn(`⚠️ Groq ${model} rate-limited (${status}), trying next model`);
         if (i < GROQ_MODELS.length - 1) await sleep(800);

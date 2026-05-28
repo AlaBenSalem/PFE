@@ -58,7 +58,11 @@ exports.chat = async (req, res) => {
       provider: 'groq',
     });
   } catch (error) {
-    console.error('❌ Groq error:', error.response?.data || error.message);
+    const status = error.response?.status;
+    const data   = error.response?.data;
+    console.error(`❌ Groq error [HTTP ${status}]:`, data || error.message);
+    if (status === 401) return res.status(503).json({ success: false, error: 'api_key_invalid' });
+    if (status === 429) return res.status(503).json({ success: false, error: 'daily_limit_reached' });
     return res.status(503).json({ success: false, error: 'service_overloaded' });
   }
 };
