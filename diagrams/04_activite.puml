@@ -1,0 +1,73 @@
+@startuml SmartIrrig_Activite
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontSize 14
+skinparam ArrowFontSize 13
+skinparam ArrowThickness 2
+skinparam ActivityBorderThickness 2
+skinparam nodesep 50
+skinparam ranksep 60
+
+title SmartIrrig — Diagramme d'Activites
+
+start
+
+:Ouvrir l'application;
+
+if (Possede un compte ?) then (Non)
+  :S'inscrire;
+endif
+
+if (Connexion Google ?) then (Oui)
+  :Authentification via Google;
+else (Non)
+  :Saisir email et mot de passe;
+  if (Identifiants valides ?) then (Non)
+    :Afficher erreur;
+    if (Mot de passe oublie ?) then (Oui)
+      :Recevoir code par email;
+      :Reinitialiser le mot de passe;
+    else (Non)
+      stop
+    endif
+  endif
+endif
+
+:Acceder au tableau de bord;
+
+if (Profil Administrateur ?) then (Oui)
+
+  fork
+    :Gerer les utilisateurs;
+  fork again
+    :Gerer la base Kc FAO-56;
+  fork again
+    :Gerer les messages;
+  end fork
+
+else (Non)
+
+  if (Aucune culture enregistree ?) then (Oui)
+    :Ajouter une culture;
+  endif
+
+  fork
+    :Consulter et enregistrer\nune irrigation;
+  fork again
+    :Consulter et enregistrer\nune fertilisation;
+  fork again
+    :Consulter la meteo;
+  fork again
+    :Interroger l'assistant IA;
+  fork again
+    :Contacter l'administrateur;
+  end fork
+
+endif
+
+:Se deconnecter;
+
+stop
+
+@enduml

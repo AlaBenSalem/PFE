@@ -1,0 +1,139 @@
+@startuml SmartIrrig_Diagramme_Classes
+
+skinparam classAttributeIconSize 0
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontSize 14
+skinparam ArrowFontSize 13
+skinparam ArrowThickness 2
+skinparam classBorderThickness 2
+skinparam nodesep 55
+skinparam ranksep 75
+
+class User {
+  - _id : ObjectId
+  - firstName : String
+  - lastName : String
+  - email : String
+  - password : String
+  - address : String
+  - isActive : Boolean
+  - googleId : String
+}
+
+class Admin {
+  - _id : ObjectId
+  - email : String
+  - password : String
+  - fullName : String
+}
+
+class Culture {
+  - _id : ObjectId
+  - userId : ObjectId
+  - nom : String
+  - variete : String
+  - parcelle : String
+  - region : String
+  - surface : Number
+  - nombreArbres : Number
+  - typeSol : String
+  - modeIrrigation : String
+  - datePlantation : Date
+  - kcActuel : Number
+  - stadeActuel : String
+  - debitGoutteur : Number
+  - nbGoutteursParArbre : Number
+}
+
+class Irrigation {
+  - _id : ObjectId
+  - userId : ObjectId
+  - cultureId : ObjectId
+  - volume : Number
+  - duration : Number
+  - date : Date
+  - mode : String
+  - et0 : Number
+  - etc : Number
+  - kc : Number
+  - frequenceJours : Number
+  - prochaineDate : Date
+}
+
+class Fertilisation {
+  - _id : ObjectId
+  - userId : ObjectId
+  - cultureId : ObjectId
+  - produit : String
+  - quantite : Number
+  - date : Date
+  - frequenceJours : Number
+  - prochaineDate : Date
+}
+
+class KC {
+  - _id : ObjectId
+  - culture : String
+  - variete : String
+  - kcIni : Number
+  - kcMid : Number
+  - kcEnd : Number
+  - stades : Object
+  - source : String
+}
+
+class Weather {
+  - _id : ObjectId
+  - temperature : Object
+  - humidity : Object
+  - wind : Object
+  - et0 : Number
+  - description : String
+  - date : Date
+}
+
+class Message {
+  - _id : ObjectId
+  - userId : ObjectId
+  - senderEmail : String
+  - subject : String
+  - body : String
+  - isRead : Boolean
+  - reply : String
+  - createdAt : Date
+}
+
+class WeatherService {
+  + getLatestWeather(city) : Weather
+  + calculateET0(data) : Number
+}
+
+class AIService {
+  + buildUserContext(userId, city) : Object
+  + detectLanguage(text) : String
+  + chat(message, conversationId) : Object
+}
+
+class TTSService {
+  + synthesize(text) : Buffer
+}
+
+User "1" --o{ "0..*" Culture : possede
+User "1" --o{ "0..*" Irrigation : effectue
+User "1" --o{ "0..*" Message : envoie
+Culture "1" --o{ "0..*" Irrigation : recoit
+Culture "1" --o{ "0..*" Fertilisation : recoit
+Culture }o..o| "1" KC : reference
+
+WeatherService ..> Weather : gere
+AIService ..> WeatherService : utilise
+AIService ..> Culture : consulte
+AIService ..> Irrigation : consulte
+AIService ..> TTSService : declenche
+
+Admin ..> User : administre
+Admin ..> KC : gere
+Admin ..> Message : gere
+
+@enduml

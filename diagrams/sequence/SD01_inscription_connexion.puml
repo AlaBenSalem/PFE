@@ -1,0 +1,71 @@
+@startuml SD01_Inscription_Connexion
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontSize 15
+skinparam sequenceParticipantFontSize 15
+skinparam sequenceActorFontSize 15
+skinparam sequenceMessageFontSize 13
+skinparam sequenceParticipantPadding 15
+skinparam sequenceActorPadding 10
+skinparam ArrowThickness 2
+
+title SD01 — Inscription & Connexion
+
+actor "Utilisateur" as U
+participant "App Mobile" as App
+participant "authRoutes\n(Express)" as API
+participant "Google OAuth" as Google
+database "MongoDB" as DB
+participant "Nodemailer" as Mail
+
+== Inscription ==
+
+U -> App : Saisit prenom, nom, email, mot de passe
+App -> API : POST /api/auth/register
+API -> DB : Verifie email unique
+API -> DB : User.create({ ...data })
+API --> App : 201 { token, user }
+App --> U : Redirection accueil
+
+== Connexion Email ==
+
+U -> App : Saisit email + mot de passe
+App -> API : POST /api/auth/login
+alt Compte inactif
+  API --> App : 403 Compte desactive
+else Identifiants incorrects
+  API --> App : 401 Identifiants incorrects
+else Connexion reussie
+  API --> App : 200 { token, user }
+  App --> U : Redirection accueil
+end
+
+== Connexion Google OAuth ==
+
+U -> App : Appuie sur "Connexion avec Google"
+App -> Google : Demande autorisation OAuth
+Google --> App : idToken
+App -> API : POST /api/auth/google { idToken }
+API -> Google : Verifie idToken
+alt Nouvel utilisateur
+  API -> DB : User.create({ email, googleId })
+else Existant
+  API -> DB : User.updateOne({ googleId })
+end
+API --> App : 200 { token, user }
+App --> U : Connexion reussie
+
+== Reinitialisation Mot de Passe ==
+
+U -> App : Clique "Mot de passe oublie"
+App -> API : POST /api/auth/forgot-password { email }
+API -> DB : Sauvegarde code + expiry 15min
+API -> Mail : Envoie code par email
+U -> App : Saisit code + nouveau mot de passe
+App -> API : POST /api/auth/reset-password
+API -> DB : User.updateOne({ password: hash })
+API --> App : 200 { success }
+App --> U : Mot de passe modifie
+
+@enduml

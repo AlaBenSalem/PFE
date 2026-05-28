@@ -1,0 +1,52 @@
+@startuml SmartIrrig_Deploiement
+
+title SmartIrrig — Diagramme de Deploiement
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontSize 14
+skinparam ArrowFontSize 13
+skinparam ArrowThickness 2
+skinparam nodeBorderThickness 2
+skinparam nodesep 60
+skinparam ranksep 70
+
+node "Appareil Mobile\n(Android / iOS)" as Mobile {
+  component "SmartIrrig App\n(React Native / Expo)" as App
+  component "AsyncStorage\n(JWT Token)" as AS
+}
+
+node "Serveur Backend\n(Render.com)" as Backend {
+  component "Node.js / Express" as Server
+  component "authRoutes\nirrigationRoutes\nfertilisationRoutes\naiRoutes\nadminRoutes" as Routes
+  component "Mongoose ODM" as Mongoose
+}
+
+database "MongoDB Atlas\n(Cluster M0)" as MongoDB {
+  component "Users / Cultures\nIrrigations / Fertilisations\nWeather / KC / Admin" as Collections
+}
+
+node "APIs Externes" as External {
+  component "OpenWeather API" as OW
+  component "Groq API\n(Llama 3.3-70B)" as Groq
+  component "ElevenLabs TTS" as TTS
+  component "Google OAuth 2.0" as GOAuth
+  component "Nodemailer" as Mail
+}
+
+node "Poste Developpeur" as Dev {
+  component "EAS Build\n(expo.dev)" as EAS
+  component "GitHub" as Git
+}
+
+App --> Server   : HTTPS REST API (JWT)
+App --> GOAuth   : OAuth 2.0
+Server --> MongoDB  : Mongoose
+Routes --> OW    : meteo
+Routes --> Groq  : chatbot IA
+Routes --> TTS   : synthese vocale
+Routes --> Mail  : emails
+Git --> EAS      : push → build APK
+EAS --> Mobile   : distribution APK
+
+@enduml

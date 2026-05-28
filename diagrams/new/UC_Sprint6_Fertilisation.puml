@@ -1,0 +1,40 @@
+@startuml UC_Sprint6_Fertilisation
+title UC — Sprint 6 : Fertilisation (FAO-56)
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam monochrome true
+skinparam shadowing false
+
+' ── Taille pour impression ──────────────
+
+skinparam defaultFontSize 16
+skinparam usecaseFontSize 16
+skinparam actorFontSize 18
+skinparam packageFontSize 18
+skinparam noteFontSize 14
+skinparam ArrowFontSize 14
+skinparam usecaseBorderThickness 2
+skinparam actorBorderThickness 2.5
+skinparam ArrowThickness 2
+skinparam nodesep 60
+skinparam ranksep 80
+
+
+left to right direction
+
+actor Utilisateur as U
+
+rectangle "Sprint 6 — Fertilisation (FAO-56)" {
+  usecase "Consulter le calendrier FAO-56" as UC1
+  usecase "Enregistrer une fertilisation" as UC2
+  usecase "Afficher le programme complet" as UC3
+  usecase "Exporter le programme (PDF)" as UC4
+
+}
+
+U --> UC1
+UC1 ..> UC2 : <<include>>
+UC1 ..> UC3 : <<include>>
+UC1 ..> UC4 : <<extend>>
+
+@enduml

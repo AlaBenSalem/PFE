@@ -1,0 +1,139 @@
+@startuml SmartIrrig - Diagrammes de Séquence
+
+skinparam monochrome true
+skinparam shadowing false
+
+' ══════════════════════════════════════════════════════
+' SÉQUENCE 1 : Authentification Utilisateur
+' ══════════════════════════════════════════════════════
+
+title [1] Authentification Utilisateur (JWT)
+
+actor Utilisateur as U
+participant "App Mobile\n(Expo)" as App
+participant "Backend\n(Express)" as API
+database "MongoDB\nAtlas" as DB
+
+U -> App : Saisit email + mot de passe
+App -> API : POST /api/auth/login\n{email, password}
+API -> DB : User.findOne({email})
+DB --> API : document User
+alt Mot de passe correct
+  API -> API : bcrypt.compare(password, hash)
+  API --> App : 200 {token JWT, userData}
+  App -> App : AsyncStorage.setItem("userToken")
+  App --> U : Redirection vers l'accueil
+else Mauvais identifiants
+  API --> App : 401 {message: "Email ou mdp incorrect"}
+  App --> U : Affichage message d'erreur
+end
+
+newpage
+
+' ══════════════════════════════════════════════════════
+' SÉQUENCE 2 : Calcul des Besoins en Eau (FAO-56)
+' ══════════════════════════════════════════════════════
+
+title [2] Calcul des Besoins en Eau (FAO-56)
+
+actor Utilisateur as U
+participant "App Mobile" as App
+participant "Backend\n(Express)" as API
+participant "OpenWeather\nAPI" as OW
+database "MongoDB" as DB
+
+U -> App : Ouvre onglet Irrigation
+App -> API : GET /api/irrigation/needs\nAuthorization: Bearer {token}
+API -> DB : Culture.find({userId})
+DB --> API : liste des cultures
+
+API -> DB : Weather.findOne({city, date}) [cache 30 min]
+alt Cache valide (< 30 min)
+  DB --> API : données météo + ET₀
+else Cache expiré
+  API -> OW : GET /data/2.5/weather?q={city}
+  OW --> API : {temp, humidity, wind, ...}
+  API -> API : Calcul ET₀\n(Penman-Monteith FAO-56)
+  API -> DB : Weather.save({et0, ...})
+end
+
+loop Pour chaque culture
+  API -> API : ETc = ET₀ × Kc_actuel
+  API -> API : Volume = (ETc × surface) / efficacité
+  API -> API : Durée = Volume / débitTotal
+end
+
+API --> App : {cultures, etcValues, volumes, durations}
+App --> U : Affichage recommandations d'irrigation
+
+newpage
+
+' ══════════════════════════════════════════════════════
+' SÉQUENCE 3 : Chat IA avec Dify + TTS ElevenLabs
+' ══════════════════════════════════════════════════════
+
+title [3] Chat IA — Dify + TTS ElevenLabs (Voix Arabe)
+
+actor Utilisateur as U
+participant "App Mobile\n(AIChatScreen)" as App
+participant "Backend\n(aiRoutes)" as API
+participant "Dify API\n(chatflow)" as Dify
+participant "ElevenLabs\nTTS" as EL
+database "MongoDB" as DB
+
+U -> App : Saisit ou dicte un message
+App -> App : Détection langue\n(arabe/français/anglais/turc)
+
+App -> API : POST /api/ai/chat\n{message, conversationId, city}
+API -> DB : Culture.find() + Irrigation.find() + Fertilisation.find()
+DB --> API : données utilisateur
+API -> API : buildUserContext()\n+ météo temps réel
+API -> API : detectMessageLanguage()
+
+alt Première question (conversationId vide)
+  API -> Dify : POST /v1/chat-messages\n{query: [CONTEXTE + LANGUE + MSG], conversation_id: ""}
+else Suite de conversation
+  API -> Dify : POST /v1/chat-messages\n{query: [LANGUE + MSG], conversation_id: "xxx"}
+end
+
+Dify --> API : {answer, conversation_id}
+API --> App : {answer, conversationId}
+App -> App : conversationIdRef.current = conversationId\n(persist pour la suite)
+
+alt Langue = Arabe (mobile)
+  App -> API : POST /api/ai/tts\n{text: answer}
+  API -> EL : POST /text-to-speech/{voiceId}\n{text, model: eleven_multilingual_v2}
+  EL --> API : audio/mpeg buffer
+  API --> App : audio MP3
+  App -> App : Audio.Sound.createAsync()\n+ lecture automatique
+else Autres langues
+  App -> App : expo-speech (natif)\nlecture locale
+end
+
+App --> U : Réponse affichée + lue à voix haute
+
+newpage
+
+' ══════════════════════════════════════════════════════
+' SÉQUENCE 4 : Enregistrement d'une Irrigation
+' ══════════════════════════════════════════════════════
+
+title [4] Enregistrement d'une Irrigation
+
+actor Utilisateur as U
+participant "App Mobile" as App
+participant "Backend" as API
+database "MongoDB" as DB
+
+U -> App : Sélectionne une culture + valide l'irrigation
+App -> App : Calcul volume + durée + prochaine date
+App -> API : POST /api/irrigation\n{cultureId, volume, mode, date, frequenceJours}
+API -> API : requireUser() — vérifie JWT
+API -> DB : Irrigation.create({...})
+DB --> API : irrigation sauvegardée
+API -> DB : Culture.findByIdAndUpdate({kcActuel, stadeActuel})
+DB --> API : culture mise à jour
+API --> App : 201 {success, data}
+App --> U : ✅ Confirmation + mise à jour historique
+
+@enduml

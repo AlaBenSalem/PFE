@@ -1,0 +1,51 @@
+@startuml SD04_Fertilisation_FAO56
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontSize 15
+skinparam sequenceParticipantFontSize 15
+skinparam sequenceActorFontSize 15
+skinparam sequenceMessageFontSize 13
+skinparam sequenceParticipantPadding 15
+skinparam sequenceActorPadding 10
+skinparam ArrowThickness 2
+
+title SD04 — Calendrier de Fertilisation (FAO-56)
+
+actor "Utilisateur" as U
+participant "App Mobile" as App
+participant "fertilisationRoutes\n(Express)" as API
+database "MongoDB" as DB
+
+== Chargement ==
+
+U -> App : Ouvre onglet "Fertilisation"
+App -> API : GET /api/cultures
+API -> DB : Culture.find({ userId })
+API --> App : liste cultures
+App -> API : GET /api/fertilisation
+API -> DB : Fertilisation.find({ cultureId: $in })
+API --> App : historique fertilisations
+App -> App : Charge recommandations FAO-56\npour cultures sans historique
+App --> U : Calendrier mensuel
+
+== Consultation ==
+
+U -> App : Selectionne une culture
+App --> U : Produit, dose (kg/ha), prochaine date
+
+== Enregistrement ==
+
+U -> App : Valide une application
+App -> API : POST /api/fertilisation\n{ cultureId, produit, quantite, date }
+API -> DB : Fertilisation.create({ ...data })
+API --> App : 201 { success }
+App --> U : Calendrier mis a jour
+
+== Export ==
+
+U -> App : Appuie sur "Exporter"
+App -> App : Genere CSV programme annuel
+App --> U : Partage via Share API
+
+@enduml

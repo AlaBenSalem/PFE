@@ -1,0 +1,42 @@
+@startuml UC_Sprint4_Irrigation
+title UC — Sprint 4 : Module Irrigation (FAO-56)
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam monochrome true
+skinparam shadowing false
+
+' ── Taille pour impression ──────────────
+
+skinparam defaultFontSize 16
+skinparam usecaseFontSize 16
+skinparam actorFontSize 18
+skinparam packageFontSize 18
+skinparam noteFontSize 14
+skinparam ArrowFontSize 14
+skinparam usecaseBorderThickness 2
+skinparam actorBorderThickness 2.5
+skinparam ArrowThickness 2
+skinparam nodesep 60
+skinparam ranksep 80
+
+
+left to right direction
+
+actor Utilisateur as U
+actor "OpenWeather\nAPI" as OW
+
+rectangle "Sprint 4 — Irrigation FAO-56" {
+  usecase "Enregistrer une irrigation\n(volume, mode, fréquence)" as UC2
+  usecase "Afficher la prochaine date\nd'irrigation" as UC3
+  usecase "Consulter l'historique\nd'irrigation" as UC4
+  usecase "Consulter les besoins en eau" as UC1
+  usecase "Récupérer la météo (ET₀)" as UC1a
+}
+
+U --> UC2
+U --> UC3
+U --> UC4
+U --> UC1
+UC1 ..> UC1a : <<include>>
+UC1a --> OW
+@enduml

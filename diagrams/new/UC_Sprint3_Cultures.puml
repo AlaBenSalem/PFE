@@ -1,0 +1,46 @@
+@startuml UC_Sprint3_Cultures
+title UC — Sprint 3 : Gestion des Cultures
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam monochrome true
+skinparam shadowing false
+
+' ── Taille pour impression ──────────────
+
+skinparam defaultFontSize 16
+skinparam usecaseFontSize 16
+skinparam actorFontSize 18
+skinparam packageFontSize 18
+skinparam noteFontSize 14
+skinparam ArrowFontSize 14
+skinparam usecaseBorderThickness 2
+skinparam actorBorderThickness 2.5
+skinparam ArrowThickness 2
+skinparam nodesep 60
+skinparam ranksep 80
+
+
+left to right direction
+
+actor Utilisateur as U
+
+rectangle "Sprint 3 — Gestion des Cultures" {
+  usecase "Gérer ses cultures" as UC0
+  usecase "Supprimer une culture" as UC4
+  usecase "Modifier une culture" as UC3
+  usecase "Ajouter une culture" as UC2
+  usecase "Consulter ses cultures" as UC1
+  usecase "Saisie culture info" as UC2c
+  usecase "Saisie info du goutteur" as UC2d
+  usecase "Sélectionner le type de sol" as UC2b
+}
+
+U --> UC0
+UC0 ..> UC4 : <<include>>
+UC0 ..> UC3 : <<include>>
+UC0 ..> UC2 : <<include>>
+UC0 ..> UC1 : <<include>>
+UC2 ..> UC2c : <<include>>
+UC2 ..> UC2d : <<include>>
+UC2 ..> UC2b : <<include>>
+@enduml

@@ -1,0 +1,56 @@
+@startuml SD02_Gestion_Cultures
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontSize 15
+skinparam sequenceParticipantFontSize 15
+skinparam sequenceActorFontSize 15
+skinparam sequenceMessageFontSize 13
+skinparam sequenceParticipantPadding 15
+skinparam sequenceActorPadding 10
+skinparam ArrowThickness 2
+
+title SD02 — Gestion des Cultures
+
+actor "Utilisateur" as U
+participant "App Mobile" as App
+participant "cultureRoutes\n(Express)" as API
+participant "kcRoutes\n(Express)" as KCAPI
+database "MongoDB" as DB
+
+== Chargement ==
+
+U -> App : Ouvre onglet "Mes cultures"
+App -> API : GET /api/cultures
+API -> DB : Culture.find({ userId })
+API --> App : 200 { data: [...cultures] }
+App -> KCAPI : GET /api/kc/search
+KCAPI -> DB : KC.find() references FAO-56
+KCAPI --> App : 200 { data: [...kcCultures] }
+App --> U : Cultures affichees avec badge Kc
+
+== Ajout ==
+
+U -> App : Appuie sur "+ Ajouter", remplit le formulaire
+App -> App : Validation locale
+alt Validation echouee
+  App --> U : Erreurs sous les champs
+else Validation OK
+  App -> API : POST /api/cultures { ...data }
+  API -> DB : KC.findOne({ culture: nom })
+  API -> DB : Culture.create({ ...data, kcActuel })
+  API --> App : 201 { success, data }
+  App --> U : Culture ajoutee avec succes
+end
+
+== Suppression ==
+
+U -> App : Confirme suppression d'une culture
+App -> API : DELETE /api/cultures/:id
+API -> DB : Culture.findOneAndDelete({ _id, userId })
+API -> DB : Irrigation.deleteMany({ cultureId })
+API -> DB : Fertilisation.deleteMany({ cultureId })
+API --> App : 200 { success }
+App --> U : Culture retiree de la liste
+
+@enduml
