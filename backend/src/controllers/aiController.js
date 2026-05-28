@@ -77,10 +77,17 @@ exports.tts = async (req, res) => {
     if (!ELEVENLABS_API_KEY)
       return res.status(503).json({ success: false, error: 'TTS non configuré.' });
 
+    const cleanText = text.trim()
+      .replace(/[\u{1F300}-\u{1FFFF}]/gu, '')  // emojis
+      .replace(/[!?⚠️📍👋•★]/g, '')
+      .replace(/[*_~`#]/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
     const elRes = await axios.post(
       `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`,
       {
-        text: text.trim(),
+        text: cleanText,
         model_id: 'eleven_multilingual_v2',
         voice_settings: { stability: 0.55, similarity_boost: 0.8, style: 0.2, use_speaker_boost: true },
       },
