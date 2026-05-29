@@ -112,7 +112,7 @@ export default function AdminDashboard() {
     start.setDate(today.getDate() - 13);
     const map = new Map();
     volumeByDay.forEach((item) => {
-      map.set(item._id, item.volume || 0);
+      map.set(item._id, (item.volume || 0) / 1000);
     });
 
     return Array.from({ length: 14 }).map((_, index) => {
@@ -126,7 +126,9 @@ export default function AdminDashboard() {
     });
   }, [volumeByDay]);
 
-  const maxChartValue = Math.max(1, ...chartSeries.map((item) => item.value));
+  const maxChartValue  = Math.max(1, ...chartSeries.map((item) => item.value));
+  const hasIrrigData   = chartSeries.some(item => item.value > 0);
+  const chartTotalM3   = chartSeries.reduce((sum, item) => sum + item.value, 0);
 
   return (
     <AdminShell
@@ -220,7 +222,7 @@ export default function AdminDashboard() {
           <View>
             <Text style={dynStyles.panelTitle}>{t("admin.chartVolumeTitle")}</Text>
             <Text style={dynStyles.panelSubtitle}>
-              14 {t("admin.lastDays")} (L){selectedUser ? ` · ${selectedUser.firstName || ""} ${selectedUser.lastName || ""}`.trim() : ""}
+              14 {t("admin.lastDays")} (m³){selectedUser ? ` · ${selectedUser.firstName || ""} ${selectedUser.lastName || ""}`.trim() : ""}
             </Text>
           </View>
           {selectedUser && (
@@ -236,53 +238,69 @@ export default function AdminDashboard() {
         </View>
         {chartLoading && <View className="items-center py-3"><Text className="text-[12px] text-slate-400">...</Text></View>}
 
-        {/* Valeur max mise en avant */}
+        {/* Badge volume — user sélectionné ou total global */}
         <View className={`flex-row items-center gap-2 mb-3 ${isRTL ? "flex-row-reverse" : ""}`}>
           <View className="rounded-lg bg-green-50 px-3 py-1.5 flex-row items-center gap-1.5">
             <Ionicons name="analytics-outline" size={14} color="#16a34a" />
             <Text className="text-[13px] font-bold text-green-700">
-              {(stats?.totalVolume ?? 0).toLocaleString()} L
+              {selectedUser
+                ? chartTotalM3.toFixed(2)
+                : ((stats?.totalVolume ?? 0) / 1000).toFixed(2)
+              } m³
             </Text>
           </View>
           <Text className="text-[11px] text-slate-400">{t("admin.totalVolume")}</Text>
         </View>
 
-        {/* Barres du graphique */}
-        <View className="mt-1 flex-row items-end justify-between" style={{ height: 88 }}>
-          {chartSeries.map((item, index) => {
-            const height = 8 + (item.value / maxChartValue) * 72;
-            const isToday = index === chartSeries.length - 1;
-            return (
-              <View key={`${item.label}-${index}`} className="flex-1 items-center justify-end">
-                <View
-                  className="w-2 rounded-t-[4px]"
-                  style={{
-                    height,
-                    backgroundColor: isToday ? "#16a34a" : item.value > 0 ? "#86efac" : "#e5e7eb",
-                  }}
-                />
-                <Text
-                  className="mt-1 text-[9px]"
-                  style={{ color: isToday ? "#16a34a" : "#94a3b8" }}
-                >
-                  {index % 3 === 0 || isToday ? item.label : ""}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+        {/* Barres ou message vide */}
+        {!hasIrrigData ? (
+          <View className="h-[88px] items-center justify-center rounded-xl bg-slate-50">
+            <Ionicons name="water-outline" size={28} color="#cbd5e1" />
+            <Text className="mt-1.5 text-[13px] text-slate-400">
+              {selectedUser
+                ? `${selectedUser.firstName || ""} ${selectedUser.lastName || ""}`.trim() + " — " + t("admin.noIrrigationsToday")
+                : t("admin.noIrrigationsToday")}
+            </Text>
+          </View>
+        ) : (
+          <View className="mt-1 flex-row items-end justify-between" style={{ height: 88 }}>
+            {chartSeries.map((item, index) => {
+              const height = 8 + (item.value / maxChartValue) * 72;
+              const isToday = index === chartSeries.length - 1;
+              return (
+                <View key={`${item.label}-${index}`} className="flex-1 items-center justify-end">
+                  <View
+                    className="w-2 rounded-t-[4px]"
+                    style={{
+                      height,
+                      backgroundColor: isToday ? "#16a34a" : item.value > 0 ? "#86efac" : "#e5e7eb",
+                    }}
+                  />
+                  <Text
+                    className="mt-1 text-[9px]"
+                    style={{ color: isToday ? "#16a34a" : "#94a3b8" }}
+                  >
+                    {index % 3 === 0 || isToday ? item.label : ""}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* Légende */}
-        <View className="mt-2 flex-row items-center gap-3">
-          <View className="flex-row items-center gap-1">
-            <View className="h-2.5 w-2.5 rounded-full bg-green-500" />
-            <Text className="text-[10px] text-slate-500">{t("common.today")}</Text>
+        {hasIrrigData && (
+          <View className="mt-2 flex-row items-center gap-3">
+            <View className="flex-row items-center gap-1">
+              <View className="h-2.5 w-2.5 rounded-full bg-green-500" />
+              <Text className="text-[10px] text-slate-500">{t("common.today")}</Text>
+            </View>
+            <View className="flex-row items-center gap-1">
+              <View className="h-2.5 w-2.5 rounded-full bg-green-200" />
+              <Text className="text-[10px] text-slate-500">{t("admin.lastDays")}</Text>
+            </View>
           </View>
-          <View className="flex-row items-center gap-1">
-            <View className="h-2.5 w-2.5 rounded-full bg-green-200" />
-            <Text className="text-[10px] text-slate-500">{t("admin.lastDays")}</Text>
-          </View>
-        </View>
+        )}
       </View>
       {/* ── User search section ── */}
       <View className="mb-4 rounded-2xl border border-[#edf1f0] bg-white p-4">
