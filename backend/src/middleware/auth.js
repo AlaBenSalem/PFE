@@ -1,15 +1,21 @@
 // src/middleware/auth.js — centralised JWT middleware
-const jwt = require('jsonwebtoken');
+const jwt  = require('jsonwebtoken');
+const User = require('../models/User');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // Any valid token (user or admin)
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ success: false, error: 'Token manquant.' });
     const decoded = jwt.verify(token, JWT_SECRET);
     if (!decoded?.id) return res.status(401).json({ success: false, error: 'Token invalide.' });
+    if (decoded.role === 'user') {
+      const user = await User.findById(decoded.id).select('isActive').lean();
+      if (!user || user.isActive === false)
+        return res.status(403).json({ success: false, error: 'Compte désactivé.' });
+    }
     req.userId   = decoded.id;
     req.userRole = decoded.role;
     return next();
@@ -19,7 +25,7 @@ function requireAuth(req, res, next) {
 }
 
 // Role must be 'user'
-function requireUser(req, res, next) {
+async function requireUser(req, res, next) {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ success: false, message: 'Token manquant.' });
@@ -27,6 +33,9 @@ function requireUser(req, res, next) {
     if (!decoded?.id || decoded.role !== 'user') {
       return res.status(403).json({ success: false, message: 'Accès utilisateur requis.' });
     }
+    const user = await User.findById(decoded.id).select('isActive').lean();
+    if (!user || user.isActive === false)
+      return res.status(403).json({ success: false, message: 'Compte désactivé.' });
     req.userId   = decoded.id;
     req.userRole = decoded.role;
     return next();

@@ -170,6 +170,8 @@ router.post('/google', async (req, res) => {
       const hashed    = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 12);
       user = await User.create({ firstName, lastName, address: 'Non renseigné', email: normalizedEmail, password: hashed, isActive: true });
     }
+    if (!user.isActive)
+      return res.status(403).json({ message: 'Compte désactivé.' });
     const token = jwt.sign({ id: user._id, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ message: 'Connexion Google réussie.', token, role: 'user',
       user: { id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email } });
