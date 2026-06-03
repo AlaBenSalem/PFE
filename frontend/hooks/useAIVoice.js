@@ -247,13 +247,13 @@ export function useAIVoice({ onTranscriptReady, onInterimTranscript } = {}) {
   }, [loadNativeVoices]);
 
   // ── ElevenLabs TTS — Web (AudioContext) ──────────────────────────────────
-  const speakWithElevenLabsWeb = useCallback(async (text) => {
+  const speakWithElevenLabsWeb = useCallback(async (text, lang) => {
     const ctx = getWebAudioCtx();
     if (!ctx) return false;
     try {
       const res = await apiFetch(API_ENDPOINTS.ai.tts, {
         method:    "POST",
-        body:      JSON.stringify({ text }),
+        body:      JSON.stringify({ text, lang }),
         timeoutMs: 15000,
       });
       if (!res.ok) return false;
@@ -282,11 +282,11 @@ export function useAIVoice({ onTranscriptReady, onInterimTranscript } = {}) {
   }, []);
 
   // ── ElevenLabs TTS — Mobile ──────────────────────────────────────────────
-  const speakWithElevenLabs = useCallback(async (text) => {
+  const speakWithElevenLabs = useCallback(async (text, lang) => {
     try {
       const res = await apiFetch(API_ENDPOINTS.ai.tts, {
         method: "POST",
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, lang }),
         timeoutMs: 15000,
       });
       if (!res.ok) return false;
@@ -353,7 +353,7 @@ export function useAIVoice({ onTranscriptReady, onInterimTranscript } = {}) {
     try {
       if (Platform.OS === "web") {
         if (isArabic) {
-          const ok = await speakWithElevenLabsWeb(cleaned);
+          const ok = await speakWithElevenLabsWeb(cleaned, detectedLang);
           if (ok) return;
         }
         await webSpeak(cleaned, detectedLang, {
@@ -365,7 +365,7 @@ export function useAIVoice({ onTranscriptReady, onInterimTranscript } = {}) {
       }
 
       if (isArabic) {
-        const ok = await speakWithElevenLabs(cleaned);
+        const ok = await speakWithElevenLabs(cleaned, detectedLang);
         if (ok) return;
       }
 

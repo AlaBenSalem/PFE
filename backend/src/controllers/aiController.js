@@ -4,6 +4,34 @@ const { detectMessageLanguage, buildUserContext, callGroq, normalizeNumerals } =
 
 const ELEVENLABS_API_KEY  = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'cFUFIbKkO2iZFwS8cRnY';
+const AZURE_SPEECH_KEY    = process.env.AZURE_SPEECH_KEY;
+const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION || 'eastus';
+
+// Voix Azure par langue
+const AZURE_VOICES = {
+  ar: 'ar-TN-ReemNeural',   // Tunisian Arabic (Darija) — féminine
+  // ar: 'ar-TN-HediNeural', // Tunisian Arabic — masculine (alternative)
+};
+
+async function ttsAzure(text, voiceName) {
+  const ssml = `<speak version='1.0' xml:lang='ar-TN'>
+    <voice name='${voiceName}'>${text.replace(/[<>&'"]/g, ' ')}</voice>
+  </speak>`;
+  const res = await axios.post(
+    `https://${AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`,
+    ssml,
+    {
+      headers: {
+        'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
+        'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': 'audio-16khz-128kbitrate-mono-mp3',
+      },
+      responseType: 'arraybuffer',
+      timeout: 15000,
+    }
+  );
+  return Buffer.from(res.data);
+}
 const GROQ_MODELS         = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
 
 // ── Greeting detection ────────────────────────────────────────────────────────
@@ -70,19 +98,36 @@ exports.chat = async (req, res) => {
 // ── TTS ───────────────────────────────────────────────────────────────────────
 exports.tts = async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, lang } = req.body;
     if (!text?.trim())
       return res.status(400).json({ success: false, error: 'Texte requis.' });
 
-    if (!ELEVENLABS_API_KEY)
-      return res.status(503).json({ success: false, error: 'TTS non configuré.' });
-
     const cleanText = text.trim()
-      .replace(/[\u{1F300}-\u{1FFFF}]/gu, '')  // emojis
+      .replace(/[\u{1F300}-\u{1FFFF}]/gu, '')
       .replace(/[!?⚠️📍👋•★]/g, '')
       .replace(/[*_~`#]/g, '')
       .replace(/\s{2,}/g, ' ')
       .trim();
+
+    // ── Arabe (Darija tunisienne) → Azure ar-TN-ReemNeural ──────────────────
+    const isArabic = lang === 'ar' || lang === 'TUNISIAN_ARABIC' || lang === 'MODERN_ARABIC'
+      || /[؀-ۿ]/.test(cleanText);
+
+    if (isArabic && AZURE_SPEECH_KEY) {
+      try {
+        const audio = await ttsAzure(cleanText, AZURE_VOICES.ar);
+        res.set('Content-Type', 'audio/mpeg');
+        res.set('Cache-Control', 'no-store');
+        return res.send(audio);
+      } catch (azureErr) {
+        console.warn('⚠️ [TTS] Azure fallback to ElevenLabs:', azureErr.message);
+        // Continue vers ElevenLabs en fallback
+      }
+    }
+
+    // ── Autres langues → ElevenLabs ─────────────────────────────────────────
+    if (!ELEVENLABS_API_KEY)
+      return res.status(503).json({ success: false, error: 'TTS non configuré.' });
 
     const elRes = await axios.post(
       `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`,
@@ -105,7 +150,7 @@ exports.tts = async (req, res) => {
     if (err.response?.data) {
       try { detail = Buffer.from(err.response.data).toString('utf8'); } catch {}
     }
-    console.error('❌ [TTS proxy] ElevenLabs error:', err.response?.status, detail);
+    console.error('❌ [TTS proxy] error:', err.response?.status, detail);
     return res.status(502).json({ success: false, error: 'TTS indisponible.', detail });
   }
 };
