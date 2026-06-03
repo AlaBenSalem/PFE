@@ -129,7 +129,10 @@ export function useAIChat({ speakText, setIsSpeaking, detectSpeechLang, setTtsLa
         surface:        b.surface,
         debitM3h:       b.debitM3h,
         temps:          b.temps,
+        tempsParJour:   b.tempsParJour,
+        dureeSession:   b.temps > 720 && b.tempsParJour > 0 ? b.tempsParJour : b.temps,
         eta:            b.eta,
+        frequenceJours: b.frequenceJours,
         deficitMm:      b.deficitMm,
         dateProchaine:  b.dateProchaine ? (() => {
           const d = new Date(b.dateProchaine);

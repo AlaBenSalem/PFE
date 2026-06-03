@@ -13,12 +13,18 @@ import { useSession } from '@hooks/useSession';
 import { translateCropName } from '@utils/cropNames';
 import CitySearchInput from '@components/CitySearchInput';
 import { useIrrigationData } from '@hooks/useIrrigationData';
+import { updateIrrigationBesoins } from '@utils/irrigationBesoinsStore';
 
-// Identique à fmtTemps dans irrigation.jsx
 const fmtTemps = (minutes) =>
   minutes >= 60
     ? `${Math.floor(minutes / 60)}h${minutes % 60 > 0 ? String(minutes % 60).padStart(2, '0') : ''}`
     : `${minutes} min`;
+
+// Afficher durée journalière si session totale > 12h
+const fmtTempsSession = (needs) => {
+  if (needs.temps > 720 && needs.tempsParJour > 0) return fmtTemps(needs.tempsParJour);
+  return fmtTemps(needs.temps);
+};
 
 export default function HomeScreen() {
   const router          = useRouter();
@@ -82,8 +88,6 @@ export default function HomeScreen() {
   };
 
   // ─── Calcul des besoins pour les 3 premières cultures ─────────────────────
-  // useMemo : recalcule uniquement quand la liste des cultures change.
-  // calculateNeedsForCulture est pure (pas de setState) → sûr dans useMemo.
   const cultureNeeds = useMemo(() => {
     return cultures.slice(0, 3).map((culture) => ({
       culture,
@@ -93,6 +97,15 @@ export default function HomeScreen() {
       ),
     }));
   }, [cultures, hookWeatherData, historyItems, kcDynamique]);
+
+  // ─── Alimenter le store IA dès que les besoins sont calculés ───────────────
+  useEffect(() => {
+    for (const { culture, needs } of cultureNeeds) {
+      if (culture._id && needs?.eauM3) {
+        updateIrrigationBesoins(culture._id, culture.nom, needs);
+      }
+    }
+  }, [cultureNeeds]);
 
   if (loading && !weatherData) {
     return (
@@ -228,7 +241,7 @@ export default function HomeScreen() {
                     {needs.eauM3} m³
                   </Text>
                   <Text style={{ fontSize: 20, fontWeight: '700', color: '#2563eb' }}>
-                    {fmtTemps(needs.temps)}
+                    {fmtTempsSession(needs)}
                   </Text>
                 </TouchableOpacity>
               ))}

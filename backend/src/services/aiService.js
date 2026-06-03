@@ -289,14 +289,24 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
             const cid      = c._id.toString();
             const lastIrr  = lastIrrigByCulture[cid];
             const mode     = lastIrr?.mode || 'goutte-à-goutte';
-            const freqJours = lastIrr?.frequenceJours || 0;
-            const soilPart = c.typeSol ? ` | Sol: ${c.typeSol}` : '';
-            const freqPart = freqJours > 0 ? ` | Fréquence: ${freqJours} j` : '';
-            const vol      = parseFloat(live.volumeM3);
-            const volPart  = vol > 0
+            const freqJours = live.frequenceJours || lastIrr?.frequenceJours || 0;
+            const soilPart  = c.typeSol ? ` | Sol: ${c.typeSol}` : '';
+            const freqPart  = freqJours > 0 ? ` | Fréquence: ${freqJours} j` : '';
+            const vol       = parseFloat(live.volumeM3);
+            const volPart   = vol > 0
               ? ` → Volume dose: ${vol} m³ (temps réel app, ${live.surface} m²)`
               : ` → Volume dose: 0 m³ (réserve sol suffisante)`;
-            return `• ${c.nom} (${c.variete}): ET₀=${live.et0} mm/j × Kc=${live.kc} = ETc=${live.etc} mm/j${volPart} | Mode: ${mode} η=${live.eta}%${freqPart}${soilPart}`;
+            // Durée d'ouverture de vanne (journalière si session > 12h)
+            const dureeMin  = live.dureeSession ?? live.temps ?? 0;
+            const dureeH    = Math.floor(dureeMin / 60);
+            const dureeM    = dureeMin % 60;
+            const dureeFmt  = dureeMin >= 60
+              ? `${dureeH}h${dureeM > 0 ? String(dureeM).padStart(2, '0') : ''}`
+              : `${dureeMin} min`;
+            const dureePart = dureeMin > 0
+              ? ` | Durée d'ouverture vanne: ${dureeFmt}${live.temps > 720 ? '/jour' : ''} à ${live.debitM3h} m³/h`
+              : '';
+            return `• ${c.nom} (${c.variete}): ET₀=${live.et0} mm/j × Kc=${live.kc} = ETc=${live.etc} mm/j${volPart}${dureePart} | Mode: ${mode} η=${live.eta}%${freqPart}${soilPart}`;
           }
 
           // ── Fallback: FAO-56 balance with dynamic Kc from same source as frontend ──
@@ -317,7 +327,22 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
           const volumePart = volumeM3 !== null
             ? ` → Volume dose: ${volumeM3} m³ (bilan hydrique FAO-56, ${c.surface} m²)`
             : ` → Volume dose: NON DISPONIBLE — consulter page Irrigation`;
-          return `• ${c.nom} (${c.variete}): ET₀=${et0} mm/j × Kc=${kc} = ETc=${etc} mm/j${volumePart} | Mode: ${mode} η=${effPct}%${freqPart}${soilPart}`;
+          // Calcul durée vanne depuis les paramètres de la culture
+          const debitGoutteur = parseFloat(c.debitGoutteur) || 0;
+          const nbGoutteurs   = parseFloat(c.nbGoutteursParArbre) || 0;
+          const nbArbres      = parseFloat(c.nombreArbres) || 0;
+          const surface       = parseFloat(c.surface) || 1;
+          const eta           = (effMap.find(([k]) => mode.toLowerCase().includes(k))?.[1] ?? 0.9);
+          let dureePart = '';
+          if (debitGoutteur > 0 && nbGoutteurs > 0 && nbArbres > 0 && etc > 0) {
+            const debitLH   = debitGoutteur * nbGoutteurs * nbArbres;
+            const debitMmh  = debitLH / surface;
+            const totalMin  = Math.round((etc / eta / debitMmh) * 60);
+            const hh = Math.floor(totalMin / 60), mm = totalMin % 60;
+            const fmt = totalMin >= 60 ? `${hh}h${mm > 0 ? String(mm).padStart(2,'0') : ''}` : `${totalMin} min`;
+            dureePart = ` | Durée d'ouverture vanne: ${fmt}/jour à ${(debitLH/1000).toFixed(3)} m³/h`;
+          }
+          return `• ${c.nom} (${c.variete}): ET₀=${et0} mm/j × Kc=${kc} = ETc=${etc} mm/j${volumePart}${dureePart} | Mode: ${mode} η=${effPct}%${freqPart}${soilPart}`;
         }).filter(Boolean).join('\n')
       : 'Calcul ETc non disponible (météo manquante).';
 
