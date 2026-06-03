@@ -55,6 +55,14 @@ const fmtTemps = (minutes) =>
     ? `${Math.floor(minutes / 60)}h${minutes % 60 > 0 ? String(minutes % 60).padStart(2, "0") : ""}`
     : `${minutes} min`;
 
+// Afficher la durée journalière si la session totale > 12h
+const fmtTempsSession = (besoins) => {
+  const total = besoins.temps;
+  const parJour = besoins.tempsParJour;
+  if (total > 720 && parJour > 0) return fmtTemps(parJour);
+  return fmtTemps(total);
+};
+
 const fmtDate = (date, t, lang) => {
   try {
     const diff = (Date.now() - new Date(date).getTime()) / 60000;
@@ -435,7 +443,7 @@ export default function IrrigationPage() {
                   <View className="items-end">
                     <Text className="text-[12px] text-gray-500 mb-1">{t("irrigation.totalFlow") || "Débit total"}</Text>
                     <Text className="text-[14px] font-semibold text-gray-700 mt-0.5">{besoins.debitM3h} m³/h</Text>
-                    <Text className="text-[14px] font-semibold text-gray-700 mt-0.5">{fmtTemps(besoins.temps)}</Text>
+                    <Text className="text-[14px] font-semibold text-gray-700 mt-0.5">{fmtTempsSession(besoins)}</Text>
                     <Text className="text-[14px] font-semibold text-green-600 mt-0.5">
                       {besoins.eta}% {t("irrigation.effShort") || "eff."}
                     </Text>
@@ -541,12 +549,12 @@ export default function IrrigationPage() {
                     {besoins.isIrrigationDue ? (
                       <Text className="flex-1 text-[13px] leading-5 text-blue-800">
                         {besoins.stockDue
-                          ? `${t("irrigation.irrigateToday")} — `
+                          ? `${t("irrigation.irrigateToday")} : `
                           : `${t("irrigation.openValve")} `}
-                        <Text className="font-bold">{fmtTemps(besoins.temps)}</Text>
+                        <Text className="font-bold">{fmtTempsSession(besoins)}</Text>
                         {` ${t("irrigation.atFlow")} `}
                         <Text className="font-bold">{besoins.debitM3h} m³/h</Text>
-                        {` (${besoins.eta}% ${t("irrigation.effShort")}) · `}
+                        {` (${besoins.eta}% ${t("irrigation.effShort")}), `}
                         <Text className="font-bold">{besoins.eauM3} m³</Text>
                         {` ${t("irrigation.onSurface")} `}
                         <Text className="font-bold">{besoins.surface.toLocaleString(LOCALE_MAP[lang] || "fr-FR")} m²</Text>
@@ -564,7 +572,7 @@ export default function IrrigationPage() {
                 <View className="flex-row items-start gap-2 bg-violet-50 border border-violet-300 p-2.5 rounded-xl mb-2">
                   <Ionicons name="calendar-outline" size={15} color="#7c3aed" />
                   <Text className="flex-1 text-[13px] leading-5 text-violet-700">
-                    RU = {besoins.ru} mm · RFU = {besoins.rfu} mm (p={besoins.pAdj}, z={besoins.z} m) · {t("irrigation.deficitLabel")} = {besoins.deficitMm} mm.{" "}
+                    RU = {besoins.ru} mm · RFU = {besoins.rfu} mm (p={besoins.pAdj}, z={besoins.z} m) · {t("irrigation.deficitLabel")} = {besoins.deficitMm} mm{besoins.deficitTotalM3 ? ` (${besoins.deficitTotalM3} m³)` : ""}.{" "}
                     <Text className="font-bold">
                       {t("irrigation.frequency")} : {t("irrigation.everyDays")} {besoins.frequenceJours} {t("irrigation.daysShort")}
                     </Text>
@@ -573,6 +581,18 @@ export default function IrrigationPage() {
                     {besoins.joursAvantIrrig > 0 ? ` (J+${besoins.joursAvantIrrig}).` : ` (${t("common.today").toLowerCase()}).`}
                   </Text>
                 </View>
+
+                {/* ── Avertissement débit insuffisant ── */}
+                {besoins.temps > 24 * 60 && (
+                  <View className="flex-row items-start gap-2 bg-orange-50 border border-orange-300 p-2.5 rounded-xl mb-2">
+                    <Ionicons name="warning-outline" size={15} color="#c2410c" />
+                    <Text className="flex-1 text-[12px] leading-4 text-orange-800">
+                      {"⚠ "}
+                      <Text className="font-bold">{t("irrigation.lowFlowWarning") || "Débit insuffisant"}</Text>
+                      {" — "}{t("irrigation.lowFlowHint") || `Débit actuel ${besoins.debitM3h} m³/h pour ${(besoins.surface/10000).toFixed(1)} ha. Pour une séance < 12h, il faut ≥ ${((parseFloat(besoins.eauM3) / 12 / 0.9)).toFixed(1)} m³/h. Vérifiez le nombre de plants/goutteurs dans la fiche culture.`}
+                    </Text>
+                  </View>
+                )}
 
                 <TouchableOpacity
                   className="bg-green-50 border-2 border-green-700 rounded-full py-3.5 items-center mt-1"

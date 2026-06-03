@@ -1,5 +1,5 @@
 // app/(tabs)/cultures.jsx — Merge V1 (interface) + V2 (Type de Sol / RFU)
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Platform,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -690,9 +691,46 @@ function CultureCard({ item, deletingId, onDelete, formatDate, t, typesSol, lang
 // ══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ══════════════════════════════════════════════════════════════════════════════
+// ── Toast component ───────────────────────────────────────────────────────────
+function Toast({ message, type = "success", visible }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.delay(2500),
+        Animated.timing(opacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible, message]);
+
+  if (!visible) return null;
+  const bg = type === "success" ? "#16a34a" : "#dc2626";
+  const icon = type === "success" ? "checkmark-circle" : "close-circle";
+
+  return (
+    <Animated.View style={{ opacity, position: "absolute", top: 12, left: 0, right: 0, zIndex: 999, alignItems: "center" }}>
+      <View style={{ backgroundColor: bg, borderRadius: 24, flexDirection: "row", alignItems: "center",
+        paddingHorizontal: 14, paddingVertical: 8, gap: 6, maxWidth: "85%",
+        shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 5 }}>
+        <Ionicons name={icon} size={16} color="#fff" />
+        <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>{message}</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
 export default function CulturesPage() {
   const { t, language } = useLanguage();
   const TYPES_SOL = useMemo(() => getTypesSol(t), [t]);
+
+  // ── Toast state ───────────────────────────────────────────────────────────────
+  const [toast, setToast] = useState({ visible: false, message: "", type: "success" });
+  const showToast = useCallback((message, type = "success") => {
+    setToast({ visible: true, message, type });
+    setTimeout(() => setToast((p) => ({ ...p, visible: false })), 3200);
+  }, []);
 
   // ── Data hook ────────────────────────────────────────────────────────────────
   const {
@@ -704,13 +742,18 @@ export default function CulturesPage() {
     confirmDelete,
     setConfirmDelete,
     deleteCulture,
-    doConfirmedDelete,
+    doConfirmedDelete: _doConfirmedDelete,
     nomSuggestions,
     allVarietes,
     availableCultures,
     totalCulturesDisponibles,
     loadingSuggestions,
   } = useCultures();
+
+  const doConfirmedDelete = useCallback(async () => {
+    await _doConfirmedDelete();
+    showToast(t("cultures.errors.deleteSuccess"), "success");
+  }, [_doConfirmedDelete, showToast, t]);
 
   // ── Form hook ────────────────────────────────────────────────────────────────
   const {
@@ -737,7 +780,12 @@ export default function CulturesPage() {
     validateStep2,
     addCulture,
     resetForm,
-  } = useCultureForm({ onSuccess: loadCultures });
+  } = useCultureForm({
+    onSuccess: () => {
+      loadCultures();
+      showToast(t("cultures.modal.successAdd"), "success");
+    },
+  });
 
   const formatDate = (date) => {
     if (!date) return "";
@@ -774,6 +822,7 @@ export default function CulturesPage() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-100">
+      <Toast message={toast.message} type={toast.type} visible={toast.visible} />
       <BrandHeader
         title={t("cultures.title")}
         right={
@@ -1132,13 +1181,14 @@ export default function CulturesPage() {
                   value={newCulture.nombreArbres}
                   onChangeText={(v) => {
                     setFieldErrors((p) => ({ ...p, nombreArbres: null }));
-                    const arbres = parseInt(v);
+                    const clean = v.replace(/\s/g, "").replace(/,/g, "");
+                    const arbres = parseInt(clean);
                     const surface = parseFloat(newCulture.surface);
                     if (!isNaN(arbres) && arbres > 0 && !isNaN(surface) && surface > 0) {
                       const densite = Math.round((arbres / surface) * 10000);
-                      setNewCulture((prev) => ({ ...prev, nombreArbres: v, densitePlantation: String(densite) }));
+                      setNewCulture((prev) => ({ ...prev, nombreArbres: clean, densitePlantation: String(densite) }));
                     } else {
-                      setNewCulture({ ...newCulture, nombreArbres: v });
+                      setNewCulture({ ...newCulture, nombreArbres: clean });
                     }
                   }}
                 />

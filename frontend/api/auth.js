@@ -35,8 +35,16 @@ async function request(path, options = {}) {
   }
   clearTimeout(timer);
 
-  const data = await res.json();
+  let data;
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    data = await res.json();
+  } else {
+    const text = await res.text();
+    try { data = JSON.parse(text); } catch { data = { message: text }; }
+  }
   if (!res.ok) {
+    if (res.status === 429) throw new Error("Trop de tentatives. Veuillez patienter avant de réessayer.");
     throw new Error(data?.message || data?.error || "Network error");
   }
   return data;

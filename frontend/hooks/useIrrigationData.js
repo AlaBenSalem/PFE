@@ -434,8 +434,13 @@ export function useIrrigationData() {
 
       const deficitMm    = Math.max(0, W_cc - W_current);
       const rainFactor   = 1 - Math.max(0, Math.min(100, rainReductionPct)) / 100;
-      const eauMm        = (deficitMm / eta) * rainFactor;
-      const perteMm      = eauMm - deficitMm * rainFactor;
+      // Dose par session = ETc × fréquence (dose planifiée FAO-56).
+      // On ne tente jamais de récupérer tout le déficit accumulé en une seule séance ;
+      // on applique la dose normale puis on recommence à la prochaine échéance.
+      const doseSesssionMm = etc > 0 ? etc * frequenceJours : rfu;
+      const sessionMm      = Math.min(deficitMm, doseSesssionMm);
+      const eauMm          = (sessionMm / eta) * rainFactor;
+      const perteMm        = (eauMm - sessionMm * rainFactor);
 
       const baseDate = lastIrrig ? new Date(lastIrrig.date) : new Date(now);
       const scheduledDate = new Date(baseDate);
@@ -452,8 +457,12 @@ export function useIrrigationData() {
       if (W_current <= W_seuil)              stockAlert = "warning";
       if (W_current <= W_pf_mm + 0.15 * ru) stockAlert = "critical";
 
-      const debitMmh       = debitLH / surface;
-      const tempsMinutes   = debitMmh > 0 ? Math.round((eauMm / debitMmh) * 60) : 0;
+      const debitMmh           = debitLH / surface;
+      const tempsMinutes       = debitMmh > 0 ? Math.round((eauMm / debitMmh) * 60) : 0;
+      // Durée d'une séance journalière (ETc/eta ÷ débit) — utile quand tempsMinutes > 12h
+      const tempsParJourMinutes = (debitMmh > 0 && eta > 0)
+        ? Math.round((etc / eta / debitMmh) * 60)
+        : 0;
       const volumeLitres   = Math.round(eauMm * surface);
       const litresParArbre = nbArbres ? Math.round((eauMm * surface) / nbArbres) : null;
       const mmParArbre     = nbArbres ? ((eauMm * surface) / nbArbres).toFixed(1) : null;
@@ -474,6 +483,7 @@ export function useIrrigationData() {
         perteMm: perteMm.toFixed(1),
         pourcentagePerte: Math.round(perte * 100),
         temps: tempsMinutes,
+        tempsParJour: tempsParJourMinutes,
         debitMmh: debitMmh.toFixed(1),
         eta: Math.round(eta * 100),
         et0: et0.toFixed(2),
@@ -496,6 +506,7 @@ export function useIrrigationData() {
         kcLabel,
         joursSinceIrrig,
         deficitMm: deficitMm.toFixed(1),
+        deficitTotalM3: mmToM3(deficitMm, surface),
         W_cc, W_pf_mm, W_seuil, W_current, stockPct,
         peff, rainRaw,
         dateProchaine, joursAvantIrrig, isIrrigationDue, stockDue, stockAlert,

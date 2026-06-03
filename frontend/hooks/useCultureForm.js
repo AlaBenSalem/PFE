@@ -116,7 +116,7 @@ export function useCultureForm({ onSuccess }) {
     }
     if (newCulture.densitePlantation.trim()) {
       const dp = parseFloat(newCulture.densitePlantation);
-      if (isNaN(dp) || dp <= 0 || dp > 10000)
+      if (isNaN(dp) || dp <= 0 || dp > 50000)
         errs.densitePlantation = t("cultures.modal.density_invalid");
     }
     if (newCulture.kcMode === "manuel") {
@@ -202,7 +202,7 @@ export function useCultureForm({ onSuccess }) {
       errs.densitePlantation = t("cultures.modal.density_required");
     } else {
       const dp = parseFloat(newCulture.densitePlantation);
-      if (isNaN(dp) || dp <= 0 || dp > 10000)
+      if (isNaN(dp) || dp <= 0 || dp > 50000)
         errs.densitePlantation = t("cultures.modal.density_invalid");
     }
     if (newCulture.thetaCc.trim()) {
@@ -314,7 +314,6 @@ export function useCultureForm({ onSuccess }) {
         setModalVisible(false);
         resetForm();
         if (onSuccess) onSuccess();
-        Alert.alert(t("common.successTitle"), t("cultures.modal.successAdd"));
       } else {
         Alert.alert(
           t("common.errorTitle"),
