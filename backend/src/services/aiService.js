@@ -242,7 +242,6 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
       ? 'Aucune culture.'
       : cultures.map((c, i) => {
           const parts = [`${i + 1}. ${c.nom}`];
-          if (c.variete)     parts.push(`(${c.variete})`);
           if (c.surface)     parts.push(`${c.surface}m²`);
           if (c.kcActuel)    parts.push(`Kc=${c.kcActuel}`);
           if (c.nombreArbres) parts.push(`${c.nombreArbres}arb`);
@@ -306,7 +305,7 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
             const dureePart = dureeMin > 0
               ? ` | Durée d'ouverture vanne: ${dureeFmt}${live.temps > 720 ? '/jour' : ''} à ${live.debitM3h} m³/h`
               : '';
-            return `• ${c.nom} (${c.variete}): ET₀=${live.et0} mm/j × Kc=${live.kc} = ETc=${live.etc} mm/j${volPart}${dureePart} | Mode: ${mode} η=${live.eta}%${freqPart}${soilPart}`;
+            return `• ${c.nom}: ET₀=${live.et0} mm/j × Kc=${live.kc} = ETc=${live.etc} mm/j${volPart}${dureePart} | Mode: ${mode} η=${live.eta}%${freqPart}${soilPart}`;
           }
 
           // ── Fallback: FAO-56 balance with dynamic Kc from same source as frontend ──
@@ -342,7 +341,7 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
             const fmt = totalMin >= 60 ? `${hh}h${mm > 0 ? String(mm).padStart(2,'0') : ''}` : `${totalMin} min`;
             dureePart = ` | Durée d'ouverture vanne: ${fmt}/jour à ${(debitLH/1000).toFixed(3)} m³/h`;
           }
-          return `• ${c.nom} (${c.variete}): ET₀=${et0} mm/j × Kc=${kc} = ETc=${etc} mm/j${volumePart}${dureePart} | Mode: ${mode} η=${effPct}%${freqPart}${soilPart}`;
+          return `• ${c.nom}: ET₀=${et0} mm/j × Kc=${kc} = ETc=${etc} mm/j${volumePart}${dureePart} | Mode: ${mode} η=${effPct}%${freqPart}${soilPart}`;
         }).filter(Boolean).join('\n')
       : 'Calcul ETc non disponible (météo manquante).';
 
@@ -362,7 +361,7 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
                             || irrigationOverrides[cid];
 
           if (!last && !overrideDate && !liveDataMap[c.nom.toLowerCase().trim()]?.dateProchaine)
-            return `• ${c.nom} (${c.variete}): aucune irrigation enregistrée`;
+            return `• ${c.nom}: aucune irrigation enregistrée`;
 
           // Helper: advance a date by multiples of freq until >= todayMidnight
           function advanceToFuture(baseDate, freqDays) {
@@ -387,7 +386,7 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
               ? live.joursAvantIrrig
               : Math.ceil((dateProchaine - todayMidnight) / 86400000);
             const label = joursAvant <= 0 ? "aujourd'hui" : joursAvant === 1 ? "demain (J+1)" : `J+${joursAvant}`;
-            return `• ${c.nom} (${c.variete}): prochaine irrigation le ${formatDate(dateProchaine)} [${label}]` +
+            return `• ${c.nom}: prochaine irrigation le ${formatDate(dateProchaine)} [${label}]` +
                    (freqJours ? ` — fréquence: ${freqJours} jours` : '');
           }
 
@@ -404,10 +403,10 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
           if (dateProchaine) {
             const joursAvant = Math.ceil((dateProchaine - todayMidnight) / 86400000);
             const label = joursAvant <= 0 ? "aujourd'hui" : joursAvant === 1 ? "demain (J+1)" : `J+${joursAvant}`;
-            return `• ${c.nom} (${c.variete}): prochaine irrigation le ${formatDate(dateProchaine)} [${label}]` +
+            return `• ${c.nom}: prochaine irrigation le ${formatDate(dateProchaine)} [${label}]` +
                    (freqJours ? ` — fréquence: ${freqJours} jours` : '');
           }
-          return `• ${c.nom} (${c.variete}): dernière irrigation le ${formatDate(last.date)} — fréquence non définie`;
+          return `• ${c.nom}: dernière irrigation le ${formatDate(last.date)} — fréquence non définie`;
         }).join('\n');
 
     const nextFertLines = cultures.length === 0
@@ -416,17 +415,17 @@ async function buildUserContext(userId, userCity = 'Tunis', irrigationOverrides 
           const cid  = c._id.toString();
           const last = lastFertByCulture[cid];
           if (last?.prochaineDate)
-            return `• ${c.nom} (${c.variete}): prochaine fertilisation le ${formatDate(last.prochaineDate)} [${joursLabel(last.prochaineDate)}] — produit: ${last.produit} (${last.typeProduit})` +
+            return `• ${c.nom}: prochaine fertilisation le ${formatDate(last.prochaineDate)} [${joursLabel(last.prochaineDate)}] — produit: ${last.produit} (${last.typeProduit})` +
                    (last.frequenceJours ? ` — fréquence: ${last.frequenceJours} jours` : '');
           if (last?.frequenceJours > 0) {
             const next = new Date(new Date(last.date).getTime() + last.frequenceJours * 86400000);
-            return `• ${c.nom} (${c.variete}): prochaine fertilisation estimée le ${formatDate(next)} [${joursLabel(next)}] — produit: ${last.produit} (${last.typeProduit}) — fréquence: ${last.frequenceJours} jours`;
+            return `• ${c.nom}: prochaine fertilisation estimée le ${formatDate(next)} [${joursLabel(next)}] — produit: ${last.produit} (${last.typeProduit}) — fréquence: ${last.frequenceJours} jours`;
           }
           const fao   = getNextFAOFertDate(c.nom);
           const label = last ? `dernière fertilisation: ${formatDate(last.date)} — ` : 'aucune fertilisation en base — ';
           return fao
-            ? `• ${c.nom} (${c.variete}): ${label}prochaine FAO-56: ${formatDate(fao.date)} [${joursLabel(fao.date)}] — produit: ${fao.produit} (${fao.dose})`
-            : `• ${c.nom} (${c.variete}): aucune donnée de fertilisation`;
+            ? `• ${c.nom}: ${label}prochaine FAO-56: ${formatDate(fao.date)} [${joursLabel(fao.date)}] — produit: ${fao.produit} (${fao.dose})`
+            : `• ${c.nom}: aucune donnée de fertilisation`;
         }).join('\n');
 
     const weatherSummary = weather
