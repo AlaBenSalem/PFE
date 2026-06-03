@@ -129,11 +129,24 @@ async function webSpeak(text, langCode, { rate = 0.92, pitch = 1.0, onDone, onEr
   const voices     = await loadWebVoices();
   const utterance  = new window.SpeechSynthesisUtterance(text);
   const langPrefix = langCode.split("-")[0];
-  const matched    =
-    voices.find((v) => v.lang === langCode && v.name?.toLowerCase().includes("google")) ||
-    voices.find((v) => v.lang?.startsWith(langPrefix) && v.name?.toLowerCase().includes("google")) ||
-    voices.find((v) => v.lang === langCode) ||
-    voices.find((v) => v.lang?.startsWith(langPrefix));
+  const isAr       = langPrefix === "ar";
+
+  let matched;
+  if (isAr) {
+    // Priorité pour l'arabe : voix Neural Microsoft (Natural) > Google > toute voix arabe
+    matched =
+      voices.find((v) => v.lang?.startsWith("ar") && /natural/i.test(v.name)) ||
+      voices.find((v) => v.lang?.startsWith("ar") && /microsoft/i.test(v.name) && /online/i.test(v.name)) ||
+      voices.find((v) => v.lang?.startsWith("ar") && /microsoft/i.test(v.name)) ||
+      voices.find((v) => v.lang?.startsWith("ar") && /google/i.test(v.name)) ||
+      voices.find((v) => v.lang?.startsWith("ar"));
+  } else {
+    matched =
+      voices.find((v) => v.lang === langCode && v.name?.toLowerCase().includes("google")) ||
+      voices.find((v) => v.lang?.startsWith(langPrefix) && v.name?.toLowerCase().includes("google")) ||
+      voices.find((v) => v.lang === langCode) ||
+      voices.find((v) => v.lang?.startsWith(langPrefix));
+  }
   if (matched) utterance.voice = matched;
   utterance.lang  = langCode;
   utterance.rate  = rate;
