@@ -1,5 +1,5 @@
 // app/(tabs)/irrigation.jsx
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator,
   Modal, FlatList, Platform,
@@ -43,10 +43,10 @@ const SOL_EMOJIS = {
 };
 const LOCALE_MAP = { fr: "fr-FR", en: "en-US", ar: "ar", tr: "tr-TR" };
 const ALERT_TXT = {
-  fr: { count: "alerte(s) en cours", tap: "Appuyez sur 🔔 pour les détails" },
-  en: { count: "active alert(s)",    tap: "Tap 🔔 for details" },
-  ar: { count: "تنبيهات نشطة",       tap: "اضغط على 🔔 للتفاصيل" },
-  tr: { count: "aktif uyarı",        tap: "Detaylar için 🔔 ye dokunun" },
+  fr: { count: "culture(s) à irriguer aujourd'hui", tap: "Appuyez sur 🔔 pour les détails" },
+  en: { count: "crop(s) to irrigate today",         tap: "Tap 🔔 for details" },
+  ar: { count: "محصول(محاصيل) تحتاج للري اليوم",   tap: "اضغط على 🔔 للتفاصيل" },
+  tr: { count: "bugün sulanacak bitki(ler)",         tap: "Detaylar için 🔔 ye dokunun" },
 };
 
 // ── Pure UI helpers ───────────────────────────────────────────────────────────
@@ -111,6 +111,7 @@ export default function IrrigationPage() {
     loadingKc,
     debitMissing,
     calculateNeeds,
+    calculateNeedsForCulture,
     selectCulture,
     fetchCultures,
     fetchHistory,
@@ -135,8 +136,6 @@ export default function IrrigationPage() {
     exporting,
     exportingPDF,
     rainReduction,
-    setIsCompleted,
-    setEtcHistoryKey,
     setCultureModalVisible,
     setActiveTab,
     setRainReduction,
@@ -157,12 +156,61 @@ export default function IrrigationPage() {
   });
 
   // ── Notifications ───────────────────────────────────────────────────────────
-  const { notifications, markRead, markAllRead } = useIrrigationNotifications(
+  const { markRead, markAllRead } = useIrrigationNotifications(
     cultures ?? [], historyItems ?? [], null, lang,
   );
-  const urgentCount = (notifications ?? []).filter(
-    (n) => !n.read && (n.type === "urgent" || n.type === "warning")
-  ).length;
+
+  // Générer les notifications depuis le bilan hydrique FAO-56 (plus fiable que la météo seule)
+  const notifications = useMemo(() => {
+    if (!cultures?.length) return [];
+    const today = new Date().toISOString().slice(0, 10);
+    return cultures.map((c) => {
+      try {
+        const b = calculateNeedsForCulture(c, "goutte-à-goutte");
+        if (!b) return null;
+        const id = `${c._id}-${today}`;
+        if (b.isIrrigationDue && b.stockDue) {
+          return {
+            id, type: "urgent", read: false,
+            title: {
+              fr: `🚨 Irrigation requise — ${c.nom}`,
+              en: `🚨 Irrigation required — ${c.nom}`,
+              ar: `🚨 الري مطلوب — ${c.nom}`,
+              tr: `🚨 Sulama gerekli — ${c.nom}`,
+            }[lang] || `🚨 Irrigation requise — ${c.nom}`,
+            message: {
+              fr: `Stock ${b.W_current?.toFixed(0)} mm / ${b.W_cc?.toFixed(0)} mm · Déficit ${b.deficitMm} mm · ${b.eauM3} m³ à apporter`,
+              en: `Stock ${b.W_current?.toFixed(0)} mm / ${b.W_cc?.toFixed(0)} mm · Deficit ${b.deficitMm} mm · ${b.eauM3} m³ needed`,
+              ar: `المخزون ${b.W_current?.toFixed(0)} مم · العجز ${b.deficitMm} مم`,
+              tr: `Stok ${b.W_current?.toFixed(0)} mm · Açık ${b.deficitMm} mm`,
+            }[lang] || `Déficit ${b.deficitMm} mm`,
+            time: c.parcelle || "",
+          };
+        }
+        if (b.isIrrigationDue) {
+          return {
+            id, type: "warning", read: false,
+            title: {
+              fr: `💧 À irriguer — ${c.nom}`,
+              en: `💧 Irrigate — ${c.nom}`,
+              ar: `💧 اسقِ الآن — ${c.nom}`,
+              tr: `💧 Sulama zamanı — ${c.nom}`,
+            }[lang] || `💧 À irriguer — ${c.nom}`,
+            message: {
+              fr: `Fréquence ${b.frequenceJours}j · ETc ${b.etc} mm/j · ${b.eauM3} m³`,
+              en: `Freq ${b.frequenceJours}d · ETc ${b.etc} mm/d · ${b.eauM3} m³`,
+              ar: `تواتر ${b.frequenceJours}ي · ETc ${b.etc} مم/ي`,
+              tr: `Sıklık ${b.frequenceJours}g · ETc ${b.etc} mm/g`,
+            }[lang] || `ETc ${b.etc} mm/j`,
+            time: c.parcelle || "",
+          };
+        }
+        return null;
+      } catch { return null; }
+    }).filter(Boolean);
+  }, [cultures, historyItems, lang]);
+
+  const urgentCount = notifications.filter((n) => !n.read && (n.type === "urgent" || n.type === "warning")).length;
 
   const getModeLabel = (mode) => {
     if (mode === "goutte-à-goutte") return t("irrigation.drip") || "Goutte-à-goutte";
@@ -581,18 +629,6 @@ export default function IrrigationPage() {
                     {besoins.joursAvantIrrig > 0 ? ` (J+${besoins.joursAvantIrrig}).` : ` (${t("common.today").toLowerCase()}).`}
                   </Text>
                 </View>
-
-                {/* ── Avertissement débit insuffisant ── */}
-                {besoins.temps > 24 * 60 && (
-                  <View className="flex-row items-start gap-2 bg-orange-50 border border-orange-300 p-2.5 rounded-xl mb-2">
-                    <Ionicons name="warning-outline" size={15} color="#c2410c" />
-                    <Text className="flex-1 text-[12px] leading-4 text-orange-800">
-                      {"⚠ "}
-                      <Text className="font-bold">{t("irrigation.lowFlowWarning") || "Débit insuffisant"}</Text>
-                      {" — "}{t("irrigation.lowFlowHint") || `Débit actuel ${besoins.debitM3h} m³/h pour ${(besoins.surface/10000).toFixed(1)} ha. Pour une séance < 12h, il faut ≥ ${((parseFloat(besoins.eauM3) / 12 / 0.9)).toFixed(1)} m³/h. Vérifiez le nombre de plants/goutteurs dans la fiche culture.`}
-                    </Text>
-                  </View>
-                )}
 
                 <TouchableOpacity
                   className="bg-green-50 border-2 border-green-700 rounded-full py-3.5 items-center mt-1"

@@ -38,6 +38,7 @@ export default function ContactAdmin() {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [successVisible, setSuccessVisible] = useState(false);
 
   const iconScale = useSharedValue(1);
   const iconRotate = useSharedValue(0);
@@ -107,7 +108,8 @@ export default function ContactAdmin() {
 
       setSubject("");
       setBody("");
-      Alert.alert(t("messages.sentTitle"), t("messages.sentBody"));
+      setSuccessVisible(true);
+      setTimeout(() => setSuccessVisible(false), 4000);
     } catch (error) {
       const isTimeout = error?.name === "AbortError" || error?.name === "TimeoutError";
       Alert.alert(
@@ -226,6 +228,15 @@ export default function ContactAdmin() {
               textAlignVertical="top"
               maxLength={5000}
             />
+
+            {successVisible && (
+              <View className="mt-3 flex-row items-center gap-2 rounded-[14px] bg-green-50 border border-green-300 px-4 py-3">
+                <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
+                <Text className="flex-1 text-[13px] font-semibold text-green-700">
+                  {t("messages.sentBody") || "Votre message a été envoyé avec succès !"}
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity
               onPress={onSend}
