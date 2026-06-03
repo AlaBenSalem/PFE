@@ -25,11 +25,12 @@ function detectMessageLanguage(text = '') {
     return 'MODERN_ARABIC — Respond in Modern Standard Arabic (فصحى) using Arabic script.';
   if (/[şğüöçıİŞĞÜÖÇ]/i.test(text) || /\b(merhaba|teşekkür|nasıl|tamam|evet|hayır|ne|bu|bir|var|yok|benim|senin|kültür|sulama|gübre|bitki|hava|tarih|sonraki|toplam|kaç|isim|isimler|listesi|kadar|değil)\b/i.test(text))
     return 'TURKISH — Respond in Turkish.';
-  if (/[àâçéèêëîïôœùûü]/i.test(text) || /\b(le|la|les|de|du|des|pour|avec|bonjour|salut|merci|comment|quand|pourquoi|oui|non|je|tu|nous|vous|est|bien|pas|mais|mon|ton|une|sur|dans|qui|que|si|aussi|très|votre|notre|faire|aller|eau|plante|culture|irrigation|météo|fertilisation|date|suivant)\b/i.test(text))
+  if (/[àâçéèêëîïôœùûü]/i.test(text) || /\b(le|la|les|de|du|des|pour|avec|bonjour|salut|merci|comment|quand|pourquoi|oui|non|je|tu|nous|vous|est|bien|pas|mais|mon|ton|une|sur|dans|qui|que|si|aussi|très|votre|notre|faire|aller|eau|plante|culture|cultures|irrigation|météo|fertilisation|date|suivant|nom|noms|liste|mes|ma|affiche|montre|donne|dites|quel|quelle|quels|quelles|tout|tous|toutes|combien|vanne|durée|débit|surface|plants|prochaine|fréquence|volume|stock|sol|région|parcelle|variété|variete|orange|tomate|olivier|blé|mais|j|c|s|n|qu|y|m)\b/i.test(text))
     return 'FRENCH — Respond in French.';
-  if (/\b(the|is|are|and|for|with|your|you|this|have|will|hello|hi|how|what|when|why|yes|no|ok|please|thanks|help|need|want|my|can|crop|plant|water|weather|irrigation|farm|soil|harvest|next|date)\b/i.test(text))
+  if (/\b(the|is|are|and|for|with|your|you|this|have|will|hello|hi|how|what|when|why|yes|no|ok|please|thanks|help|need|want|my|can|crop|plant|water|weather|irrigation|farm|soil|harvest|next|date|name|names|list|show|give|all|cultures|duration|flow|surface|region)\b/i.test(text))
     return 'ENGLISH — Respond in English.';
-  return 'TUNISIAN_ARABIC — Default. Respond in Tunisian Arabic dialect (دارجة) using Arabic script.';
+  // Fallback : French (langue principale de l'app, messages courts sans contexte clair)
+  return 'FRENCH — Respond in French.';
 }
 
 // ── Météo (cache 30 min) ──────────────────────────────────────────────────────
