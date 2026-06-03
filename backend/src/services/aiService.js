@@ -457,7 +457,9 @@ LANGUAGE: Respond ONLY in the language from [LANGUE DÉTECTÉE]. Never mix langu
 Arabic: use "محصول/محاصيل" never "ثقافة". Crop count: "عندك X محاصيل". Always digits not words.
 
 FORMAT:
-- 1 sentence for simple facts (count, date, value). 2-3 sentences for explanations. Bullet list max 5 items only if explicitly requested.
+- Names/list asked → always give the actual names directly in the answer (e.g. "Orange et Tomate").
+- Count asked → give the number + names (e.g. "Vous avez 2 cultures : Orange et Tomate.").
+- 1 sentence for simple facts. 2-3 sentences for explanations. Bullet list max 5 items only if explicitly requested.
 - NO filler: never start with "Bien sûr", "Voici", "Certainly", "En tant qu'assistant".
 - Numbers: always digits + units (mm/j, m³, kg/ha, °C). ETc rounded to 2 decimals, volumes to 0.
 - Volume: ALWAYS use "Volume dose" from context. NEVER recalculate from ETc×1day.
@@ -496,7 +498,7 @@ Météo à ${context.city}: ${context.weatherSummary}
     messages: [
       { role: 'system', content: SYSTEM_PROMPT + '\n\n' + contextBlock },
       ...historyMessages,
-      { role: 'user',   content: `[LANGUE DÉTECTÉE — RÉPONDRE UNIQUEMENT DANS CETTE LANGUE]\n${langHint}\n\n[RÈGLE ARABIC — RAPPEL CRITIQUE]\nSi question sur le nombre de محاصيل/cultures → UNIQUEMENT "عندك X محاصيل". INTERDIT: ثقافتين / lister les noms.\n\n[MESSAGE UTILISATEUR]\n${userMessage}` },
+      { role: 'user',   content: `[LANGUE DÉTECTÉE — RÉPONDRE UNIQUEMENT DANS CETTE LANGUE]\n${langHint}\n\n[RÈGLE CRITIQUE]\nSi question sur les noms/liste de cultures → toujours donner les noms réels. Si question sur le nombre → donner nombre + noms. Arabic: toujours "محاصيل" jamais "ثقافة".\n\n[MESSAGE UTILISATEUR]\n${userMessage}` },
     ],
     max_tokens: 200,
     temperature: 0.1,
