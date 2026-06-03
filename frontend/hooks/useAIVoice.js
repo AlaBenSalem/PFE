@@ -351,36 +351,53 @@ export function useAIVoice({ onTranscriptReady, onInterimTranscript } = {}) {
     const pitch    = SPEECH_PITCH[detectedLang] ?? 1.0;
 
     try {
-      if (Platform.OS === "web") {
-        if (isArabic) {
-          const ok = await speakWithElevenLabsWeb(cleaned, detectedLang);
-          if (ok) return;
+      // ── Arabe : voix native système (100% gratuit — Google TTS sur Android,
+      //    Apple TTS sur iOS, voix système sur web) ───────────────────────────
+      if (isArabic) {
+        const ttsText = prepareArabicTTS(cleaned);
+        if (Platform.OS === "web") {
+          await webSpeak(ttsText, "ar-SA", {
+            rate: 0.85, pitch: 1.0,
+            onDone:  () => setIsSpeaking(false),
+            onError: () => setIsSpeaking(false),
+          });
+        } else {
+          const opts = {
+            language: "ar-SA",
+            rate: 0.85,
+            pitch: 1.0,
+            onDone:  () => setIsSpeaking(false),
+            onError: () => setIsSpeaking(false),
+          };
+          if (Platform.OS === "android" && nativeVoices["ar-SA"]) {
+            opts.voice = nativeVoices["ar-SA"];
+          }
+          Speech.speak(ttsText, opts);
         }
-        await webSpeak(cleaned, detectedLang, {
-          rate, pitch,
-          onDone:  () => setIsSpeaking(false),
-          onError: () => setIsSpeaking(false),
-        });
         return;
       }
 
-      if (isArabic) {
-        const ok = await speakWithElevenLabs(cleaned, detectedLang);
-        if (ok) return;
+      // ── Autres langues : ElevenLabs ────────────────────────────────────────
+      if (Platform.OS === "web") {
+        const ok = await speakWithElevenLabsWeb(cleaned, detectedLang);
+        if (!ok) {
+          await webSpeak(cleaned, detectedLang, {
+            rate, pitch,
+            onDone:  () => setIsSpeaking(false),
+            onError: () => setIsSpeaking(false),
+          });
+        }
+        return;
       }
 
-      const ttsText = isArabic ? prepareArabicTTS(cleaned) : cleaned;
-      const opts = {
-        language: detectedLang,
-        rate,
-        pitch,
-        onDone:  () => setIsSpeaking(false),
-        onError: () => setIsSpeaking(false),
-      };
-      if (Platform.OS === "android" && nativeVoices[detectedLang]) {
-        opts.voice = nativeVoices[detectedLang];
+      const ok = await speakWithElevenLabs(cleaned, detectedLang);
+      if (!ok) {
+        Speech.speak(cleaned, {
+          language: detectedLang, rate, pitch,
+          onDone:  () => setIsSpeaking(false),
+          onError: () => setIsSpeaking(false),
+        });
       }
-      Speech.speak(ttsText, opts);
 
     } catch (e) {
       console.error("❌ [TTS]", e.message);
